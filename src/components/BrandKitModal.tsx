@@ -107,6 +107,9 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
         />
 
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="brand-kit-title"
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -119,7 +122,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Official Brand Assets & Logos</span>
               </div>
-              <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+              <h2 id="brand-kit-title" className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
                 <img src="/logos/primary-logo.svg" alt="" className="w-7 h-7 object-contain" />
                 CodeSage Identity Kit
               </h2>
@@ -131,6 +134,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setPreviewBg(previewBg === 'dark' ? 'light' : 'dark')}
+                aria-label="Toggle preview background"
                 className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs flex items-center gap-1.5"
                 title="Toggle preview background"
               >
@@ -139,6 +143,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
               </button>
               <button
                 onClick={onClose}
+                aria-label="Close brand kit modal"
                 className="p-2 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />

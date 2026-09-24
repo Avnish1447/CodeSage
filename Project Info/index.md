@@ -44,6 +44,7 @@ Use the map below to navigate the core documentation vault:
 
 - **System Blueprint:** [[architecture-and-methodology]] — Deep dive into Node.js 22, Express proxy, React 18, and `@google/genai` integration.
 - **Roadmap & Sprints:** [[progress-tracker]] — Reverse-chronological changelog, current sprint backlog, and long-term milestones.
+- **Pending Work & Improvements:** [[pending-work-and-improvements]] — Active task tracking, technical debt, and planned polish.
 - **Architectural History:** [[decisions-log]] — ADRs covering ESM bundling, single-container hosting, and anti-slop design.
 - **Agent Directives:** [[agents.md]] — Behavioral guidelines, anti-slop styling rules, and edit hygiene for AI copilots (Cursor, Claude, Gemini).
 - **External Resources:** [[sources-and-resources]] — Live deployment URLs, SDK documentation, and research citations.

@@ -133,24 +133,24 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
   };
 
   return (
-    <div className={`w-full ${isModal ? 'max-w-5xl mx-auto' : ''} space-y-6 text-slate-100`}>
+    <div className={`w-full ${isModal ? 'max-w-5xl mx-auto' : ''} space-y-6 text-slate-900 dark:text-slate-100`}>
       {/* Header Banner */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl backdrop-blur-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white/95 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl dark:shadow-2xl backdrop-blur-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
               <Sparkles className="w-3 h-3" />
               Claymorphic Launch Film
             </span>
 
             {/* Version Toggle Pill Buttons */}
-            <div className="inline-flex rounded-full bg-slate-950 p-0.5 border border-slate-800">
+            <div className="inline-flex rounded-full bg-slate-100 dark:bg-slate-950 p-0.5 border border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => switchVersion('extended')}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                   selectedVersion === 'extended'
                     ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Pro 3D Launch Film (38s)
@@ -160,7 +160,7 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                   selectedVersion === 'teaser'
                     ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Social Teaser (18s)
@@ -168,8 +168,8 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
             </div>
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-            <div className="p-1 rounded-xl bg-slate-950 border border-purple-500/40 shadow-[0_0_12px_rgba(147,51,234,0.35)] flex-shrink-0">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+            <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-[#e8702a]/30 shadow-[0_0_12px_rgba(232,112,42,0.25)] flex-shrink-0">
               <picture>
                 <source srcSet="/logos/app-icon.png" type="image/png" />
                 <img src="/logos/app-icon.svg" alt="CodeSage" className="w-6 h-6 object-contain rounded" />
@@ -177,7 +177,7 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
             </div>
             <span>CodeSage: Stop Guessing. Start Excavating.</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
             {selectedVersion === 'extended'
               ? 'Pro-grade cinematic 3D launch film — dynamic 3D camera rig, volumetric claymorphism, speed-ramped AST coring, live RAG code citations & multi-track sound design.'
               : 'Punchy 18s social teaser designed for high-impact launch announcements.'}
@@ -188,15 +188,15 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
           <a
             href={currentConfig.src}
             download={`codesage-${selectedVersion}.mp4`}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition-all hover:text-white"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-all hover:text-slate-900 dark:hover:text-white"
           >
-            <Download className="w-4 h-4 text-emerald-400" />
+            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Download MP4 ({currentConfig.duration}s)</span>
           </a>
           <a
             href={currentConfig.poster}
             download={`codesage-${selectedVersion}-poster.jpg`}
-            className="hidden sm:inline-flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold transition-all hover:text-white"
+            className="hidden sm:inline-flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all hover:text-slate-900 dark:hover:text-white"
           >
             <span>Poster JPG</span>
           </a>
@@ -286,27 +286,27 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
       {/* Interactive Scene Beat Jumps */}
       <div>
         <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Interactive Storyboard Markers ({currentConfig.scenes.length} Scenes)</span>
           </span>
-          <span className="text-[11px] font-mono text-slate-500">Click to jump directly to any feature</span>
+          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">Click to jump directly to any feature</span>
         </div>
         <div className={`grid grid-cols-2 sm:grid-cols-3 ${selectedVersion === 'extended' ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-2.5`}>
           {currentConfig.scenes.map((s, i) => (
             <button
               key={i}
               onClick={() => jumpToTime(s.time)}
-              className="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition-all hover:border-emerald-500/40 group cursor-pointer"
+              className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/80 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-left transition-all hover:border-emerald-500/40 group cursor-pointer"
             >
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-mono text-emerald-400 font-bold">{s.label}</span>
-                <Play className="w-3 h-3 text-slate-500 group-hover:text-emerald-400 transition-colors" />
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{s.label}</span>
+                <Play className="w-3 h-3 text-slate-400 dark:text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
               </div>
-              <div className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors truncate">
+              <div className="text-xs font-semibold text-slate-800 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors truncate">
                 {s.title}
               </div>
-              <div className="text-[10px] text-slate-400 truncate mt-0.5">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                 {s.desc}
               </div>
             </button>
@@ -315,27 +315,27 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
       </div>
 
       {/* Share & Social Copy Deck */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-800">
+      <div className="bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Share2 className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Launch Announcement Kit</span>
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Ready-to-post launch copy for Twitter/X, LinkedIn, and Discord communities.
             </p>
           </div>
 
-          <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
             {(['x', 'linkedin', 'discord'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveShareTab(tab)}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                   activeShareTab === tab
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 {tab === 'x' ? 'Twitter / X' : tab === 'linkedin' ? 'LinkedIn' : 'Discord'}
@@ -344,18 +344,18 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
           </div>
         </div>
 
-        <div className="relative bg-slate-950 rounded-xl p-4 border border-slate-800/80">
-          <pre className="font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+        <div className="relative bg-slate-50 dark:bg-slate-950 rounded-xl p-4 border border-slate-200 dark:border-slate-800/80">
+          <pre className="font-mono text-xs text-slate-800 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
             {shareTexts[activeShareTab]}
           </pre>
 
           <button
             onClick={() => handleCopy(activeShareTab)}
-            className="absolute top-3 right-3 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 text-xs font-semibold transition-all cursor-pointer"
+            className="absolute top-3 right-3 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold transition-all cursor-pointer"
           >
             {copiedTab === activeShareTab ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Copied!</span>
               </>
             ) : (

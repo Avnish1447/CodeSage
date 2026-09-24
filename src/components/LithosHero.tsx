@@ -37,29 +37,77 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
   const revealRef = useRef<HTMLDivElement | null>(null);
   const mouseRef = useRef({ x: -999, y: -999 });
   const smoothRef = useRef({ x: -999, y: -999 });
+  const userInteracted = useRef(false);
+  const sweepStartTime = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      userInteracted.current = true;
       mouseRef.current = { x: e.clientX, y: e.clientY };
       if (smoothRef.current.x === -999) {
         smoothRef.current = { x: e.clientX, y: e.clientY };
       }
     };
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        userInteracted.current = true;
+        const touch = e.touches[0];
+        mouseRef.current = { x: touch.clientX, y: touch.clientY };
+        if (smoothRef.current.x === -999) {
+          smoothRef.current = { x: touch.clientX, y: touch.clientY };
+        }
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchstart', handleTouchMove, { passive: true });
 
-    const loop = () => {
-      if (mouseRef.current.x !== -999 && revealRef.current) {
-        const dx = mouseRef.current.x - smoothRef.current.x;
-        const dy = mouseRef.current.y - smoothRef.current.y;
+    const sweepDuration = 3200;
 
-        if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
-          smoothRef.current.x += dx * 0.15;
-          smoothRef.current.y += dy * 0.15;
-          const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, black 0%, black 40%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0.12) 88%, transparent 100%)`;
-          revealRef.current.style.webkitMaskImage = maskStyle;
-          revealRef.current.style.maskImage = maskStyle;
+    const loop = (timestamp: number) => {
+      if (revealRef.current) {
+        if (userInteracted.current) {
+          // Direct user tracking
+          if (mouseRef.current.x !== -999) {
+            const dx = mouseRef.current.x - smoothRef.current.x;
+            const dy = mouseRef.current.y - smoothRef.current.y;
+
+            if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
+              smoothRef.current.x += dx * 0.15;
+              smoothRef.current.y += dy * 0.15;
+              const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, black 0%, black 40%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0.12) 88%, transparent 100%)`;
+              revealRef.current.style.webkitMaskImage = maskStyle;
+              revealRef.current.style.maskImage = maskStyle;
+            }
+          }
+        } else {
+          // Automated sweep run once across hero canvas
+          if (sweepStartTime.current === null) {
+            sweepStartTime.current = timestamp;
+          }
+          const elapsed = timestamp - sweepStartTime.current;
+          if (elapsed < sweepDuration) {
+            const progress = elapsed / sweepDuration;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            // Smooth natural arc from left-top to center-right
+            const autoX = w * (0.15 + progress * 0.7);
+            const autoY = h * (0.35 + Math.sin(progress * Math.PI) * 0.25);
+
+            if (smoothRef.current.x === -999) {
+              smoothRef.current = { x: autoX, y: autoY };
+            } else {
+              smoothRef.current.x += (autoX - smoothRef.current.x) * 0.12;
+              smoothRef.current.y += (autoY - smoothRef.current.y) * 0.12;
+            }
+
+            const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, black 0%, black 40%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0.12) 88%, transparent 100%)`;
+            revealRef.current.style.webkitMaskImage = maskStyle;
+            revealRef.current.style.maskImage = maskStyle;
+          }
         }
       }
       rafRef.current = requestAnimationFrame(loop);
@@ -69,6 +117,8 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchstart', handleTouchMove);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, []);
@@ -96,7 +146,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
             <img
               src="/logos/text mark.svg"
               alt="CodeSage"
-              className="h-8 sm:h-9 md:h-10 w-auto max-w-[190px] sm:max-w-[240px] object-contain drop-shadow-[0_2px_14px_rgba(168,85,247,0.45)] brightness-125 hover:brightness-150 transition-all duration-200"
+              className="h-8 sm:h-9 md:h-10 w-auto max-w-[190px] sm:max-w-[240px] object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] brightness-125 hover:brightness-150 transition-all duration-200"
               onError={(e) => {
                 const target = e.currentTarget;
                 if (!target.src.includes('textmark.png')) {
@@ -120,6 +170,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             className="md:hidden text-white p-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -160,16 +211,16 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
       {/* 3. Central Heading (z-50) */}
       <div className="absolute top-[12%] sm:top-[13%] left-0 right-0 flex flex-col items-center text-center px-5 pointer-events-none z-50">
         {/* Floating Brand Badge */}
-        <div className="mb-4 sm:mb-5 inline-flex items-center space-x-3 px-4 py-2 rounded-full bg-slate-950/80 backdrop-blur-xl border border-purple-500/30 shadow-[0_0_25px_rgba(147,51,234,0.35)] pointer-events-auto">
+        <div className="mb-4 sm:mb-5 inline-flex items-center space-x-3 px-4 py-2 rounded-full bg-slate-950/80 backdrop-blur-xl border border-[#e8702a]/30 shadow-[0_0_20px_rgba(232,112,42,0.2)] pointer-events-auto">
           <picture>
             <source srcSet="/logos/app-icon.png" type="image/png" />
             <img
               src="/logos/app-icon.svg"
               alt="CodeSage"
-              className="w-5 h-5 object-contain rounded drop-shadow-[0_0_8px_rgba(168,85,247,0.7)]"
+              className="w-5 h-5 object-contain rounded drop-shadow-[0_0_8px_rgba(232,112,42,0.5)]"
             />
           </picture>
-          <span className="text-xs font-mono font-bold tracking-widest uppercase text-purple-200">
+          <span className="text-xs font-mono font-bold tracking-widest uppercase text-slate-200">
             Official CodeSage Platform
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />

@@ -25,6 +25,8 @@ import {
 
 interface PresentationModeProps {
   onClose?: () => void;
+  isDark?: boolean;
+  onToggleTheme?: () => void;
 }
 
 const SLIDES = [
@@ -79,12 +81,16 @@ const SLIDES = [
   },
 ];
 
-export const PresentationMode: React.FC<PresentationModeProps> = () => {
+export const PresentationMode: React.FC<PresentationModeProps> = ({
+  isDark: propIsDark,
+  onToggleTheme: propToggleTheme,
+}) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeArchStep, setActiveArchStep] = useState(0);
-  // Default to Light Theme for a crisp, professional pitch deck
-  const [isDark, setIsDark] = useState(false);
+  const [localIsDark, setLocalIsDark] = useState(false);
+  const isDark = propIsDark !== undefined ? propIsDark : localIsDark;
+  const toggleTheme = propToggleTheme || (() => setLocalIsDark(!localIsDark));
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev < SLIDES.length - 1 ? prev + 1 : prev));
@@ -150,11 +156,11 @@ export const PresentationMode: React.FC<PresentationModeProps> = () => {
   };
 
   return (
-    <div className={`w-full border rounded-2xl overflow-hidden flex flex-col min-h-[720px] relative transition-colors duration-300 ${theme.wrapper}`}>
+    <div className={`w-full border rounded-2xl overflow-hidden flex flex-col min-h-[720px] relative transition-colors duration-300 ${isDark ? 'dark' : ''} ${theme.wrapper}`}>
       {/* Top Pitch Deck Control Header */}
       <div className={`flex items-center justify-between px-6 py-4 border-b backdrop-blur-md z-20 ${theme.header}`}>
         <div className="flex items-center space-x-3">
-          <div className="p-1 rounded-lg bg-slate-900 border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.35)]">
+          <div className="p-1 rounded-lg bg-slate-900 border border-[#e8702a]/30 shadow-[0_0_10px_rgba(232,112,42,0.2)]">
             <img src="/logos/app-icon.png" alt="CodeSage" className="w-5 h-5 object-contain rounded" />
           </div>
           <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-300">
@@ -167,7 +173,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = () => {
         </div>
 
         {/* Slide Indicators */}
-        <div className="hidden md:flex items-center space-x-1.5">
+        <div className="hidden md:flex items-center space-x-1.5" role="tablist" aria-label="Slide navigation">
           {SLIDES.map((slide, idx) => (
             <button
               key={slide.id}
@@ -178,6 +184,8 @@ export const PresentationMode: React.FC<PresentationModeProps> = () => {
                   : 'w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400'
               }`}
               title={slide.title}
+              aria-label={`Slide ${idx + 1}: ${slide.title}`}
+              aria-current={idx === currentSlide ? 'step' : undefined}
             />
           ))}
         </div>
@@ -185,9 +193,10 @@ export const PresentationMode: React.FC<PresentationModeProps> = () => {
         {/* Theme and Fullscreen Actions */}
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setIsDark(!isDark)}
+            onClick={toggleTheme}
             className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer text-xs flex items-center space-x-1.5 border border-slate-200 dark:border-slate-700"
             title="Toggle Light/Dark Pitch Mode"
+            aria-label={isDark ? "Switch to light pitch deck" : "Switch to dark pitch deck"}
           >
             {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
             <span className="hidden sm:inline font-medium">{isDark ? 'Light Pitch' : 'Dark Mode'}</span>
@@ -197,6 +206,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = () => {
             onClick={toggleFullscreen}
             className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer text-xs flex items-center space-x-1.5 border border-slate-200 dark:border-slate-700"
             title="Toggle Fullscreen (Key: F)"
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             <span className="hidden sm:inline font-medium">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
@@ -225,7 +235,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = () => {
             {currentSlide === 0 && (
               <div className="space-y-6 max-w-4xl">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-                  <div className="p-2.5 rounded-2xl bg-slate-900 border border-purple-500/40 shadow-[0_0_25px_rgba(147,51,234,0.4)] flex-shrink-0 w-fit">
+                  <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-[#e8702a]/30 shadow-[0_0_25px_rgba(232,112,42,0.25)] flex-shrink-0 w-fit">
                     <picture>
                       <source srcSet="/logos/app-icon.png" type="image/png" />
                       <img
