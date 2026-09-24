@@ -1,0 +1,8 @@
+{
+  "name": "CodeSage",
+  "description": "Intelligent codebase stratigraphy and grounded RAG analysis engine to analyze repository structures, detect tech stacks, and answer codebase questions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
