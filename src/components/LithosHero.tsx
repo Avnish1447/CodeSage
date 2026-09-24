@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Menu, X, Compass, Search, Play } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import { LiquidGlassButton } from './ui/LiquidGlassButton';
 
 const BG_IMAGE_1 = "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_195923_b0ba8ace-1d1d-4f2c-9a28-1ab84b330680.png&w=1280&q=85";
 const BG_IMAGE_2 = "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_201152_bba90a12-bf12-459f-91f0-51f237dbaf3b.png&w=1280&q=85";
@@ -27,10 +28,9 @@ const RevealLayer = React.forwardRef<HTMLDivElement, RevealLayerProps>(({ image 
 
 interface LithosHeroProps {
   onStartDigging?: () => void;
-  onWatchLaunchVideo?: () => void;
 }
 
-export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchLaunchVideo }) => {
+export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Course');
 
@@ -127,17 +127,32 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
 
   return (
     <section className="relative w-full overflow-hidden h-screen bg-black" style={{ height: '100dvh' }}>
-      {/* 1. Base Image Layer */}
+      {/* 1. Base Dimmed Silhouette Layer */}
       <div
-        className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom"
+        className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom opacity-20 grayscale brightness-75 contrast-125 pointer-events-none"
         style={{ backgroundImage: `url("${BG_IMAGE_1}")` }}
       />
 
-      {/* 2. Spotlight Reveal Layer */}
+      {/* 1b. Subtle Architectural Blueprint Grid */}
+      <div
+        className="absolute inset-0 z-20 pointer-events-none opacity-25"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px)
+          `,
+          backgroundSize: '48px 48px',
+        }}
+      />
+
+      {/* 1c. Radial vignette to blend into dark canvas */}
+      <div className="absolute inset-0 z-20 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.65)_100%)]" />
+
+      {/* 2. Spotlight Reveal Layer (Cuts through with vivid color and strata illumination) */}
       <RevealLayer ref={revealRef} image={BG_IMAGE_2} />
 
       {/* Navigation Header */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between p-4 sm:p-5 backdrop-blur-md bg-slate-950/70 border-b border-white/10 shadow-2xl">
+      <nav className="fixed top-0 left-0 right-0 z-[100] h-16 flex items-center justify-between px-6 backdrop-blur-md bg-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         {/* Left Brand - Official Text Mark */}
         <div className="flex items-center cursor-pointer group" onClick={onStartDigging} title="CodeSage - Unearth Architecture">
           <picture>
@@ -146,7 +161,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
             <img
               src="/logos/text mark.svg"
               alt="CodeSage"
-              className="h-8 sm:h-9 md:h-10 w-auto max-w-[190px] sm:max-w-[240px] object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] brightness-125 hover:brightness-150 transition-all duration-200"
+              className="h-8 sm:h-9 w-auto max-w-[190px] sm:max-w-[240px] object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] brightness-125 hover:brightness-150 transition-all duration-200"
               onError={(e) => {
                 const target = e.currentTarget;
                 if (!target.src.includes('textmark.png')) {
@@ -157,30 +172,21 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
           </picture>
         </div>
 
-        {/* Right CTA / Mobile Toggle */}
+        {/* Mobile Toggle */}
         <div className="flex items-center space-x-3">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={onStartDigging}
-            className="hidden md:flex items-center space-x-2 bg-gradient-to-r from-[#e8702a] to-amber-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:brightness-110 transition-all cursor-pointer shadow-lg shadow-orange-950/40"
-          >
-            <Compass className="w-4 h-4" />
-            <span>Open CodeSage Studio</span>
-          </motion.button>
-
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-            className="md:hidden text-white p-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20"
+            className="md:hidden text-white p-2 rounded-md bg-white/10 backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.12)]"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </nav>
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-xl flex flex-col justify-center px-8 space-y-6 md:hidden">
+        <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-xl flex flex-col justify-center px-8 space-y-6 md:hidden">
           {navItems.map((item) => (
             <button
               key={item}
@@ -201,7 +207,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
               setMobileMenuOpen(false);
               if (onStartDigging) onStartDigging();
             }}
-            className="w-full bg-[#e8702a] text-white py-3 rounded-full font-semibold text-center"
+            className="w-full bg-[#e8702a] hover:bg-[#d66320] text-white py-2.5 rounded-md font-medium text-center text-sm"
           >
             Explore Repo Workbench
           </button>
@@ -211,22 +217,22 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
       {/* 3. Central Heading (z-50) */}
       <div className="absolute top-[12%] sm:top-[13%] left-0 right-0 flex flex-col items-center text-center px-5 pointer-events-none z-50">
         {/* Floating Brand Badge */}
-        <div className="mb-4 sm:mb-5 inline-flex items-center space-x-3 px-4 py-2 rounded-full bg-slate-950/80 backdrop-blur-xl border border-[#e8702a]/30 shadow-[0_0_20px_rgba(232,112,42,0.2)] pointer-events-auto">
+        <div className="mb-4 sm:mb-5 inline-flex items-center space-x-2.5 px-3.5 py-1.5 rounded-full bg-black/80 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.12)] pointer-events-auto">
           <picture>
             <source srcSet="/logos/app-icon.png" type="image/png" />
             <img
               src="/logos/app-icon.svg"
               alt="CodeSage"
-              className="w-5 h-5 object-contain rounded drop-shadow-[0_0_8px_rgba(232,112,42,0.5)]"
+              className="w-4 h-4 object-contain rounded"
             />
           </picture>
-          <span className="text-xs font-mono font-bold tracking-widest uppercase text-slate-200">
-            Official CodeSage Platform
+          <span className="text-[11px] font-mono tracking-wider uppercase text-white/90 font-medium">
+            CodeSage Stratigraphy
           </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#45A557] animate-pulse" />
         </div>
 
-        <h1 className="text-white leading-[0.95]">
+        <h1 className="text-white leading-[0.95] tracking-[-2.28px]">
           <span
             className="block font-playfair italic font-normal text-5xl sm:text-7xl md:text-8xl hero-anim hero-reveal drop-shadow-md"
             style={{ letterSpacing: '-0.05em', animationDelay: '0.25s' }}
@@ -235,52 +241,36 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, onWatchL
           </span>
           <span
             className="block font-normal text-5xl sm:text-7xl md:text-8xl -mt-1 hero-anim hero-reveal drop-shadow-md"
-            style={{ letterSpacing: '-0.08em', animationDelay: '0.42s' }}
+            style={{ letterSpacing: '-0.06em', animationDelay: '0.42s' }}
           >
             tales of time
           </span>
         </h1>
+
+        {/* Centered Primary Action Button (21st.dev Liquid Glass Button) */}
+        <div className="mt-8 sm:mt-10 pointer-events-auto hero-anim hero-fade" style={{ animationDelay: '0.65s' }}>
+          <LiquidGlassButton onClick={onStartDigging} />
+        </div>
       </div>
 
       {/* 4. Bottom-Left Paragraph (z-50) */}
       <div
-        className="hidden sm:block absolute bottom-14 left-10 md:left-14 max-w-[260px] z-50 hero-anim hero-fade pointer-events-auto"
+        className="hidden sm:block absolute bottom-12 left-10 md:left-14 max-w-[260px] z-50 hero-anim hero-fade pointer-events-auto"
         style={{ animationDelay: '0.7s' }}
       >
-        <p className="text-sm text-white/80 leading-relaxed font-light drop-shadow-sm">
+        <p className="text-xs sm:text-[13px] text-white/75 leading-relaxed font-light drop-shadow-sm">
           Every layer of sediment records a chapter of our planet, from ancient seabeds to drifting ash, layered across millions of years beneath us.
         </p>
       </div>
 
-      {/* 5. Bottom-Right Paragraph & Button Block (z-50) */}
+      {/* 5. Bottom-Right Paragraph (z-50) */}
       <div
-        className="absolute bottom-10 sm:bottom-20 left-5 right-5 sm:left-auto sm:right-10 md:right-14 max-w-full sm:max-w-[320px] flex flex-col items-start gap-4 sm:gap-5 z-50 hero-anim hero-fade pointer-events-auto"
+        className="hidden sm:block absolute bottom-12 right-10 md:right-14 max-w-[280px] z-50 hero-anim hero-fade pointer-events-auto text-left"
         style={{ animationDelay: '0.85s' }}
       >
-        <p className="text-xs sm:text-sm text-white/80 leading-relaxed font-light drop-shadow-sm">
+        <p className="text-xs sm:text-[13px] text-white/75 leading-relaxed font-light drop-shadow-sm">
           Our interactive maps let you peel back the crust to trace how stones, fossils, and deep code time combine to shape the ground beneath your feet.
         </p>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={onStartDigging}
-            className="bg-[#e8702a] hover:bg-[#d2611f] text-white text-sm font-medium px-7 py-3 rounded-full transition-all hover:shadow-lg hover:shadow-[#e8702a]/30 cursor-pointer flex items-center justify-center space-x-2"
-          >
-            <span>Start Digging</span>
-            <Compass className="w-4 h-4 ml-1" />
-          </motion.button>
-
-          {onWatchLaunchVideo && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={onWatchLaunchVideo}
-              className="bg-black/60 hover:bg-black/80 backdrop-blur-md border border-emerald-500/40 hover:border-emerald-500 text-emerald-400 text-sm font-medium px-5 py-3 rounded-full transition-all hover:shadow-lg hover:shadow-emerald-500/20 cursor-pointer flex items-center justify-center space-x-2"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Watch Launch Film</span>
-            </motion.button>
-          )}
-        </div>
       </div>
 
       {/* 6. Smooth Bottom Gradient Blend to Studio */}

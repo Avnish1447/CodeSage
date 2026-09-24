@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Loader2, Github, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Loader2, Github, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 interface RepoInputProps {
   onAnalyze: (url: string) => Promise<void>;
@@ -26,32 +26,31 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
   };
 
   return (
-    <div className="bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl dark:shadow-2xl shadow-slate-200/50 dark:shadow-black/50 relative overflow-hidden backdrop-blur-xl">
-      <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-[#e8702a]/10 rounded-full blur-2xl pointer-events-none" />
-      
+    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 relative overflow-hidden">
+      {/* Brand & Engine Identifier */}
       <div className="flex items-center space-x-2.5 mb-3">
-        <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-[#e8702a]/30 shadow-[0_0_12px_rgba(232,112,42,0.25)]">
+        <div className="p-1 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
           <picture>
             <source srcSet="/logos/app-icon.png" type="image/png" />
-            <img src="/logos/app-icon.svg" alt="CodeSage" className="w-5 h-5 object-contain rounded" />
+            <img src="/logos/app-icon.svg" alt="CodeSage" className="w-4 h-4 object-contain rounded" />
           </picture>
         </div>
-        <span className="text-slate-500 dark:text-slate-300 text-xs font-mono font-semibold uppercase tracking-wider">
-          Codebase Geology &bull; Gemini RAG Engine
+        <span className="text-[#8F8F8F] dark:text-[#888888] text-xs font-mono uppercase tracking-wider font-medium">
+          Stratigraphy Engine &bull; Gemini RAG
         </span>
       </div>
 
-      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
-        Peel Back the Layers of Any <span className="font-playfair italic font-normal text-[#e8702a]">GitHub Repository</span>
+      <h2 className="text-xl sm:text-2xl font-semibold text-[#171717] dark:text-[#EDEDED] mb-2 tracking-[-0.03em]">
+        Excavate & Inspect Any <span className="font-playfair italic font-normal text-[#e8702a]">GitHub Repository</span>
       </h2>
-      <p className="text-slate-600 dark:text-slate-300 text-sm mb-6 max-w-2xl leading-relaxed">
-        Enter a public GitHub repository URL to excavate file structures, detect tech stacks, and conduct deep RAG queries with Gemini AI.
+      <p className="text-[#4D4D4D] dark:text-[#A1A1A1] text-sm mb-6 max-w-2xl leading-relaxed">
+        Enter a public GitHub repository URL to unearth file trees, detect tech stacks, and conduct context-grounded queries with Gemini AI.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="relative flex items-center">
-          <div className="absolute left-4 text-slate-400 pointer-events-none">
-            <Github className="w-5 h-5 text-slate-400" />
+          <div className="absolute left-3.5 text-[#8F8F8F] dark:text-[#888888] pointer-events-none">
+            <Github className="w-4 h-4" />
           </div>
           <input
             type="text"
@@ -60,40 +59,40 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
             placeholder="https://github.com/owner/repository"
             aria-label="GitHub repository URL"
             disabled={loading}
-            className="w-full bg-slate-50 dark:bg-slate-950/90 border border-slate-300 dark:border-slate-800 focus:border-[#e8702a] focus:ring-2 focus:ring-[#e8702a]/20 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 rounded-xl pl-12 pr-32 py-3.5 text-sm font-mono transition-all disabled:opacity-50"
+            className="w-full bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] focus:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0072F5] dark:focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#0072F5] outline-none rounded-lg pl-10 pr-32 py-2.5 text-xs sm:text-sm font-mono transition-all disabled:opacity-50"
           />
           <motion.button
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.97 }}
             type="submit"
             disabled={loading || !url.trim()}
             aria-label="Dig and analyze repository"
-            className="absolute right-2 px-5 py-2 bg-[#e8702a] hover:bg-[#d2611f] text-white font-medium text-sm rounded-lg shadow-md shadow-[#e8702a]/20 flex items-center space-x-2 disabled:opacity-50 transition-all cursor-pointer"
+            className="absolute right-1.5 px-4 py-1.5 bg-[#e8702a] hover:bg-[#d66320] text-white font-medium text-xs rounded-md shadow-sm flex items-center space-x-1.5 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Excavating...</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Digging...</span>
               </>
             ) : (
               <>
                 <span>Dig Code</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}
           </motion.button>
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-xl text-rose-300 text-xs font-mono">
+          <div className="p-3 bg-rose-500/10 shadow-[0_0_0_1px_rgba(229,72,77,0.3)] rounded-lg text-rose-600 dark:text-rose-400 text-xs font-mono">
             <strong>Error:</strong> {error}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1">Quick Presets:</span>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-xs text-[#8F8F8F] dark:text-[#888888] font-medium mr-1">Presets:</span>
           {SAMPLE_REPOS.map((sample) => (
             <motion.button
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               key={sample.url}
               type="button"
               onClick={() => {
@@ -101,7 +100,7 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
                 onAnalyze(sample.url);
               }}
               disabled={loading}
-              className="text-xs font-mono px-3 py-1.5 bg-slate-100 dark:bg-slate-950/80 hover:bg-slate-200 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 rounded-lg transition-colors cursor-pointer flex items-center space-x-1.5"
+              className="text-xs font-mono px-2.5 py-1 bg-[#FAFAFA] dark:bg-[#161618] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] text-[#4D4D4D] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-md transition-colors cursor-pointer flex items-center space-x-1.5"
             >
               <CheckCircle2 className="w-3 h-3 text-[#e8702a]" />
               <span>{sample.label}</span>
