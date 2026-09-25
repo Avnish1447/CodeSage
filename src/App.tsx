@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Header } from './components/Header';
 import { RepoInput } from './components/RepoInput';
@@ -58,6 +59,8 @@ export function App() {
     const saved = localStorage.getItem('codesage-theme');
     return saved !== null ? saved === 'dark' : true;
   });
+  const [themeTransitionKey, setThemeTransitionKey] = useState<number>(0);
+  const hasViewTransition = typeof document !== 'undefined' && 'startViewTransition' in document;
 
   useEffect(() => {
     localStorage.setItem('codesage-theme', isDark ? 'dark' : 'light');
@@ -67,6 +70,41 @@ export function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDark]);
+
+  const handleToggleTheme = () => {
+    const nextDark = !isDark;
+
+    const applyThemeChange = () => {
+      // 1. Immediately toggle the class on documentElement
+      if (nextDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      localStorage.setItem('codesage-theme', nextDark ? 'dark' : 'light');
+      setIsDark(nextDark);
+    };
+
+    // Apply global cross-fade class to <html> for duration of transition
+    document.documentElement.classList.add('theme-crossfade-active');
+    setTimeout(() => {
+      document.documentElement.classList.remove('theme-crossfade-active');
+    }, 550);
+
+    // If browser supports View Transitions API, execute with flushSync
+    // This forces React to synchronously commit the new theme to DOM before the after-snapshot is taken
+    if (hasViewTransition) {
+      (document as any).startViewTransition(() => {
+        flushSync(() => {
+          applyThemeChange();
+        });
+      });
+    } else {
+      // Fallback: trigger ambient veil overlay and synchronous state update
+      setThemeTransitionKey((k) => k + 1);
+      applyThemeChange();
+    }
+  };
   
   // Sidebar Collapse State
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -112,14 +150,14 @@ export function App() {
     workbenchRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const analyzeRepository = async (url: string) => {
+  const analyzeRepository = async (url: string, branch?: string) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/v1/repositories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, branch }),
       });
 
       const data = await res.json();
@@ -157,10 +195,28 @@ export function App() {
   }, []);
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${isDark ? 'dark bg-black text-[#EDEDED]' : 'bg-[#FAFAFA] text-[#171717]'}`}>
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${isDark ? 'dark bg-black text-[#EDEDED]' : 'bg-[#FAFAFA] text-[#171717]'}`}>
+      {/* Smooth Theme Cross-Fade Ambient Overlay (Fallback for non-ViewTransition browsers) */}
+      <AnimatePresence>
+        {!hasViewTransition && themeTransitionKey > 0 && (
+          <motion.div
+            key={`theme-crossfade-${themeTransitionKey}`}
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
+            className={`fixed inset-0 pointer-events-none z-[9999] ${
+              isDark ? 'bg-black' : 'bg-[#FAFAFA]'
+            }`}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Lithos Full-Screen Spotlight Hero */}
       <LithosHero
         onStartDigging={scrollToWorkbench}
+        isDark={isDark}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Transitional Section Banner */}
@@ -180,7 +236,7 @@ export function App() {
       <div ref={workbenchRef} id="workbench" className={`pt-2 flex-1 transition-colors duration-200 ${isDark ? 'bg-black' : 'bg-[#FAFAFA]'}`}>
         <Header
           isDark={isDark}
-          onToggleTheme={() => setIsDark(!isDark)}
+          onToggleTheme={handleToggleTheme}
         />
 
         <div className="flex-1 flex max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 items-start">
@@ -522,7 +578,7 @@ export function App() {
                           </div>
                         }
                       >
-                        <PresentationMode isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+                        <PresentationMode isDark={isDark} onToggleTheme={handleToggleTheme} />
                       </React.Suspense>
                     </motion.div>
                   )}

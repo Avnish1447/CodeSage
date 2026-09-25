@@ -24,22 +24,126 @@ export class RepositoryLimitError extends RepoCloneError {
 export class RepoCloneService {
   static DEFAULT_STORAGE_ROOT = path.join('storage', 'repos');
 
-  static generateRepositoryId(owner: string, repo: string, normalizedUrl: string): string {
-    const urlHash = crypto.createHash('sha1').update(normalizedUrl, 'utf-8').digest('hex').substring(0, 6);
+  static generateRepositoryId(owner: string, repo: string, normalizedUrl: string, branch?: string): string {
+    const cleanBranch = branch && branch !== 'main' ? branch.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().substring(0, 16) : '';
+    const urlHash = crypto.createHash('sha1').update(`${normalizedUrl}#${cleanBranch}`, 'utf-8').digest('hex').substring(0, 6);
     const safeOwner = owner.replace(/-/g, '_').replace(/\./g, '_');
     const safeRepo = repo.replace(/-/g, '_').replace(/\./g, '_');
-    return `${safeOwner}_${safeRepo}_${urlHash}`.toLowerCase();
+    const branchSuffix = cleanBranch ? `_${cleanBranch}` : '';
+    return `${safeOwner}_${safeRepo}${branchSuffix}_${urlHash}`.toLowerCase();
+  }
+
+  /**
+   * Fast remote check to list all branches without cloning the entire repository
+   */
+  static async getRemoteBranches(url: string): Promise<{
+    branches: string[];
+    default_branch: string;
+    has_multiple_branches: boolean;
+  }> {
+    try {
+      const normalized = RepoValidationService.validateAndNormalizeUrl(url);
+      const { normalized_url: normalizedUrl, owner, repo } = normalized;
+
+      // Handle current local workspace
+      const isCurrentWorkspace =
+        (owner.toLowerCase() === 'avnish1447' && (repo.toLowerCase() === 'codesage' || repo.toLowerCase() === 'repogpt-rag')) ||
+        normalizedUrl.toLowerCase().includes('avnish1447/codesage') ||
+        normalizedUrl.toLowerCase().includes('avnish1447/repogpt-rag');
+
+      if (isCurrentWorkspace) {
+        try {
+          const { stdout } = await execFileAsync('git', ['branch', '-a'], { timeout: 5000 });
+          const branches = stdout
+            .split('\n')
+            .map((l) => l.replace('*', '').trim())
+            .filter((l) => l.length > 0 && !l.includes('->'))
+            .map((l) => l.replace('remotes/origin/', ''))
+            .filter((val, idx, arr) => arr.indexOf(val) === idx);
+
+          const defaultBranch = branches.includes('main') ? 'main' : (branches[0] || 'main');
+          return {
+            branches,
+            default_branch: defaultBranch,
+            has_multiple_branches: branches.length > 1,
+          };
+        } catch {
+          return {
+            branches: ['main'],
+            default_branch: 'main',
+            has_multiple_branches: false,
+          };
+        }
+      }
+
+      // Query remote git repository via git ls-remote --heads
+      const { stdout } = await execFileAsync('git', ['ls-remote', '--heads', normalizedUrl], {
+        timeout: 15000,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      });
+
+      const rawBranches = stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          const parts = line.split('\t');
+          const ref = parts[1] || '';
+          return ref.replace('refs/heads/', '').trim();
+        })
+        .filter((b) => b.length > 0);
+
+      const uniqueBranches = Array.from(new Set(rawBranches));
+
+      if (uniqueBranches.length === 0) {
+        return {
+          branches: ['main'],
+          default_branch: 'main',
+          has_multiple_branches: false,
+        };
+      }
+
+      // Determine default branch
+      let defaultBranch = 'main';
+      if (uniqueBranches.includes('main')) {
+        defaultBranch = 'main';
+      } else if (uniqueBranches.includes('master')) {
+        defaultBranch = 'master';
+      } else {
+        defaultBranch = uniqueBranches[0];
+      }
+
+      // Sort with default branch first, followed by others alphabetically
+      const sorted = [
+        defaultBranch,
+        ...uniqueBranches.filter((b) => b !== defaultBranch).sort((a, b) => a.localeCompare(b)),
+      ];
+
+      return {
+        branches: sorted,
+        default_branch: defaultBranch,
+        has_multiple_branches: sorted.length > 1,
+      };
+    } catch (err: any) {
+      console.warn(`[RepoCloneService] Could not list remote branches for ${url}:`, err.message);
+      return {
+        branches: ['main'],
+        default_branch: 'main',
+        has_multiple_branches: false,
+      };
+    }
   }
 
   static async cloneRepository(
     url: string,
     maxFiles = 1000,
     maxSizeMb = 50,
-    storageRoot?: string
+    storageRoot?: string,
+    branch?: string
   ): Promise<[string, Record<string, any>]> {
     const normalized = RepoValidationService.validateAndNormalizeUrl(url);
     const { owner, repo, normalized_url: normalizedUrl } = normalized;
-    const repositoryId = this.generateRepositoryId(owner, repo, normalizedUrl);
+    const repositoryId = this.generateRepositoryId(owner, repo, normalizedUrl, branch);
 
     const root = storageRoot ? path.resolve(storageRoot) : path.resolve(this.DEFAULT_STORAGE_ROOT);
     const repoDir = path.join(root, repositoryId);
@@ -73,6 +177,7 @@ export class RepoCloneService {
         repository_id: repositoryId,
         owner,
         repo,
+        branch: branch || 'main',
         normalized_url: normalizedUrl,
         files: existingFiles.length,
         size_mb: Math.round(totalSizeMb * 100) / 100,
@@ -99,6 +204,7 @@ export class RepoCloneService {
           repository_id: repositoryId,
           owner,
           repo,
+          branch: branch || 'main',
           normalized_url: normalizedUrl,
           files: existingFiles.length,
           size_mb: Math.round(totalSizeMb * 100) / 100,
@@ -121,9 +227,16 @@ export class RepoCloneService {
       if (repo.toLowerCase() === 'repogpt-rag') alternateNames.push('CodeSage');
     }
 
+    // Prepare git clone arguments (with branch if specified)
+    const cloneArgs = ['clone', '--depth', '1'];
+    if (branch && branch.trim()) {
+      cloneArgs.push('--branch', branch.trim());
+    }
+    cloneArgs.push(normalizedUrl, repoPath);
+
     // 1. Try git clone first on the requested URL with 45s timeout
     try {
-      await execFileAsync('git', ['clone', '--depth', '1', normalizedUrl, repoPath], {
+      await execFileAsync('git', cloneArgs, {
         timeout: 45000,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
@@ -134,7 +247,12 @@ export class RepoCloneService {
         if (cloneSuccess) break;
         try {
           const altUrl = `https://github.com/${owner}/${alt}`;
-          await execFileAsync('git', ['clone', '--depth', '1', altUrl, repoPath], {
+          const altCloneArgs = ['clone', '--depth', '1'];
+          if (branch && branch.trim()) {
+            altCloneArgs.push('--branch', branch.trim());
+          }
+          altCloneArgs.push(altUrl, repoPath);
+          await execFileAsync('git', altCloneArgs, {
             timeout: 45000,
             env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
           });
@@ -147,13 +265,13 @@ export class RepoCloneService {
       // 3. If git clone failed, try fetching repository via GitHub API as fallback
       if (!cloneSuccess) {
         try {
-          await this.fetchViaGitHubApi(owner, repo, repoPath);
+          await this.fetchViaGitHubApi(owner, repo, repoPath, branch);
           cloneSuccess = true;
         } catch (apiErr: any) {
           for (const alt of alternateNames) {
             if (cloneSuccess) break;
             try {
-              await this.fetchViaGitHubApi(owner, alt, repoPath);
+              await this.fetchViaGitHubApi(owner, alt, repoPath, branch);
               cloneSuccess = true;
             } catch {
               // continue
@@ -208,6 +326,7 @@ export class RepoCloneService {
       repository_id: repositoryId,
       owner,
       repo,
+      branch: branch || 'main',
       normalized_url: normalizedUrl,
       files: files.length,
       size_mb: Math.round(totalSizeMb * 100) / 100,
@@ -217,8 +336,9 @@ export class RepoCloneService {
     return [repoPath, metadata];
   }
 
-  private static async fetchViaGitHubApi(owner: string, repo: string, targetPath: string) {
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
+  private static async fetchViaGitHubApi(owner: string, repo: string, targetPath: string, branch?: string) {
+    const primaryBranch = branch || 'main';
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${primaryBranch}?recursive=1`;
     const response = await fetch(apiUrl, {
       headers: {
         'User-Agent': 'CodeSage-App',
@@ -227,8 +347,9 @@ export class RepoCloneService {
     });
 
     if (!response.ok) {
-      // Try master branch if main fails
-      const fallbackUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/master?recursive=1`;
+      // Try master branch if main fails (or vice versa)
+      const altBranch = primaryBranch === 'main' ? 'master' : 'main';
+      const fallbackUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${altBranch}?recursive=1`;
       const fallbackResp = await fetch(fallbackUrl, {
         headers: {
           'User-Agent': 'CodeSage-App',

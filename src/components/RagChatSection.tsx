@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { ChatMessage, RepoResponse } from '../types';
 import { Send, Bot, User, Loader2, HelpCircle, Code2, Feather } from 'lucide-react';
@@ -48,6 +48,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [streamingId, setStreamingId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const prevRepoIdRef = useRef(repoData.repository_id);
 
@@ -65,7 +66,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  }, [messages, streamingId]);
 
   const handleRecheckGemini = async () => {
     try {
@@ -93,44 +94,131 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const botMsgId = `bot-${Date.now()}`;
+    const botMsg: ChatMessage = {
+      id: botMsgId,
+      role: 'assistant',
+      text: '', // Empty text renders the signature iMessage 3-dot wave inside the bubble!
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMsg, botMsg]);
+    setStreamingId(botMsgId);
     if (!textToSend) setInput('');
     setLoading(true);
 
     try {
       const res = await fetch(`/api/v1/repositories/${repoData.repository_id}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: query, style: responseStyle }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({ message: query, style: responseStyle, stream: true }),
       });
 
-      const data = await res.json();
-      if (data.gemini_status) {
-        setChatGeminiStatus(data.gemini_status);
-        if (onStatusChange) {
-          onStatusChange(data.gemini_status);
-        }
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
       }
 
-      const botMsg: ChatMessage = {
-        id: `bot-${Date.now()}`,
-        role: 'assistant',
-        text: data.answer || 'No response returned from RAG assistant.',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulatedText = '';
+        let hasReceivedFirstToken = false;
 
-      setMessages((prev) => [...prev, botMsg]);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const blocks = buffer.split('\n\n');
+          buffer = blocks.pop() || '';
+
+          for (const block of blocks) {
+            if (!block.trim()) continue;
+
+            let eventType = 'chunk';
+            let eventData = '';
+
+            for (const line of block.split('\n')) {
+              if (line.startsWith('event: ')) {
+                eventType = line.slice(7).trim();
+              } else if (line.startsWith('data: ')) {
+                eventData = line.slice(6).trim();
+              }
+            }
+
+            if (!eventData) continue;
+
+            try {
+              const payload = JSON.parse(eventData);
+
+              if (eventType === 'status' || payload.status) {
+                const st = payload.status;
+                setChatGeminiStatus(st);
+                if (onStatusChange) onStatusChange(st);
+              }
+
+              if (eventType === 'chunk' && payload.delta) {
+                if (!hasReceivedFirstToken) {
+                  hasReceivedFirstToken = true;
+                  // Allow the 3-dot wave animation to be perceptible for a natural breath
+                  await new Promise((r) => setTimeout(r, 220));
+                }
+                accumulatedText += payload.delta;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === botMsgId ? { ...m, text: accumulatedText } : m))
+                );
+              }
+
+              if (eventType === 'done') {
+                if (payload.gemini_status) {
+                  setChatGeminiStatus(payload.gemini_status);
+                  if (onStatusChange) onStatusChange(payload.gemini_status);
+                }
+                if (payload.answer && !accumulatedText) {
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === botMsgId ? { ...m, text: payload.answer } : m))
+                  );
+                }
+              }
+
+              if (eventType === 'error') {
+                throw new Error(payload.detail || 'Streaming failed');
+              }
+            } catch {
+              // Ignore partial JSON chunks
+            }
+          }
+        }
+      } else {
+        const data = await res.json();
+        if (data.gemini_status) {
+          setChatGeminiStatus(data.gemini_status);
+          if (onStatusChange) onStatusChange(data.gemini_status);
+        }
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMsgId
+              ? { ...m, text: data.answer || 'No response returned from RAG assistant.' }
+              : m
+          )
+        );
+      }
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: 'assistant',
-          text: `Error reaching RAG assistant: ${err.message}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botMsgId
+            ? { ...m, text: `Error reaching RAG assistant: ${err.message}` }
+            : m
+        )
+      );
     } finally {
+      setStreamingId(null);
       setLoading(false);
     }
   };
@@ -227,15 +315,23 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18 }}
-            className={`flex items-start space-x-2.5 ${
+            initial={{ opacity: 0, scale: 0.35, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{
+              type: 'spring',
+              stiffness: 440,
+              damping: 24,
+              mass: 0.55,
+            }}
+            style={{
+              transformOrigin: msg.role === 'user' ? 'bottom right' : 'bottom left',
+            }}
+            className={`flex items-end space-x-2 ${
               msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
             }`}
           >
             <div
-              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] ${
+              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] mb-0.5 ${
                 msg.role === 'user'
                   ? 'bg-[#171717] text-white dark:bg-white dark:text-[#171717]'
                   : 'bg-[#FAFAFA] dark:bg-[#161618] text-[#e8702a]'
@@ -251,69 +347,105 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
               )}
             </div>
 
-            <div
-              className={`max-w-[85%] p-3.5 rounded-xl text-xs sm:text-[13px] leading-relaxed ${
+            <motion.div
+              layout
+              transition={{
+                layout: { type: 'spring', stiffness: 450, damping: 32, mass: 0.7 },
+              }}
+              className={`w-fit max-w-[85%] px-4 py-2.5 text-xs sm:text-[13px] leading-relaxed transition-all duration-200 ${
                 msg.role === 'user'
-                  ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] rounded-tr-none shadow-sm'
-                  : 'bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[#171717] dark:text-[#EDEDED] rounded-tl-none font-sans'
+                  ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] rounded-2xl rounded-br-[4px] shadow-sm ml-auto'
+                  : `bg-[#FAFAFA] dark:bg-[#161618] rounded-2xl rounded-bl-[4px] text-[#171717] dark:text-[#EDEDED] font-sans ${
+                      msg.id === streamingId
+                        ? 'shadow-[0_0_0_1px_rgba(232,112,42,0.4),0_4px_20px_rgba(232,112,42,0.1)]'
+                        : 'shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
+                    }`
               }`}
             >
-              <div className="markdown-body text-xs sm:text-[13px] font-sans space-y-1.5">
-                <ReactMarkdown
-                  components={{
-                    strong: ({ children }) => (
-                      <span className={msg.role === 'user' ? 'font-semibold underline' : 'font-semibold text-[#171717] dark:text-white'}>
-                        {children}
-                      </span>
-                    ),
-                    p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-                    ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 my-1.5">{children}</ul>,
-                    ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 my-1.5">{children}</ol>,
-                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                    code: ({ children }) => (
-                      <code className="bg-[#EBEBEB] dark:bg-[#222226] text-[#e8702a] px-1 py-0.5 rounded text-[11px] font-mono shadow-[0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
-                        {children}
-                      </code>
-                    ),
-                    pre: ({ children }) => (
-                      <pre className="bg-[#F2F2F2] dark:bg-[#0c0c0e] p-3 rounded-lg overflow-x-auto shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[12px] font-mono my-2 text-[#171717] dark:text-[#EDEDED] leading-5">
-                        {children}
-                      </pre>
-                    ),
-                    h1: ({ children }) => <h1 className="text-sm font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h3>,
-                  }}
-                >
-                  {msg.text}
-                </ReactMarkdown>
-              </div>
-              <div
+              {msg.role === 'assistant' && !msg.text ? (
+                /* iMessage-style rhythmic 3-dot typing wave inside the bubble */
+                <div className="flex items-center space-x-1.5 py-1 px-1">
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      animate={{
+                        y: [0, -6, 0],
+                        opacity: [0.35, 1, 0.35],
+                        scale: [0.85, 1.25, 0.85],
+                      }}
+                      transition={{
+                        duration: 0.85,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                        delay: i * 0.16,
+                      }}
+                      className="w-2 h-2 rounded-full bg-[#8F8F8F] dark:bg-[#A1A1A1] inline-block"
+                    />
+                  ))}
+                  <span className="text-[11px] font-mono text-[#8F8F8F] dark:text-[#888888] pl-2 select-none tracking-tight">
+                    thinking...
+                  </span>
+                </div>
+              ) : (
+                <div className="markdown-body text-xs sm:text-[13px] font-sans space-y-1.5">
+                  <ReactMarkdown
+                    components={{
+                      strong: ({ children }) => (
+                        <span className={msg.role === 'user' ? 'font-semibold underline' : 'font-semibold text-[#171717] dark:text-white'}>
+                          {children}
+                        </span>
+                      ),
+                      p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+                      ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 my-1.5">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 my-1.5">{children}</ol>,
+                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      code: ({ children }) => (
+                        <code className="bg-[#EBEBEB] dark:bg-[#222226] text-[#e8702a] px-1 py-0.5 rounded text-[11px] font-mono shadow-[0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
+                          {children}
+                        </code>
+                      ),
+                      pre: ({ children }) => (
+                        <pre className="bg-[#F2F2F2] dark:bg-[#0c0c0e] p-3 rounded-lg overflow-x-auto shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[12px] font-mono my-2 text-[#171717] dark:text-[#EDEDED] leading-5">
+                          {children}
+                        </pre>
+                      ),
+                      h1: ({ children }) => <h1 className="text-sm font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h3>,
+                    }}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
+                  {msg.id === streamingId && (
+                    <motion.span
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{
+                        opacity: [1, 0.2, 1],
+                        scale: [1, 1.15, 1],
+                      }}
+                      transition={{
+                        duration: 0.75,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                      }}
+                      className="inline-block w-1.5 h-3.5 ml-1 bg-[#e8702a] rounded-xs align-middle shadow-[0_0_8px_rgba(232,112,42,0.7)]"
+                    />
+                  )}
+                </div>
+              )}
+              <motion.div
+                initial={{ opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
                 className={`text-[10px] mt-1.5 font-mono ${
                   msg.role === 'user' ? 'text-white/60 dark:text-black/60 text-right' : 'text-[#8F8F8F] dark:text-[#888888]'
                 }`}
               >
                 {msg.timestamp}
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           </motion.div>
         ))}
-
-        {loading && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center space-x-2.5"
-          >
-            <div className="w-7 h-7 rounded-md bg-[#FAFAFA] dark:bg-[#161618] text-[#e8702a] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] flex items-center justify-center">
-              <Bot className="w-3.5 h-3.5" />
-            </div>
-            <div className="p-3 bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-xl text-xs text-[#8F8F8F] dark:text-[#888888] flex items-center space-x-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e8702a]" />
-              <span>Analyzing context & generating response...</span>
-            </div>
-          </motion.div>
-        )}
         <div ref={chatEndRef} />
       </div>
 

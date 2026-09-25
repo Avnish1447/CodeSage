@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Sun, Moon } from 'lucide-react';
 import { LiquidGlassButton } from './ui/LiquidGlassButton';
 
 const BG_IMAGE_1 = "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_195923_b0ba8ace-1d1d-4f2c-9a28-1ab84b330680.png&w=1280&q=85";
@@ -28,9 +28,11 @@ const RevealLayer = React.forwardRef<HTMLDivElement, RevealLayerProps>(({ image 
 
 interface LithosHeroProps {
   onStartDigging?: () => void;
+  isDark?: boolean;
+  onToggleTheme?: () => void;
 }
 
-export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging }) => {
+export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = true, onToggleTheme }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Course');
 
@@ -172,12 +174,25 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging }) => {
           </picture>
         </div>
 
-        {/* Mobile Toggle */}
+        {/* Right Nav Actions */}
         <div className="flex items-center space-x-3">
+          {onToggleTheme && (
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={onToggleTheme}
+              className="flex items-center justify-center w-8 h-8 rounded-md text-white/70 hover:text-white bg-white/10 hover:bg-white/15 transition-colors cursor-pointer"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-white/80" />}
+            </motion.button>
+          )}
+
+          {/* Mobile Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-            className="md:hidden text-white p-2 rounded-md bg-white/10 backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.12)]"
+            className="md:hidden text-white p-2 rounded-md bg-white/10 backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.12)] cursor-pointer"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>

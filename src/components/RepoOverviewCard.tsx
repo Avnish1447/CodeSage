@@ -1,6 +1,6 @@
 import React from 'react';
 import { RepoOverview, RepoStats } from '../types';
-import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash } from 'lucide-react';
+import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch } from 'lucide-react';
 
 interface RepoOverviewCardProps {
   overview: RepoOverview;
@@ -28,9 +28,16 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({ overview, st
                 <ExternalLink className="w-4 h-4" />
               </a>
             </div>
-            <div className="flex items-center space-x-2 mt-0.5">
-              <Hash className="w-3 h-3 text-[#8F8F8F]" />
-              <span className="text-[11px] font-mono text-[#8F8F8F]">ID: {overview.repository_id}</span>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <div className="flex items-center space-x-1.5 text-[11px] font-mono text-[#8F8F8F]">
+                <Hash className="w-3 h-3" />
+                <span>ID: {overview.repository_id}</span>
+              </div>
+              <span className="text-black/20 dark:text-white/20">&bull;</span>
+              <div className="flex items-center space-x-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-black/[0.04] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-[#171717] dark:text-[#EDEDED]">
+                <GitBranch className="w-3 h-3 text-[#e8702a]" />
+                <span className="font-medium">{overview.branch || 'main'}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -32,8 +32,8 @@ function getAiClient(): GoogleGenAI {
 }
 
 const FREE_FLASH_MODELS = [
-  'gemini-3.6-flash',
   'gemini-3.1-flash-lite',
+  'gemini-3.6-flash',
   'gemini-flash-latest',
   'gemini-3.8-flash',
 ];
@@ -130,11 +130,13 @@ Respond ONLY with valid JSON.`;
   };
 }
 
-export async function answerRepositoryQuery(
+export async function streamRepositoryQuery(
   repoData: any,
   userQuery: string,
-  style: 'technical' | 'simple' = 'technical'
-) {
+  style: 'technical' | 'simple' = 'technical',
+  onChunk: (delta: string) => void,
+  onStatus?: (status: 'live' | 'missing_key' | 'quota_exhausted', model?: string) => void
+): Promise<{ answer: string; gemini_status: 'live' | 'missing_key' | 'quota_exhausted' }> {
   ensureEnvLoaded();
   const apiKey = process.env.GEMINI_API_KEY;
   const owner = repoData.overview?.owner || 'owner';
@@ -153,9 +155,11 @@ export async function answerRepositoryQuery(
     const text = style === 'simple'
       ? `**Repository Summary (${owner}/${repo})**:\n- **Main Programming Languages**: ${languages}\n- **Tools & Libraries**: ${frameworks}\n- **Key Starting Files**: ${importantFiles}\n\n*Note: Gemini API key is not set. Please add GEMINI_API_KEY to unlock interactive AI answers.*`
       : `**Repository Context (${owner}/${repo})**:\n- **Languages**: ${languages}\n- **Frameworks**: ${frameworks}\n- **Key Files**: ${importantFiles}\n\n*Note: Gemini API key is not configured. Please set GEMINI_API_KEY to enable full AI model responses.*`;
+    onStatus?.('missing_key');
+    onChunk(text);
     return {
       answer: text,
-      gemini_status: 'missing_key' as const,
+      gemini_status: 'missing_key',
     };
   }
 
@@ -190,23 +194,32 @@ User Question: ${userQuery}`;
 
   for (const modelName of FREE_FLASH_MODELS) {
     try {
-      const response = await ai.models.generateContent({
+      const responseStream = await ai.models.generateContentStream({
         model: modelName,
         contents: contextPrompt,
       });
 
-      if (response.text) {
+      onStatus?.('live', modelName);
+      let accumulated = '';
+      for await (const chunk of responseStream) {
+        if (chunk.text) {
+          accumulated += chunk.text;
+          onChunk(chunk.text);
+        }
+      }
+
+      if (accumulated.trim().length > 0) {
         return {
-          answer: response.text,
-          gemini_status: 'live' as const,
+          answer: accumulated,
+          gemini_status: 'live',
         };
       }
     } catch (err: any) {
       const isRateLimit = err.status === 429 || (err.message && err.message.includes('429'));
       if (isRateLimit) {
-        console.log(`[Gemini Chat] Model ${modelName} rate limited (429), trying fallback model...`);
+        console.log(`[Gemini Stream] Model ${modelName} rate limited (429), trying fallback model...`);
       } else {
-        console.log(`[Gemini Chat] Model ${modelName} error: ${err.message || err}`);
+        console.log(`[Gemini Stream] Model ${modelName} error: ${err.message || err}`);
       }
     }
   }
@@ -241,10 +254,21 @@ ${repoData.architecture_summary ? `**Architecture Summary**: ${repoData.architec
 
 *You can ask another question or retry in a few moments as the quota resets.*`;
 
+  onStatus?.('quota_exhausted');
+  onChunk(fallbackText);
+
   return {
     answer: fallbackText,
-    gemini_status: 'quota_exhausted' as const,
+    gemini_status: 'quota_exhausted',
   };
+}
+
+export async function answerRepositoryQuery(
+  repoData: any,
+  userQuery: string,
+  style: 'technical' | 'simple' = 'technical'
+) {
+  return await streamRepositoryQuery(repoData, userQuery, style, () => {});
 }
 
 export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{

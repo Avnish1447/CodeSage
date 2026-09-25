@@ -2,6 +2,7 @@ export interface RepoOverview {
   repository_id: string;
   owner: string;
   repo: string;
+  branch?: string;
   files: number;
   size_mb: number;
   normalized_url: string;
@@ -26,11 +27,18 @@ export interface TreeNode {
 export interface RepoFacts {
   repository_id: string;
   url: string;
+  branch?: string;
   languages: Record<string, number>;
   frameworks: string[];
   important_files: string[];
   tree_summary: TreeNode[];
   stats: RepoStats;
+}
+
+export interface RepoBranchesResponse {
+  branches: string[];
+  default_branch: string;
+  has_multiple_branches: boolean;
 }
 
 export interface RepoResponse {

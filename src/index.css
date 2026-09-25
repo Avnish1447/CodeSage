@@ -23,6 +23,77 @@ code, pre, .font-mono {
   font-feature-settings: 'liga';
 }
 
+/* ==========================================================================
+   Smooth Theme Cross-Fade Transitions (View Transitions API + Fallbacks)
+   ========================================================================== */
+
+/* Modern View Transition API custom timing */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  animation: 450ms cubic-bezier(0.16, 1, 0.3, 1) both themeFadeOut;
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  animation: 450ms cubic-bezier(0.16, 1, 0.3, 1) both themeFadeIn;
+  z-index: 2;
+}
+
+@keyframes themeFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes themeFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Base application body smooth color transition */
+html,
+body,
+#root {
+  transition: background-color 450ms cubic-bezier(0.16, 1, 0.3, 1),
+              color 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Full application cross-fade during theme switch (fallback for non-ViewTransition browsers) */
+html.theme-crossfade-active,
+html.theme-crossfade-active body,
+html.theme-crossfade-active #root,
+html.theme-crossfade-active *,
+html.theme-crossfade-active *::before,
+html.theme-crossfade-active *::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow !important;
+  transition-duration: 480ms !important;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition-delay: 0s !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+  html.theme-crossfade-active,
+  html.theme-crossfade-active * {
+    transition: none !important;
+  }
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

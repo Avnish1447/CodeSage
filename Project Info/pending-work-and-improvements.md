@@ -35,13 +35,27 @@ All critical configuration items have been addressed:
 | **Inline Code Snippet Previews** | `src/components/FileTreeViewer.tsx`, `server/routes/api.ts` | Click any file node in the stratigraphy tree to inspect syntax-highlighted source code with copy support and binary guards. | ✅ Completed |
 | **PDF & PPTX Export for Pitch Deck** | `src/components/PresentationMode.tsx` | Implement dual export capabilities for the 7-slide interactive pitch deck: (1) high-fidelity print stylesheet / PDF export, and (2) native editable PowerPoint (.pptx) download using `pptxgenjs` for pitch deck submission. | ✅ Completed |
 | **Persistent Repository History** | `src/App.tsx`, `src/lib/firebase.ts` | Store and sync recently analyzed repositories to Firebase Firestore per authenticated user with cloud status indicator. | ✅ Completed |
-| **Branch Switching Selector** | `src/components/RepoInput.tsx`, `server/services/repoCloneService.ts` | Enable selecting and switching branches on multi-branch git repositories before analysis. | ⏳ Pending |
+| **Streaming Gemini Chat (SSE)** | `src/components/RagChatSection.tsx`, `server/services/geminiService.ts`, `server/routes/api.ts` | Stream Gemini RAG responses via Server-Sent Events (SSE) with real-time markdown token rendering and pulsating typing cursor. | ✅ Completed |
+| **iMessage-Inspired Spring Chat Physics** | `src/components/RagChatSection.tsx` | Staggered 3-dot typing wave indicator, bottom-corner spring pop animations, and organic bubble expansion. | ✅ Completed |
+| **Branch Switching Selector** | `src/components/RepoInput.tsx`, `server/services/repoCloneService.ts`, `server/routes/api.ts` | Lightweight remote branch detection via `git ls-remote --heads`. Branch selector appears strictly when multiple branches exist, with Vercel popover search and isolated branch analysis. | ✅ Completed |
 
 ---
 
-## 🏆 2. Recently Completed & Shipped (Sprint 06 - Sept 24-25, 2026)
+## 🏆 2. Recently Completed & Shipped (Sprint 06 - Sept 24-26, 2026)
 
 The following major milestones and design refinements have been implemented and verified:
+
+- [x] **Smooth Application-Wide Theme Cross-Fade:**
+  - Modern View Transition API integration (`document.startViewTransition`) with custom `cubic-bezier(0.16, 1, 0.3, 1)` easing and 420ms duration.
+  - Active transition class `.theme-crossfade-active` synchronized across `html`, `body`, `#root`, and all container elements for smooth color, border, and shadow interpolation.
+  - Fixed-layer ambient cross-fade veil (`motion.div` + `AnimatePresence`) that softens light/dark contrast transitions into a cinematic dissolve.
+  - Full accessibility compliance with `@media (prefers-reduced-motion: reduce)`.
+
+
+- [x] **Real-Time Gemini RAG Chat Streaming (Server-Sent Events):**
+  - Upgraded `/api/v1/repositories/:repo_id/chat` with SSE support (`text/event-stream`), zero-buffering headers (`X-Accel-Buffering: no`), and graceful disconnect handling.
+  - Implemented `streamRepositoryQuery` in `server/services/geminiService.ts` using `@google/genai`'s `generateContentStream` with priority fallback order (`gemini-3.1-flash-lite` -> `gemini-3.6-flash` -> `gemini-flash-latest` -> `gemini-3.8-flash`).
+  - Updated `src/components/RagChatSection.tsx` with chunk accumulator reader (`ReadableStreamDefaultReader`), real-time markdown formatting, smooth auto-scroll to latest tokens, and an active orange pulsating cursor (`animate-pulse`).
 
 - [x] **Firebase Auth & Firestore Cloud Sync:**
   - Integrated Firebase Auth with 1-click Google Sign-in popup (`signInWithPopup`).
@@ -100,8 +114,8 @@ The following major milestones and design refinements have been implemented and 
   - Embedded in Studio Workbench canvas and [RagChatSection.tsx](file:///Users/avnish/Documents/GitHub/CodeSage/src/components/RagChatSection.tsx) with dynamic AI Engine status indicator pills (`Online` / `Key Missing` / `Quota Busy`).
 - [ ] **Local SQLite / IndexedDB Analysis Cache:**
   - Transition parsed file tree metadata and stratigraphy stats from filesystem JSON into an indexed cache to achieve sub-second reloads.
-- [ ] **Streaming Responses for Gemini Chat:**
-  - Stream Gemini RAG responses via Server-Sent Events (SSE) or chunked transfer in `/api/v1/repositories/:repo_id/chat` instead of blocking for full completion.
+- [x] **Streaming Responses for Gemini Chat (Resolved):**
+  - Stream Gemini RAG responses via Server-Sent Events (SSE) with `ReadableStream` reader, live token rendering, and typing caret.
 
 ---
 

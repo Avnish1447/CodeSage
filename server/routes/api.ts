@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { RepoCloneService } from '../services/repoCloneService.js';
 import { RepoAnalysisService } from '../services/repoAnalysisService.js';
-import { generateRepositoryInsights, answerRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
+import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
 
 export const apiRouter = Router();
 
@@ -28,15 +28,30 @@ apiRouter.get('/gemini/health', async (req: Request, res: Response) => {
   return res.json(health);
 });
 
+// List remote branches for a repository without full cloning
+apiRouter.get('/repositories/branches', async (req: Request, res: Response) => {
+  try {
+    const url = req.query.url as string;
+    if (!url || !url.trim()) {
+      return res.status(400).json({ detail: 'Query parameter "url" is required.' });
+    }
+
+    const branchesInfo = await RepoCloneService.getRemoteBranches(url.trim());
+    return res.json(branchesInfo);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
+  }
+});
+
 // Submit repository endpoint
 apiRouter.post('/repositories', async (req: Request, res: Response) => {
   try {
-    const { url } = req.body;
+    const { url, branch } = req.body;
     if (!url) {
       return res.status(400).json({ detail: 'Field "url" is required in request body.' });
     }
 
-    const [repoPath, metadata] = await RepoCloneService.cloneRepository(url);
+    const [repoPath, metadata] = await RepoCloneService.cloneRepository(url, 1000, 50, undefined, branch);
     const analysis = RepoAnalysisService.analyzeRepository(repoPath);
 
     const initialData = {
@@ -46,6 +61,7 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
         repository_id: metadata.repository_id,
         owner: metadata.owner,
         repo: metadata.repo,
+        branch: metadata.branch || 'main',
         files: metadata.files,
         size_mb: metadata.size_mb,
         normalized_url: metadata.normalized_url,
@@ -53,6 +69,7 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
       facts: {
         repository_id: metadata.repository_id,
         url: metadata.normalized_url,
+        branch: metadata.branch || 'main',
         languages: analysis.languages,
         frameworks: analysis.frameworks,
         important_files: analysis.important_files,
@@ -104,11 +121,12 @@ apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
   }
 });
 
-// Interactive RAG chat query for repository
+// Interactive RAG chat query for repository (Supports real-time SSE streaming & JSON fallback)
 apiRouter.post('/repositories/:repo_id/chat', async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    const { message, style } = req.body;
+    const { message, style, stream = true } = req.body;
+    const wantsStream = stream === true || req.headers.accept?.includes('text/event-stream');
 
     if (!message) {
       return res.status(400).json({ detail: 'Message is required.' });
@@ -122,8 +140,45 @@ apiRouter.post('/repositories/:repo_id/chat', async (req: Request, res: Response
     }
 
     const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
-    const result = await answerRepositoryQuery(repoData, message, style || 'technical');
 
+    if (wantsStream) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders?.();
+
+      const sendEvent = (event: string, data: any) => {
+        if (!res.writableEnded && res.writable) {
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        }
+      };
+
+      try {
+        const result = await streamRepositoryQuery(
+          repoData,
+          message,
+          style || 'technical',
+          (delta: string) => {
+            sendEvent('chunk', { delta });
+          },
+          (status, model) => {
+            sendEvent('status', { status, model });
+          }
+        );
+
+        sendEvent('done', {
+          answer: result.answer,
+          gemini_status: result.gemini_status,
+        });
+        return res.end();
+      } catch (err: any) {
+        sendEvent('error', { detail: err.message || 'Streaming generation failed.' });
+        return res.end();
+      }
+    }
+
+    const result = await answerRepositoryQuery(repoData, message, style || 'technical');
     return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
