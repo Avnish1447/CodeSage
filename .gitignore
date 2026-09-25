@@ -1,7 +1,12 @@
-# Dependencies
+# Dependencies & Package Managers
 node_modules/
 .pnp
 .pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnpm-store/
 
 # Build Outputs & Bundles
 dist/
@@ -11,6 +16,8 @@ out/
 *.tsbuildinfo
 .vite/
 .cache/
+.parcel-cache/
+.turbo/
 
 # Local Environment Variables & Secrets (Keep .env files out of Git)
 .env
@@ -29,6 +36,20 @@ out/
 *credentials*.json
 *.pem
 *.key
+*.cert
+*.crt
+
+# SQLite & Local Analysis Cache
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+codesage_cache.db
 
 # Repository Clones & Analysis Storage (RepoCloneService)
 storage/
@@ -36,7 +57,7 @@ temp/
 tmp/
 *.raw
 
-# Logs & Debugging
+# Logs, PIDs & Debugging
 logs/
 *.log
 npm-debug.log*
@@ -46,6 +67,22 @@ pnpm-debug.log*
 firebase-debug.log*
 firestore-debug.log*
 ui-debug.log*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Test Coverage & Scratch Artifacts
+coverage/
+.coverage
+htmlcov/
+.nyc_output/
+.pytest_cache/
+.mypy_cache/
+scratch/
+*.scratch.*
+*.tmp
+*.bak
 
 # Archives & Temporary Artifacts
 *.zip
@@ -88,7 +125,3 @@ desktop.ini
 __pycache__/
 *.py[cod]
 *$py.class
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
