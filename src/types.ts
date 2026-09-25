@@ -51,6 +51,28 @@ export interface RepoResponse {
   storage_path: string;
   gemini_available?: boolean;
   gemini_status?: 'live' | 'missing_key' | 'quota_exhausted';
+  from_cache?: boolean;
+  cache_source?: 'indexeddb' | 'sqlite' | 'fresh';
+  cached_at?: number;
+}
+
+export interface CachedAnalysisSummary {
+  repository_id: string;
+  url: string;
+  branch: string;
+  owner: string;
+  repo: string;
+  files: number;
+  size_mb: number;
+  primary_language?: string;
+  cached_at: number;
+}
+
+export interface CacheStats {
+  indexedDbCount: number;
+  indexedDbEstimatedBytes: number;
+  sqliteCount: number;
+  sqliteSizeBytes: number;
 }
 
 export interface GeminiHealthInfo {

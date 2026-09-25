@@ -2,7 +2,9 @@ import { Router, Request, Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { RepoCloneService } from '../services/repoCloneService.js';
+import { RepoValidationService } from '../services/repoValidationService.js';
 import { RepoAnalysisService } from '../services/repoAnalysisService.js';
+import { SqliteCacheService } from '../services/sqliteCacheService.js';
 import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
 
 export const apiRouter = Router();
@@ -28,6 +30,26 @@ apiRouter.get('/gemini/health', async (req: Request, res: Response) => {
   return res.json(health);
 });
 
+// Server SQLite cache stats endpoint
+apiRouter.get('/cache/stats', async (_req: Request, res: Response) => {
+  try {
+    const stats = SqliteCacheService.getStats();
+    return res.json(stats);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
+  }
+});
+
+// Clear server SQLite cache endpoint
+apiRouter.delete('/cache', async (_req: Request, res: Response) => {
+  try {
+    const cleared = SqliteCacheService.clear();
+    return res.json({ success: cleared });
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
+  }
+});
+
 // List remote branches for a repository without full cloning
 apiRouter.get('/repositories/branches', async (req: Request, res: Response) => {
   try {
@@ -43,12 +65,51 @@ apiRouter.get('/repositories/branches', async (req: Request, res: Response) => {
   }
 });
 
-// Submit repository endpoint
+// Submit repository endpoint with SQLite fast cache retrieval
 apiRouter.post('/repositories', async (req: Request, res: Response) => {
   try {
-    const { url, branch } = req.body;
+    const { url, branch, force_refresh } = req.body;
     if (!url) {
       return res.status(400).json({ detail: 'Field "url" is required in request body.' });
+    }
+
+    // 1. Check SQLite fast cache first if fresh re-dig was not explicitly requested
+    if (!force_refresh) {
+      try {
+        const normalized = RepoValidationService.validateAndNormalizeUrl(url);
+        const targetBranch = branch || 'main';
+        const expectedRepoId = RepoCloneService.generateRepositoryId(
+          normalized.owner,
+          normalized.repo,
+          normalized.normalized_url,
+          targetBranch
+        );
+
+        // Try SQLite cache
+        const sqliteCached = SqliteCacheService.get(expectedRepoId);
+        if (sqliteCached) {
+          return res.json({
+            ...sqliteCached,
+            from_cache: true,
+            cache_source: 'sqlite',
+          });
+        }
+
+        // Try filesystem metadata.json fallback
+        const metadataFile = path.join('storage', 'repos', expectedRepoId, 'metadata.json');
+        if (fs.existsSync(metadataFile)) {
+          const content = fs.readFileSync(metadataFile, 'utf-8');
+          const fileCached = JSON.parse(content);
+          SqliteCacheService.set(fileCached);
+          return res.json({
+            ...fileCached,
+            from_cache: true,
+            cache_source: 'sqlite',
+          });
+        }
+      } catch {
+        // Proceed with full analysis
+      }
     }
 
     const [repoPath, metadata] = await RepoCloneService.cloneRepository(url, 1000, 50, undefined, branch);
@@ -88,12 +149,19 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
     (initialData as any).gemini_available = insights.gemini_available;
     (initialData as any).gemini_status = insights.gemini_status;
 
-    // Persist response metadata
+    // Persist response metadata to disk
     const metadataFile = path.join(path.dirname(repoPath), 'metadata.json');
     fs.mkdirSync(path.dirname(metadataFile), { recursive: true });
     fs.writeFileSync(metadataFile, JSON.stringify(initialData, null, 2), 'utf-8');
 
-    return res.json(initialData);
+    // Index into SQLite cache for sub-10ms instant subsequent retrieval
+    SqliteCacheService.set(initialData);
+
+    return res.json({
+      ...initialData,
+      from_cache: false,
+      cache_source: 'fresh',
+    });
   } catch (err: any) {
     return res.status(400).json({ detail: err.message || 'Error processing repository.' });
   }

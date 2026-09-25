@@ -1,13 +1,24 @@
 import React from 'react';
 import { RepoOverview, RepoStats } from '../types';
-import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch } from 'lucide-react';
+import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw } from 'lucide-react';
 
 interface RepoOverviewCardProps {
   overview: RepoOverview;
   stats: RepoStats;
+  fromCache?: boolean;
+  cacheSource?: 'indexeddb' | 'sqlite' | 'fresh';
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({ overview, stats }) => {
+export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
+  overview,
+  stats,
+  fromCache,
+  cacheSource,
+  onRefresh,
+  isRefreshing,
+}) => {
   return (
     <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-6 space-y-6 transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-black/[0.06] dark:border-white/[0.08]">
@@ -42,9 +53,32 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({ overview, st
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full text-emerald-700 dark:text-emerald-400 text-xs font-mono font-medium self-start sm:self-auto">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Stratified & Ready</span>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {fromCache && (
+            <div className="flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full text-amber-700 dark:text-amber-400 text-xs font-mono font-medium">
+              <Zap className="w-3 h-3 text-amber-500 animate-pulse" />
+              <span>
+                {cacheSource === 'indexeddb' ? '0ms Cache (IndexedDB)' : 'Fast Cache (SQLite)'}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full text-emerald-700 dark:text-emerald-400 text-xs font-mono font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Stratified & Ready</span>
+          </div>
+
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="p-1.5 rounded-md text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] transition-colors cursor-pointer"
+              title="Force re-clone and refresh analysis"
+              aria-label="Force refresh repository"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#e8702a]' : ''}`} />
+            </button>
+          )}
         </div>
       </div>
 

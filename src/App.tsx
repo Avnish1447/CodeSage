@@ -14,7 +14,8 @@ import { ApiHealthBanner } from './components/ApiHealthBanner';
 const PresentationMode = React.lazy(() =>
   import('./components/PresentationMode').then((m) => ({ default: m.PresentationMode }))
 );
-import { RepoResponse } from './types';
+import { RepoResponse, CachedAnalysisSummary } from './types';
+import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
 import {
   saveRepositoryToUserHistory,
@@ -40,6 +41,9 @@ import {
   ChevronRight,
   Presentation,
   Cloud,
+  Zap,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 
 const PRESET_HISTORIES = [
@@ -121,6 +125,23 @@ export function App() {
   const { user } = useAuth();
   const [firestoreHistory, setFirestoreHistory] = useState<UserRepoHistoryItem[]>([]);
 
+  // Local IndexedDB Cache State
+  const [cachedList, setCachedList] = useState<CachedAnalysisSummary[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadCachedList = async () => {
+    try {
+      const items = await indexedDbService.listAllCachedAnalyses();
+      setCachedList(items);
+    } catch {
+      setCachedList([]);
+    }
+  };
+
+  useEffect(() => {
+    loadCachedList();
+  }, []);
+
   // Load user repository history from Firestore when authenticated
   useEffect(() => {
     if (user?.uid) {
@@ -150,14 +171,32 @@ export function App() {
     workbenchRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const analyzeRepository = async (url: string, branch?: string) => {
-    setLoading(true);
+  const analyzeRepository = async (url: string, branch?: string, forceRefresh = false) => {
     setError(null);
+
+    // 1. Instant Cache-First Load from Client IndexedDB (< 5ms)
+    if (!forceRefresh) {
+      try {
+        const localCached = await indexedDbService.getCachedAnalysis(url, branch);
+        if (localCached) {
+          setRepoData(localCached);
+          setLoading(false);
+          loadCachedList();
+          return;
+        }
+      } catch (err) {
+        console.warn('[App] IndexedDB read error, falling back to server:', err);
+      }
+    }
+
+    setLoading(true);
+    setIsRefreshing(forceRefresh);
+
     try {
       const res = await fetch('/api/v1/repositories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, branch }),
+        body: JSON.stringify({ url, branch, force_refresh: forceRefresh }),
       });
 
       const data = await res.json();
@@ -169,6 +208,10 @@ export function App() {
       if (data.gemini_status) {
         setGeminiStatus(data.gemini_status);
       }
+
+      // Automatically store in client-side IndexedDB for instant 0ms future reloads
+      await indexedDbService.saveAnalysisToCache(data);
+      loadCachedList();
 
       // Automatically sync analyzed repository to user's personal Firestore history
       if (user?.uid) {
@@ -182,6 +225,7 @@ export function App() {
       setError(err.message || 'An unknown error occurred');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -359,6 +403,60 @@ export function App() {
                   </div>
                 </div>
 
+                {/* Local IndexedDB Cache Section */}
+                {cachedList.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8F8F8F] dark:text-[#888888]">
+                        <Zap className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Local Cache</span>
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                          ({cachedList.length})
+                        </span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await indexedDbService.clearAllCache();
+                          loadCachedList();
+                        }}
+                        className="text-[10px] text-[#8F8F8F] hover:text-rose-500 font-mono transition-colors cursor-pointer"
+                        title="Purge local IndexedDB cache"
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      {cachedList.slice(0, 5).map((item) => (
+                        <motion.button
+                          whileTap={{ scale: 0.98 }}
+                          key={item.repository_id}
+                          onClick={() => {
+                            analyzeRepository(item.url, item.branch);
+                            scrollToWorkbench();
+                          }}
+                          disabled={loading}
+                          className="w-full text-left p-2 rounded-lg transition-colors cursor-pointer text-xs bg-[#FAFAFA] dark:bg-[#161618] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] flex items-center justify-between group"
+                        >
+                          <div className="min-w-0 pr-1">
+                            <div className="font-medium text-[#171717] dark:text-[#EDEDED] truncate text-[11px]">
+                              {item.owner}/{item.repo}
+                            </div>
+                            <div className="text-[10px] font-mono text-[#8F8F8F] dark:text-[#777777] flex items-center space-x-1">
+                              <span>{item.branch}</span>
+                              <span>&bull;</span>
+                              <span>{item.files} files</span>
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0 font-medium">
+                            0ms
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Current Active Repo Meta */}
                 {repoData && (
                   <div className="p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg space-y-1 text-xs bg-[#FAFAFA] dark:bg-[#161618]">
@@ -473,7 +571,14 @@ export function App() {
                 </div>
 
                 {/* Repo Summary & Key Metrics */}
-                <RepoOverviewCard overview={repoData.overview} stats={repoData.facts.stats} />
+                <RepoOverviewCard
+                  overview={repoData.overview}
+                  stats={repoData.facts.stats}
+                  fromCache={repoData.from_cache}
+                  cacheSource={repoData.cache_source}
+                  onRefresh={() => analyzeRepository(repoData.overview.normalized_url, repoData.overview.branch, true)}
+                  isRefreshing={isRefreshing}
+                />
 
                 {/* WORKBENCH BODY WITH SPRING MOTION */}
                 <AnimatePresence mode="wait">
