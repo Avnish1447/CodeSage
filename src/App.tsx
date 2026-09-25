@@ -14,6 +14,12 @@ const PresentationMode = React.lazy(() =>
   import('./components/PresentationMode').then((m) => ({ default: m.PresentationMode }))
 );
 import { RepoResponse } from './types';
+import { useAuth } from './context/AuthContext';
+import {
+  saveRepositoryToUserHistory,
+  getUserRepositoryHistory,
+  type UserRepoHistoryItem,
+} from './lib/firebase';
 import {
   Sparkles,
   Terminal,
@@ -32,6 +38,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Presentation,
+  Cloud,
 } from 'lucide-react';
 
 const PRESET_HISTORIES = [
@@ -72,6 +79,21 @@ export function App() {
   // Gemini API Health & Key Exhaustion Guard State
   const [geminiStatus, setGeminiStatus] = useState<'live' | 'missing_key' | 'quota_exhausted'>('live');
 
+  // Firebase Auth & Firestore State
+  const { user } = useAuth();
+  const [firestoreHistory, setFirestoreHistory] = useState<UserRepoHistoryItem[]>([]);
+
+  // Load user repository history from Firestore when authenticated
+  useEffect(() => {
+    if (user?.uid) {
+      getUserRepositoryHistory(user.uid).then((items) => {
+        setFirestoreHistory(items);
+      });
+    } else {
+      setFirestoreHistory([]);
+    }
+  }, [user]);
+
   const checkGeminiHealth = async (forceProbe: boolean = false) => {
     try {
       const res = await fetch(`/api/v1/gemini/health?probe=${forceProbe}`);
@@ -108,6 +130,15 @@ export function App() {
       setRepoData(data);
       if (data.gemini_status) {
         setGeminiStatus(data.gemini_status);
+      }
+
+      // Automatically sync analyzed repository to user's personal Firestore history
+      if (user?.uid) {
+        saveRepositoryToUserHistory(user.uid, data).then(() => {
+          getUserRepositoryHistory(user.uid).then((items) => {
+            setFirestoreHistory(items);
+          });
+        });
       }
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred');
@@ -219,28 +250,56 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Preset Repositories History */}
+                {/* Recent Repositories History */}
                 <div>
-                  <div className="flex items-center space-x-1.5 text-[11px] font-medium uppercase tracking-wider mb-2 text-[#8F8F8F] dark:text-[#888888]">
-                    <History className="w-3.5 h-3.5 text-[#e8702a]" />
-                    <span>Recent Repositories</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8F8F8F] dark:text-[#888888]">
+                      <History className="w-3.5 h-3.5 text-[#e8702a]" />
+                      <span>{user ? 'Your Repositories' : 'Recent Repositories'}</span>
+                    </div>
+                    {user && (
+                      <span className="flex items-center space-x-1 text-[10px] text-emerald-500 font-mono" title="Synced with Firestore">
+                        <Cloud className="w-3 h-3" />
+                        <span>Cloud</span>
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-1">
-                    {PRESET_HISTORIES.map((preset) => (
-                      <motion.button
-                        whileTap={{ scale: 0.98 }}
-                        key={preset.url}
-                        onClick={() => {
-                          analyzeRepository(preset.url);
-                          scrollToWorkbench();
-                        }}
-                        disabled={loading}
-                        className="w-full text-left p-2.5 rounded-lg transition-colors cursor-pointer text-xs bg-[#FAFAFA] dark:bg-[#161618] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
-                      >
-                        <div className="font-medium text-[#171717] dark:text-[#EDEDED] truncate">{preset.name}</div>
-                        <div className="text-[10px] font-mono text-[#8F8F8F] dark:text-[#888888] mt-0.5">{preset.lang}</div>
-                      </motion.button>
-                    ))}
+                    {user && firestoreHistory.length > 0 ? (
+                      firestoreHistory.map((item) => (
+                        <motion.button
+                          whileTap={{ scale: 0.98 }}
+                          key={item.repositoryId}
+                          onClick={() => {
+                            analyzeRepository(item.url);
+                            scrollToWorkbench();
+                          }}
+                          disabled={loading}
+                          className="w-full text-left p-2.5 rounded-lg transition-colors cursor-pointer text-xs bg-[#FAFAFA] dark:bg-[#161618] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                        >
+                          <div className="font-medium text-[#171717] dark:text-[#EDEDED] truncate">{item.name}</div>
+                          <div className="text-[10px] font-mono text-[#8F8F8F] dark:text-[#888888] mt-0.5">
+                            {item.primaryLang} &bull; {item.filesCount} files
+                          </div>
+                        </motion.button>
+                      ))
+                    ) : (
+                      PRESET_HISTORIES.map((preset) => (
+                        <motion.button
+                          whileTap={{ scale: 0.98 }}
+                          key={preset.url}
+                          onClick={() => {
+                            analyzeRepository(preset.url);
+                            scrollToWorkbench();
+                          }}
+                          disabled={loading}
+                          className="w-full text-left p-2.5 rounded-lg transition-colors cursor-pointer text-xs bg-[#FAFAFA] dark:bg-[#161618] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                        >
+                          <div className="font-medium text-[#171717] dark:text-[#EDEDED] truncate">{preset.name}</div>
+                          <div className="text-[10px] font-mono text-[#8F8F8F] dark:text-[#888888] mt-0.5">{preset.lang}</div>
+                        </motion.button>
+                      ))
+                    )}
                   </div>
                 </div>
 

@@ -7,12 +7,29 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    watch: {
+      ignored: [
+        '**/storage/**',
+        '**/storage/repos/**',
+        '**/.git/**',
+        '**/node_modules/**',
+      ],
+    },
   },
   build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('firestore')) {
+              return 'vendor-firebase-firestore';
+            }
+            if (id.includes('auth')) {
+              return 'vendor-firebase-auth';
+            }
+            if (id.includes('firebase') || id.includes('@firebase')) {
+              return 'vendor-firebase-core';
+            }
             if (id.includes('pptxgenjs') || id.includes('jszip')) {
               return 'vendor-pptx';
             }

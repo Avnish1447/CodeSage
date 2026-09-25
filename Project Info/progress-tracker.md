@@ -13,6 +13,7 @@ current_sprint: Sprint 06 - Polish & Extended Exporters
 ## 🏁 What Is Done Till Now (The Changelog)
 
 ### Sprint 06: Vercel Design System & 21st.dev UI Integration (Sept 24-25, 2026)
+- [x] **Firebase Auth & Firestore Cloud Sync:** Integrated Firebase Authentication for 1-click Google sign-in and cloud user identity (`src/context/AuthContext.tsx`). Connected Firestore database (`src/lib/firebase.ts`) to automatically persist and synchronize analyzed repositories to user accounts with dynamic sidebar history rendering.
 - [x] **API Health & Key Exhaustion Guard:** Built [ApiHealthBanner.tsx](file:///Users/avnish/Documents/GitHub/CodeSage/src/components/ApiHealthBanner.tsx) with Vercel design system aesthetics to alert users when `GEMINI_API_KEY` is missing or when free-tier rate limits (429/503) are reached. Integrated live backend probe endpoint (`/api/v1/gemini/health?probe=true`), status badges (`Online`, `Key Missing`, `Quota Busy`), and in-chat health synchronization.
 - [x] **File Content API Endpoint & Inline Code Inspection:** Added secure `GET /api/v1/repositories/:repo_id/file` & `/files/*` with directory traversal protection, binary detection, and interactive slide-out snippet drawer in `FileTreeViewer.tsx`.
 - [x] **Bundle Size Optimization:** Code-split `PresentationMode` via `React.lazy()` and partitioned vendor chunks, cutting initial bundle by 87% (down to 65kB).

@@ -34,7 +34,7 @@ All critical configuration items have been addressed:
 | **API Health & Key Exhaustion Guard** | `src/components/ApiHealthBanner.tsx`, `server/services/geminiService.ts` | Add explicit client-side banner in the workbench when `GEMINI_API_KEY` is missing or free-tier quota is temporarily exhausted. | ✅ Completed |
 | **Inline Code Snippet Previews** | `src/components/FileTreeViewer.tsx`, `server/routes/api.ts` | Click any file node in the stratigraphy tree to inspect syntax-highlighted source code with copy support and binary guards. | ✅ Completed |
 | **PDF & PPTX Export for Pitch Deck** | `src/components/PresentationMode.tsx` | Implement dual export capabilities for the 7-slide interactive pitch deck: (1) high-fidelity print stylesheet / PDF export, and (2) native editable PowerPoint (.pptx) download using `pptxgenjs` for pitch deck submission. | ✅ Completed |
-| **Persistent Repository History** | `src/App.tsx` | Store recently analyzed repositories in `localStorage` so users can switch between them instantly without re-cloning from scratch. | ⏳ Pending |
+| **Persistent Repository History** | `src/App.tsx`, `src/lib/firebase.ts` | Store and sync recently analyzed repositories to Firebase Firestore per authenticated user with cloud status indicator. | ✅ Completed |
 | **Branch Switching Selector** | `src/components/RepoInput.tsx`, `server/services/repoCloneService.ts` | Enable selecting and switching branches on multi-branch git repositories before analysis. | ⏳ Pending |
 
 ---
@@ -42,6 +42,13 @@ All critical configuration items have been addressed:
 ## 🏆 2. Recently Completed & Shipped (Sprint 06 - Sept 24-25, 2026)
 
 The following major milestones and design refinements have been implemented and verified:
+
+- [x] **Firebase Auth & Firestore Cloud Sync:**
+  - Integrated Firebase Auth with 1-click Google Sign-in popup (`signInWithPopup`).
+  - Added user authentication context (`src/context/AuthContext.tsx`) and header profile indicator with user avatar and sign-out controls.
+  - Connected Firestore database (`src/lib/firebase.ts`) to automatically persist analyzed repository history per user.
+  - Added a dynamic cloud-synced repository list in the sidebar with live Firestore retrieval.
+  - Code-split Firebase modules in Rollup (`vendor-firebase-auth`, `vendor-firebase-firestore`, `vendor-firebase-core`), maintaining a lightweight ~78kB initial entry bundle.
 
 - [x] **API Health & Key Exhaustion Guard:**
   - Implemented dual-state detection for `missing_key` and `quota_exhausted` (429 rate limit or 503 high demand) via `/api/v1/gemini/health?probe=true` and in `server/services/geminiService.ts`.

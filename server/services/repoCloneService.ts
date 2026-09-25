@@ -53,8 +53,11 @@ export class RepoCloneService {
       normalizedUrl.toLowerCase().includes('avnish1447/repogpt-rag');
 
     if (isCurrentWorkspace) {
-      // Sync fresh from the local project workspace so all current files are present
-      this.copyLocalProjectFiles(repoPath);
+      // Sync from local project workspace if not already present
+      const alreadySynced = fs.existsSync(repoPath) && fs.existsSync(completeMarker);
+      if (!alreadySynced) {
+        this.copyLocalProjectFiles(repoPath);
+      }
       const existingFiles = this.listRepositoryFiles(repoPath);
       let totalSizeBytes = 0;
       for (const file of existingFiles) {
