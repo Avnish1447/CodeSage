@@ -41,6 +41,15 @@ export interface RepoResponse {
   learning_path: string[];
   architecture_summary: string;
   storage_path: string;
+  gemini_available?: boolean;
+  gemini_status?: 'live' | 'missing_key' | 'quota_exhausted';
+}
+
+export interface GeminiHealthInfo {
+  configured: boolean;
+  status: 'live' | 'missing_key' | 'quota_exhausted';
+  model?: string;
+  message?: string;
 }
 
 export interface ChatMessage {
@@ -48,4 +57,5 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   timestamp: string;
+  status?: 'live' | 'missing_key' | 'quota_exhausted';
 }

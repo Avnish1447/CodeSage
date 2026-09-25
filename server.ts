@@ -1,3 +1,12 @@
+// Load environment variables from .env file if available
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile();
+  } catch {
+    // .env file not present or unreadable, ignore
+  }
+}
+
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';

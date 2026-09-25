@@ -3,10 +3,13 @@ import { motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { ChatMessage, RepoResponse } from '../types';
 import { Send, Bot, User, Loader2, HelpCircle, Code2, Feather } from 'lucide-react';
+import { ApiHealthBanner } from './ApiHealthBanner';
 
 interface RagChatSectionProps {
   repoData: RepoResponse;
   heightClass?: string;
+  geminiStatus?: 'live' | 'missing_key' | 'quota_exhausted';
+  onStatusChange?: (status: 'live' | 'missing_key' | 'quota_exhausted') => void;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -16,8 +19,24 @@ const SAMPLE_QUESTIONS = [
   "Where are the primary entry points and API endpoints defined?"
 ];
 
-export const RagChatSection: React.FC<RagChatSectionProps> = ({ repoData, heightClass = "h-[820px]" }) => {
+export const RagChatSection: React.FC<RagChatSectionProps> = ({
+  repoData,
+  heightClass = "h-[820px]",
+  geminiStatus,
+  onStatusChange,
+}) => {
   const [responseStyle, setResponseStyle] = useState<'technical' | 'simple'>('technical');
+  const [chatGeminiStatus, setChatGeminiStatus] = useState<'live' | 'missing_key' | 'quota_exhausted'>(
+    geminiStatus || repoData.gemini_status || 'live'
+  );
+
+  useEffect(() => {
+    if (geminiStatus) {
+      setChatGeminiStatus(geminiStatus);
+    } else if (repoData.gemini_status) {
+      setChatGeminiStatus(repoData.gemini_status);
+    }
+  }, [geminiStatus, repoData.gemini_status]);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
@@ -48,6 +67,21 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({ repoData, height
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
+  const handleRecheckGemini = async () => {
+    try {
+      const res = await fetch('/api/v1/gemini/health?probe=true');
+      const data = await res.json();
+      if (data.status) {
+        setChatGeminiStatus(data.status);
+        if (onStatusChange) {
+          onStatusChange(data.status);
+        }
+      }
+    } catch {
+      // ignore network errors
+    }
+  };
+
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
     if (!query || loading) return;
@@ -71,6 +105,13 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({ repoData, height
       });
 
       const data = await res.json();
+      if (data.gemini_status) {
+        setChatGeminiStatus(data.gemini_status);
+        if (onStatusChange) {
+          onStatusChange(data.gemini_status);
+        }
+      }
+
       const botMsg: ChatMessage = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
@@ -110,7 +151,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({ repoData, height
           </div>
         </div>
 
-        {/* Style Segmented Switcher */}
+        {/* Style Segmented Switcher & Engine Status */}
         <div className="flex items-center space-x-2">
           <div className="flex items-center bg-[#F2F2F2] dark:bg-[#161618] p-0.5 rounded-lg shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             <button
@@ -141,12 +182,45 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({ repoData, height
             </button>
           </div>
 
-          <span className="hidden sm:inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[11px] font-mono text-[#45A557]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#45A557]" />
-            <span>Active</span>
+          <span className="hidden sm:inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[11px] font-mono">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                chatGeminiStatus === 'live'
+                  ? 'bg-[#45A557]'
+                  : chatGeminiStatus === 'missing_key'
+                  ? 'bg-amber-500'
+                  : 'bg-orange-500'
+              }`}
+            />
+            <span
+              className={
+                chatGeminiStatus === 'live'
+                  ? 'text-[#45A557]'
+                  : chatGeminiStatus === 'missing_key'
+                  ? 'text-amber-500'
+                  : 'text-orange-500'
+              }
+            >
+              {chatGeminiStatus === 'live'
+                ? 'Active'
+                : chatGeminiStatus === 'missing_key'
+                ? 'Key Missing'
+                : 'Quota Busy'}
+            </span>
           </span>
         </div>
       </div>
+
+      {/* Embedded ApiHealthBanner for chat context */}
+      {chatGeminiStatus !== 'live' && (
+        <div className="pt-3">
+          <ApiHealthBanner
+            status={chatGeminiStatus}
+            compact={true}
+            onRetry={handleRecheckGemini}
+          />
+        </div>
+      )}
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto my-4 space-y-3 pr-1">

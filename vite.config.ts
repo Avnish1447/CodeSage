@@ -8,4 +8,37 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('pptxgenjs') || id.includes('jszip')) {
+              return 'vendor-pptx';
+            }
+            if (
+              id.includes('react-markdown') ||
+              id.includes('remark') ||
+              id.includes('rehype') ||
+              id.includes('micromark') ||
+              id.includes('unist') ||
+              id.includes('mdast') ||
+              id.includes('vfile')
+            ) {
+              return 'vendor-markdown';
+            }
+            if (id.includes('motion') || id.includes('framer-motion')) {
+              return 'vendor-motion';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('react-dom') || id.includes('react/')) {
+              return 'vendor-react';
+            }
+          }
+        },
+      },
+    },
+  },
 });

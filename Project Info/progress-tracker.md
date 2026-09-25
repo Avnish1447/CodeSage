@@ -4,13 +4,24 @@ tags:
   - tracking
   - changelog
   - sprints
-last_updated: 2026-09-19
+last_updated: 2026-09-25
 current_sprint: Sprint 06 - Polish & Extended Exporters
 ---
 
 # 📈 Progress Tracker & Engineering Roadmap
 
 ## 🏁 What Is Done Till Now (The Changelog)
+
+### Sprint 06: Vercel Design System & 21st.dev UI Integration (Sept 24-25, 2026)
+- [x] **API Health & Key Exhaustion Guard:** Built [ApiHealthBanner.tsx](file:///Users/avnish/Documents/GitHub/CodeSage/src/components/ApiHealthBanner.tsx) with Vercel design system aesthetics to alert users when `GEMINI_API_KEY` is missing or when free-tier rate limits (429/503) are reached. Integrated live backend probe endpoint (`/api/v1/gemini/health?probe=true`), status badges (`Online`, `Key Missing`, `Quota Busy`), and in-chat health synchronization.
+- [x] **File Content API Endpoint & Inline Code Inspection:** Added secure `GET /api/v1/repositories/:repo_id/file` & `/files/*` with directory traversal protection, binary detection, and interactive slide-out snippet drawer in `FileTreeViewer.tsx`.
+- [x] **Bundle Size Optimization:** Code-split `PresentationMode` via `React.lazy()` and partitioned vendor chunks, cutting initial bundle by 87% (down to 65kB).
+- [x] **Vercel Design System Migration:** Implemented Geist Sans & Geist Mono with `liga` enabled, 4-stop achromatic grayscale, and shadow-as-border simulation across all cards.
+- [x] **Hero UI Simplification:** Removed redundant "Open Studio" button from navbar; centered "Start Digging" CTA on the central axis; removed duplicate `CodeSage Stratigraphy` badge from transitional banner.
+- [x] **Navigation De-Duplication:** Removed redundant view mode buttons from the collapsible sidebar navigation pane; preserved primary segmented view switcher exclusively in the central Studio header track.
+- [x] **21st.dev Liquid Glass CTA:** Created and deployed `LiquidGlassButton.tsx` with physical SVG displacement refraction (`feDisplacementMap`), multi-layered specular shadows, and cursor-tracking fluid molten sheen.
+- [x] **Anti-Clutter Clean-up:** Decoupled and removed non-essential modals ("Brand Assets" and "Launch Video") across Header, Hero, Studio top switcher, and footer.
+- [x] **Hero Canvas Upgrades:** Added monochrome dimmed silhouette unhovered state + 48px blueprint grid, and automated spotlight sweep on initial load.
 
 ### Phase 3: Brand Evolution & Presentation Integration (Sept 2026)
 - [x] **Complete Rebranding:** Migrated identity from `RepoGPT-RAG` to **`CodeSage`** across UI components, headers, PRD, and meta descriptors.
@@ -33,10 +44,10 @@ current_sprint: Sprint 06 - Polish & Extended Exporters
 ## ⚡ Current Sprint Tasks (Active Workstream)
 
 > [!todo] Active Sprint Focus
-> - [ ] Add PDF export capability for the interactive Pitch Deck (`PresentationMode.tsx`).
+> - [x] Add dual PDF & PPTX export capability for the interactive Pitch Deck (`PresentationMode.tsx`).
 > - [ ] Add persistent repository history in `localStorage` so users can switch between recently analyzed repositories without re-fetching.
 > - [ ] Enable branch switching selector for multi-branch repositories.
-> - [ ] Implement inline code snippet previews for selected files directly in the File Tree.
+> - [x] Implement inline code snippet previews for selected files directly in the File Tree.
 
 ---
 

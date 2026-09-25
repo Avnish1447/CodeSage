@@ -9,7 +9,10 @@ import { LearningPathCard } from './components/LearningPathCard';
 import { RagChatSection } from './components/RagChatSection';
 import { SkeletonLoader } from './components/SkeletonLoader';
 import { LithosHero } from './components/LithosHero';
-import { PresentationMode } from './components/PresentationMode';
+import { ApiHealthBanner } from './components/ApiHealthBanner';
+const PresentationMode = React.lazy(() =>
+  import('./components/PresentationMode').then((m) => ({ default: m.PresentationMode }))
+);
 import { RepoResponse } from './types';
 import {
   Sparkles,
@@ -66,6 +69,21 @@ export function App() {
   // Left Panel Sub-tab inside split view or explorer: 'all' | 'stack' | 'tree' | 'learning'
   const [leftTab, setLeftTab] = useState<'all' | 'stack' | 'tree' | 'learning'>('all');
 
+  // Gemini API Health & Key Exhaustion Guard State
+  const [geminiStatus, setGeminiStatus] = useState<'live' | 'missing_key' | 'quota_exhausted'>('live');
+
+  const checkGeminiHealth = async (forceProbe: boolean = false) => {
+    try {
+      const res = await fetch(`/api/v1/gemini/health?probe=${forceProbe}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGeminiStatus(data.status || (data.configured ? 'live' : 'missing_key'));
+      }
+    } catch {
+      // network error, ignore
+    }
+  };
+
   const workbenchRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToWorkbench = () => {
@@ -88,6 +106,9 @@ export function App() {
       }
 
       setRepoData(data);
+      if (data.gemini_status) {
+        setGeminiStatus(data.gemini_status);
+      }
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred');
     } finally {
@@ -95,8 +116,9 @@ export function App() {
     }
   };
 
-  // Analyze the default repo on mount
+  // Check health and analyze the default repo on mount
   useEffect(() => {
+    checkGeminiHealth(false);
     analyzeRepository('https://github.com/Avnish1447/CodeSage');
     if (window.location.hash === '#workbench' || window.location.hash === '#studio') {
       setTimeout(scrollToWorkbench, 300);
@@ -165,41 +187,6 @@ export function App() {
             {/* Sidebar Navigation Options */}
             {sidebarOpen ? (
               <div className="space-y-5 w-full">
-                {/* Workbench Modes */}
-                <div>
-                  <span className="text-[11px] font-medium uppercase tracking-wider mb-2 block text-[#8F8F8F] dark:text-[#888888]">
-                    Workbench View
-                  </span>
-                  <div className="space-y-1">
-                    {[
-                      { id: 'split', label: 'Dual Workbench', icon: LayoutGrid },
-                      { id: 'chat', label: 'Full Chat Mode', icon: MessageSquare },
-                      { id: 'explorer', label: 'Codebase Explorer', icon: Code2 },
-                      { id: 'presentation', label: 'Pitch Deck Slides', icon: Presentation },
-                    ].map((mode) => {
-                      const Icon = mode.icon;
-                      const isActive = viewMode === mode.id;
-                      return (
-                        <button
-                          key={mode.id}
-                          onClick={() => setViewMode(mode.id as any)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                            isActive
-                              ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] shadow-sm'
-                              : 'text-[#4D4D4D] dark:text-[#A1A1A1] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <Icon className="w-4 h-4 text-[#e8702a]" />
-                            <span>{mode.label}</span>
-                          </div>
-                          <ChevronRight className="w-3.5 h-3.5 opacity-40" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
                 {/* Sub-section Filter */}
                 <div>
                   <span className="text-[11px] font-medium uppercase tracking-wider mb-2 block text-[#8F8F8F] dark:text-[#888888]">
@@ -272,18 +259,19 @@ export function App() {
             ) : (
               <div className="flex flex-col items-center space-y-3 py-2">
                 {[
-                  { id: 'split', title: 'Dual Workbench', icon: LayoutGrid },
-                  { id: 'chat', title: 'Full Chat Mode', icon: MessageSquare },
-                  { id: 'explorer', title: 'Codebase Explorer', icon: Code2 },
-                ].map((btn) => {
-                  const Icon = btn.icon;
-                  const isActive = viewMode === btn.id;
+                  { id: 'all', title: 'Show All Sections', icon: LayoutGrid },
+                  { id: 'stack', title: 'Tech Stack', icon: Layers },
+                  { id: 'tree', title: 'File Tree', icon: Folder },
+                  { id: 'learning', title: 'Architecture Guide', icon: BookOpen },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = leftTab === item.id;
                   return (
                     <button
-                      key={btn.id}
-                      onClick={() => setViewMode(btn.id as any)}
-                      title={btn.title}
-                      className={`p-2 rounded-lg text-xs font-medium transition-colors ${
+                      key={item.id}
+                      onClick={() => { setViewMode('split'); setLeftTab(item.id as any); }}
+                      title={item.title}
+                      className={`p-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                         isActive
                           ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]'
                           : 'text-[#8F8F8F] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] hover:text-[#171717] dark:hover:text-[#EDEDED]'
@@ -308,6 +296,12 @@ export function App() {
             {/* Results View */}
             {!loading && repoData && (
               <div className="space-y-6">
+                {/* API Health & Key Exhaustion Guard Banner */}
+                <ApiHealthBanner
+                  status={geminiStatus}
+                  onRetry={() => checkGeminiHealth(true)}
+                />
+
                 {/* Top Control Header Bar */}
                 <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-3 sm:p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 transition-colors duration-200">
                   {/* Primary View Switcher with Recessed Segmented Track */}
@@ -340,8 +334,25 @@ export function App() {
                   {/* Status Indicator Dot */}
                   <div className="flex items-center space-x-2">
                     <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-xs font-mono text-[#171717] dark:text-[#EDEDED]">
-                      <span className="w-2 h-2 rounded-full bg-[#45A557] animate-pulse" />
-                      <span>RAG Index: <strong className="font-medium text-[#45A557]">Ready</strong></span>
+                      <span className={`w-2 h-2 rounded-full ${
+                        geminiStatus === 'missing_key'
+                          ? 'bg-amber-500'
+                          : geminiStatus === 'quota_exhausted'
+                          ? 'bg-orange-500'
+                          : 'bg-[#45A557] animate-pulse'
+                      }`} />
+                      <span>
+                        AI Engine:{' '}
+                        <strong className={`font-medium ${
+                          geminiStatus === 'missing_key'
+                            ? 'text-amber-500'
+                            : geminiStatus === 'quota_exhausted'
+                            ? 'text-orange-500'
+                            : 'text-[#45A557]'
+                        }`}>
+                          {geminiStatus === 'missing_key' ? 'Key Missing' : geminiStatus === 'quota_exhausted' ? 'Quota Busy' : 'Online'}
+                        </strong>
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -367,7 +378,10 @@ export function App() {
                           <TechStackCard facts={repoData.facts} />
                         )}
                         {(leftTab === 'all' || leftTab === 'tree') && (
-                          <FileTreeViewer tree={repoData.facts.tree_summary} />
+                          <FileTreeViewer
+                            tree={repoData.facts.tree_summary}
+                            repositoryId={repoData.repository_id}
+                          />
                         )}
                         {(leftTab === 'all' || leftTab === 'learning') && (
                           <LearningPathCard
@@ -379,7 +393,13 @@ export function App() {
 
                       {/* Right Workspace (5 cols): RAG Chat Assistant */}
                       <div className="lg:col-span-5 lg:sticky lg:top-20 space-y-6">
-                        <RagChatSection key={repoData.repository_id} repoData={repoData} heightClass="h-[840px]" />
+                        <RagChatSection
+                          key={repoData.repository_id}
+                          repoData={repoData}
+                          heightClass="h-[840px]"
+                          geminiStatus={geminiStatus}
+                          onStatusChange={setGeminiStatus}
+                        />
                       </div>
                     </motion.div>
                   )}
@@ -393,7 +413,13 @@ export function App() {
                       transition={{ type: 'spring', damping: 28, stiffness: 320 }}
                       className="w-full"
                     >
-                      <RagChatSection key={repoData.repository_id} repoData={repoData} heightClass="h-[820px]" />
+                      <RagChatSection
+                        key={repoData.repository_id}
+                        repoData={repoData}
+                        heightClass="h-[820px]"
+                        geminiStatus={geminiStatus}
+                        onStatusChange={setGeminiStatus}
+                      />
                     </motion.div>
                   )}
 
@@ -408,7 +434,10 @@ export function App() {
                     >
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <TechStackCard facts={repoData.facts} />
-                        <FileTreeViewer tree={repoData.facts.tree_summary} />
+                        <FileTreeViewer
+                          tree={repoData.facts.tree_summary}
+                          repositoryId={repoData.repository_id}
+                        />
                       </div>
                       <LearningPathCard
                         learningPath={repoData.learning_path}
@@ -426,7 +455,16 @@ export function App() {
                       transition={{ type: 'spring', damping: 28, stiffness: 320 }}
                       className="w-full"
                     >
-                      <PresentationMode isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+                      <React.Suspense
+                        fallback={
+                          <div className="flex flex-col items-center justify-center p-16 space-y-3 rounded-xl bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
+                            <div className="w-5 h-5 border-2 border-[#e8702a] border-t-transparent rounded-full animate-spin" />
+                            <span className="text-xs font-mono text-[#8F8F8F]">Loading presentation deck...</span>
+                          </div>
+                        }
+                      >
+                        <PresentationMode isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+                      </React.Suspense>
                     </motion.div>
                   )}
                 </AnimatePresence>

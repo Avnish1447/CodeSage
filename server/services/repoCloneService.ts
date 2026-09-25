@@ -44,9 +44,17 @@ export class RepoCloneService {
     const root = storageRoot ? path.resolve(storageRoot) : path.resolve(this.DEFAULT_STORAGE_ROOT);
     const repoDir = path.join(root, repositoryId);
     const repoPath = path.join(repoDir, 'source');
+    const completeMarker = path.join(repoPath, '.clone_complete');
 
-    if (fs.existsSync(repoPath) && fs.readdirSync(repoPath).length > 0) {
-      // Repository already exists, reuse local files
+    // Check if the target repo is the current active local workspace
+    const isCurrentWorkspace =
+      (owner.toLowerCase() === 'avnish1447' && (repo.toLowerCase() === 'codesage' || repo.toLowerCase() === 'repogpt-rag')) ||
+      normalizedUrl.toLowerCase().includes('avnish1447/codesage') ||
+      normalizedUrl.toLowerCase().includes('avnish1447/repogpt-rag');
+
+    if (isCurrentWorkspace) {
+      // Sync fresh from the local project workspace so all current files are present
+      this.copyLocalProjectFiles(repoPath);
       const existingFiles = this.listRepositoryFiles(repoPath);
       let totalSizeBytes = 0;
       for (const file of existingFiles) {
@@ -70,6 +78,35 @@ export class RepoCloneService {
       return [repoPath, metadata];
     }
 
+    if (fs.existsSync(repoPath) && fs.existsSync(completeMarker)) {
+      // Repository already exists and was completely cloned, reuse local files
+      const existingFiles = this.listRepositoryFiles(repoPath);
+      if (existingFiles.length > 0) {
+        let totalSizeBytes = 0;
+        for (const file of existingFiles) {
+          try {
+            const stat = fs.statSync(file);
+            totalSizeBytes += stat.size;
+          } catch {
+            // ignore
+          }
+        }
+        const totalSizeMb = totalSizeBytes / (1024 * 1024);
+        const metadata = {
+          repository_id: repositoryId,
+          owner,
+          repo,
+          normalized_url: normalizedUrl,
+          files: existingFiles.length,
+          size_mb: Math.round(totalSizeMb * 100) / 100,
+          storage_path: repoPath,
+        };
+        return [repoPath, metadata];
+      }
+    }
+
+    // Clean up any previous incomplete or interrupted clone directory
+    this.cleanupPartialClone(repoPath);
     fs.mkdirSync(repoPath, { recursive: true });
 
     let cloneSuccess = false;
@@ -81,10 +118,10 @@ export class RepoCloneService {
       if (repo.toLowerCase() === 'repogpt-rag') alternateNames.push('CodeSage');
     }
 
-    // 1. Try git clone first on the requested URL
+    // 1. Try git clone first on the requested URL with 45s timeout
     try {
       await execFileAsync('git', ['clone', '--depth', '1', normalizedUrl, repoPath], {
-        timeout: 15000,
+        timeout: 45000,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
       cloneSuccess = true;
@@ -95,7 +132,7 @@ export class RepoCloneService {
         try {
           const altUrl = `https://github.com/${owner}/${alt}`;
           await execFileAsync('git', ['clone', '--depth', '1', altUrl, repoPath], {
-            timeout: 15000,
+            timeout: 45000,
             env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
           });
           cloneSuccess = true;
@@ -133,6 +170,12 @@ export class RepoCloneService {
           }
         }
       }
+    }
+
+    try {
+      fs.writeFileSync(completeMarker, 'ready', 'utf-8');
+    } catch {
+      // ignore
     }
 
     const files = this.listRepositoryFiles(repoPath);
@@ -204,7 +247,24 @@ export class RepoCloneService {
   }
 
   private static async downloadTreeItems(owner: string, repo: string, branch: string, tree: any[], targetPath: string) {
-    const fileItems = tree.filter((item) => item.type === 'blob').slice(0, 300); // limit to top 300 files
+    const codeExtensions = new Set([
+      '.ts', '.tsx', '.js', '.jsx', '.py', '.json', '.md', '.html',
+      '.css', '.toml', '.yml', '.yaml', '.sh', '.rs', '.go', '.java',
+      '.c', '.cpp', '.h', '.sql', '.txt'
+    ]);
+
+    // Prioritize source code and documentation over large media / sound / binary assets
+    const sorted = [...tree.filter((item) => item.type === 'blob')].sort((a, b) => {
+      const aExt = path.extname(a.path || '').toLowerCase();
+      const bExt = path.extname(b.path || '').toLowerCase();
+      const aIsCode = codeExtensions.has(aExt);
+      const bIsCode = codeExtensions.has(bExt);
+      if (aIsCode && !bIsCode) return -1;
+      if (!aIsCode && bIsCode) return 1;
+      return 0;
+    });
+
+    const fileItems = sorted.slice(0, 500);
 
     for (const item of fileItems) {
       const relPath = item.path;
@@ -232,7 +292,7 @@ export class RepoCloneService {
       const items = fs.readdirSync(current, { withFileTypes: true });
 
       for (const item of items) {
-        if (item.name === '.git') continue;
+        if (item.name === '.git' || item.name === '.clone_complete') continue;
 
         const fullPath = path.join(current, item.name);
         if (item.isDirectory()) {
@@ -258,40 +318,58 @@ export class RepoCloneService {
   }
 
   private static copyLocalProjectFiles(targetPath: string): void {
+    if (fs.existsSync(targetPath)) {
+      try {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
+    }
     fs.mkdirSync(targetPath, { recursive: true });
-    const rootDir = process.cwd();
-    const allowedDirs = ['src', 'server', 'Project Info'];
-    const allowedFiles = [
-      'package.json',
-      'tsconfig.json',
-      'index.html',
-      'metadata.json',
-      'vite.config.ts',
-      'PRD.md',
-      'ARCHITECTURE.md',
-      'PPT_REPORT.md',
-    ];
 
-    for (const dir of allowedDirs) {
-      const srcDir = path.join(rootDir, dir);
-      if (fs.existsSync(srcDir)) {
-        try {
-          fs.cpSync(srcDir, path.join(targetPath, dir), { recursive: true });
-        } catch {
-          // ignore
+    const rootDir = process.cwd();
+    const ignoreDirs = new Set([
+      '.git',
+      'node_modules',
+      'dist',
+      'build',
+      'storage',
+      '.venv',
+      'venv',
+      '__pycache__',
+      '.pytest_cache',
+      '.mypy_cache',
+    ]);
+
+    function copyRecursive(src: string, dest: string) {
+      if (!fs.existsSync(src)) return;
+      fs.mkdirSync(dest, { recursive: true });
+      const entries = fs.readdirSync(src, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (ignoreDirs.has(entry.name) || entry.name === '.clone_complete') continue;
+
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+
+        if (entry.isDirectory()) {
+          copyRecursive(srcPath, destPath);
+        } else if (entry.isFile()) {
+          try {
+            fs.copyFileSync(srcPath, destPath);
+          } catch {
+            // ignore
+          }
         }
       }
     }
 
-    for (const file of allowedFiles) {
-      const srcFile = path.join(rootDir, file);
-      if (fs.existsSync(srcFile)) {
-        try {
-          fs.copyFileSync(srcFile, path.join(targetPath, file));
-        } catch {
-          // ignore
-        }
-      }
+    copyRecursive(rootDir, targetPath);
+
+    try {
+      fs.writeFileSync(path.join(targetPath, '.clone_complete'), 'ready', 'utf-8');
+    } catch {
+      // ignore
     }
   }
 }

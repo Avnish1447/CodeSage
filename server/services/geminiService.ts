@@ -1,8 +1,19 @@
 import { GoogleGenAI } from '@google/genai';
 
+function ensureEnvLoaded() {
+  if (!process.env.GEMINI_API_KEY && typeof process.loadEnvFile === 'function') {
+    try {
+      process.loadEnvFile();
+    } catch {
+      // .env not found or unreadable, ignore
+    }
+  }
+}
+
 let aiClient: GoogleGenAI | null = null;
 
 function getAiClient(): GoogleGenAI {
+  ensureEnvLoaded();
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -24,6 +35,7 @@ const FREE_FLASH_MODELS = [
   'gemini-3.6-flash',
   'gemini-3.1-flash-lite',
   'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
 
 function extractStringArray(val: any): string[] {
@@ -34,6 +46,7 @@ function extractStringArray(val: any): string[] {
 }
 
 export async function generateRepositoryInsights(repoData: any) {
+  ensureEnvLoaded();
   const apiKey = process.env.GEMINI_API_KEY;
   const owner = repoData.overview?.owner || 'Repository';
   const repo = repoData.overview?.repo || 'Codebase';
@@ -58,7 +71,11 @@ export async function generateRepositoryInsights(repoData: any) {
   };
 
   if (!apiKey) {
-    return defaultInsights;
+    return {
+      ...defaultInsights,
+      gemini_available: false,
+      gemini_status: 'missing_key' as const,
+    };
   }
 
   const ai = getAiClient();
@@ -91,7 +108,8 @@ Respond ONLY with valid JSON.`;
         return {
           learning_path: parsed.learning_path,
           architecture_summary: parsed.architecture_summary,
-          gemini_available: true
+          gemini_available: true,
+          gemini_status: 'live' as const,
         };
       }
     } catch (err: any) {
@@ -105,7 +123,11 @@ Respond ONLY with valid JSON.`;
     }
   }
 
-  return defaultInsights;
+  return {
+    ...defaultInsights,
+    gemini_available: false,
+    gemini_status: 'quota_exhausted' as const,
+  };
 }
 
 export async function answerRepositoryQuery(
@@ -113,6 +135,7 @@ export async function answerRepositoryQuery(
   userQuery: string,
   style: 'technical' | 'simple' = 'technical'
 ) {
+  ensureEnvLoaded();
   const apiKey = process.env.GEMINI_API_KEY;
   const owner = repoData.overview?.owner || 'owner';
   const repo = repoData.overview?.repo || 'repo';
@@ -127,10 +150,13 @@ export async function answerRepositoryQuery(
   const fileCount = repoData.facts?.stats?.file_count || 0;
 
   if (!apiKey) {
-    if (style === 'simple') {
-      return `**Repository Summary (${owner}/${repo})**:\n- **Main Programming Languages**: ${languages}\n- **Tools & Libraries**: ${frameworks}\n- **Key Starting Files**: ${importantFiles}\n\n*Note: Gemini API key is not set. Please add GEMINI_API_KEY to unlock interactive AI answers.*`;
-    }
-    return `**Repository Context (${owner}/${repo})**:\n- **Languages**: ${languages}\n- **Frameworks**: ${frameworks}\n- **Key Files**: ${importantFiles}\n\n*Note: Gemini API key is not configured. Please set GEMINI_API_KEY to enable full AI model responses.*`;
+    const text = style === 'simple'
+      ? `**Repository Summary (${owner}/${repo})**:\n- **Main Programming Languages**: ${languages}\n- **Tools & Libraries**: ${frameworks}\n- **Key Starting Files**: ${importantFiles}\n\n*Note: Gemini API key is not set. Please add GEMINI_API_KEY to unlock interactive AI answers.*`
+      : `**Repository Context (${owner}/${repo})**:\n- **Languages**: ${languages}\n- **Frameworks**: ${frameworks}\n- **Key Files**: ${importantFiles}\n\n*Note: Gemini API key is not configured. Please set GEMINI_API_KEY to enable full AI model responses.*`;
+    return {
+      answer: text,
+      gemini_status: 'missing_key' as const,
+    };
   }
 
   const ai = getAiClient();
@@ -170,7 +196,10 @@ User Question: ${userQuery}`;
       });
 
       if (response.text) {
-        return response.text;
+        return {
+          answer: response.text,
+          gemini_status: 'live' as const,
+        };
       }
     } catch (err: any) {
       const isRateLimit = err.status === 429 || (err.message && err.message.includes('429'));
@@ -183,8 +212,8 @@ User Question: ${userQuery}`;
   }
 
   // Graceful fallback response grounded in repo metadata when all model quotas are temporarily rate-limited
-  if (style === 'simple') {
-    return `### 💡 Quick Summary for ${owner}/${repo}
+  const fallbackText = style === 'simple'
+    ? `### 💡 Quick Summary for ${owner}/${repo}
 
 *The AI assistant model is currently busy. Here is a simple overview based on the project information:*
 
@@ -195,10 +224,8 @@ User Question: ${userQuery}`;
 **Regarding your question ("*${userQuery}*")**:
 This project (${owner}/${repo}) uses **${languages}** as its main foundation. You can start exploring by looking at the main configuration files like \`${importantFiles.split(', ')[0] || 'package.json'}\`.
 
-*Feel free to ask again in a moment!*`;
-  }
-
-  return `### 📊 Repository Insights (${owner}/${repo})
+*Feel free to ask again in a moment!*`
+    : `### 📊 Repository Insights (${owner}/${repo})
 
 *Note: Free tier Gemini API model quota is temporarily busy. Here is an architectural breakdown grounded in the indexed codebase context:*
 
@@ -213,5 +240,68 @@ Based on the repository index for **${owner}/${repo}**, the system utilizes **${
 ${repoData.architecture_summary ? `**Architecture Summary**: ${repoData.architecture_summary}` : ''}
 
 *You can ask another question or retry in a few moments as the quota resets.*`;
+
+  return {
+    answer: fallbackText,
+    gemini_status: 'quota_exhausted' as const,
+  };
+}
+
+export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
+  configured: boolean;
+  status: 'live' | 'missing_key' | 'quota_exhausted';
+  model?: string;
+  message?: string;
+}> {
+  ensureEnvLoaded();
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return {
+      configured: false,
+      status: 'missing_key',
+      message: 'GEMINI_API_KEY is not defined in the environment or .env file.',
+    };
+  }
+
+  if (!forceProbe) {
+    return {
+      configured: true,
+      status: 'live',
+      message: 'GEMINI_API_KEY is configured.',
+    };
+  }
+
+  try {
+    const ai = getAiClient();
+    for (const model of FREE_FLASH_MODELS) {
+      try {
+        await ai.models.generateContent({
+          model,
+          contents: 'Say OK',
+        });
+        return {
+          configured: true,
+          status: 'live',
+          model,
+          message: `Connection verified with model ${model}.`,
+        };
+      } catch (mErr: any) {
+        if (mErr.status === 429 || (mErr.message && mErr.message.includes('429'))) {
+          continue;
+        }
+      }
+    }
+    return {
+      configured: true,
+      status: 'quota_exhausted',
+      message: 'Free-tier rate limits or model demand threshold reached.',
+    };
+  } catch (err: any) {
+    return {
+      configured: true,
+      status: 'quota_exhausted',
+      message: err.message || 'Error communicating with Gemini API.',
+    };
+  }
 }
 

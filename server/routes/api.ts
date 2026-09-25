@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { RepoCloneService } from '../services/repoCloneService.js';
 import { RepoAnalysisService } from '../services/repoAnalysisService.js';
-import { generateRepositoryInsights, answerRepositoryQuery } from '../services/geminiService.js';
+import { generateRepositoryInsights, answerRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
 
 export const apiRouter = Router();
 
@@ -11,12 +11,21 @@ const PROJECT_NAME = 'CodeSage';
 const VERSION = '0.1.0';
 
 // Health check endpoint
-apiRouter.get('/health', (req: Request, res: Response) => {
+apiRouter.get('/health', async (req: Request, res: Response) => {
+  const gemini = await checkGeminiHealth(false);
   res.json({
     project: PROJECT_NAME,
     version: VERSION,
     status: 'healthy',
+    gemini,
   });
+});
+
+// Dedicated Gemini API Health check endpoint
+apiRouter.get('/gemini/health', async (req: Request, res: Response) => {
+  const probe = req.query.probe === 'true';
+  const health = await checkGeminiHealth(probe);
+  return res.json(health);
 });
 
 // Submit repository endpoint
@@ -59,6 +68,8 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
     const insights = await generateRepositoryInsights(initialData);
     initialData.learning_path = insights.learning_path;
     initialData.architecture_summary = insights.architecture_summary;
+    (initialData as any).gemini_available = insights.gemini_available;
+    (initialData as any).gemini_status = insights.gemini_status;
 
     // Persist response metadata
     const metadataFile = path.join(path.dirname(repoPath), 'metadata.json');
@@ -111,9 +122,9 @@ apiRouter.post('/repositories/:repo_id/chat', async (req: Request, res: Response
     }
 
     const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
-    const answer = await answerRepositoryQuery(repoData, message, style || 'technical');
+    const result = await answerRepositoryQuery(repoData, message, style || 'technical');
 
-    return res.json({ answer });
+    return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
   }
@@ -146,3 +157,169 @@ apiRouter.post('/repositories/:repo_id/insights', async (req: Request, res: Resp
     return res.status(500).json({ detail: err.message });
   }
 });
+
+// Known binary extensions to protect client rendering
+const BINARY_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.svgz',
+  '.pdf', '.zip', '.tar', '.gz', '.tgz', '.rar', '.7z',
+  '.ogg', '.mp3', '.wav', '.flac', '.aac',
+  '.mp4', '.mov', '.avi', '.mkv', '.webm',
+  '.wasm', '.exe', '.dll', '.so', '.dylib', '.bin', '.dat',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  '.pyc', '.class', '.o', '.obj'
+]);
+
+// Map extensions to programming language for frontend syntax highlighting
+const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
+  '.ts': 'typescript',
+  '.tsx': 'typescript',
+  '.js': 'javascript',
+  '.jsx': 'javascript',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+  '.json': 'json',
+  '.py': 'python',
+  '.md': 'markdown',
+  '.mdx': 'markdown',
+  '.html': 'html',
+  '.css': 'css',
+  '.scss': 'scss',
+  '.less': 'less',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+  '.toml': 'toml',
+  '.sh': 'bash',
+  '.bash': 'bash',
+  '.zsh': 'bash',
+  '.go': 'go',
+  '.rs': 'rust',
+  '.java': 'java',
+  '.c': 'c',
+  '.cpp': 'cpp',
+  '.h': 'c',
+  '.hpp': 'cpp',
+  '.sql': 'sql',
+  '.graphql': 'graphql',
+  '.gql': 'graphql',
+  '.svg': 'svg',
+  '.xml': 'xml',
+  '.dockerfile': 'dockerfile',
+};
+
+// Maximum text preview limit (512 KB)
+const MAX_PREVIEW_BYTES = 512 * 1024;
+
+// Get file content endpoint supporting both query param (?path=...) and wildcard path (/files/*)
+apiRouter.get('/repositories/:repo_id/file', handleGetFileContent);
+apiRouter.get('/repositories/:repo_id/files/*', handleGetFileContent);
+
+async function handleGetFileContent(req: Request, res: Response) {
+  try {
+    const repoId = req.params.repo_id;
+    const rawPath = (req.query.path as string) || (req.params as any)[0] || '';
+    const filePath = rawPath.trim();
+
+    if (!filePath) {
+      return res.status(400).json({ detail: 'File path parameter is required.' });
+    }
+
+    const repoDir = path.resolve('storage', 'repos', repoId);
+    if (!fs.existsSync(repoDir)) {
+      return res.status(404).json({
+        detail: `Repository with ID '${repoId}' not found. Please submit it first.`,
+      });
+    }
+
+    const sourceRoot = path.resolve(repoDir, 'source');
+    if (!fs.existsSync(sourceRoot)) {
+      return res.status(404).json({
+        detail: `Source files for repository '${repoId}' not found.`,
+      });
+    }
+
+    // Path Traversal Security: Clean leading slashes and resolve against source root
+    const cleanPath = filePath.replace(/^(\/|\\)+/, '');
+    const targetPath = path.resolve(sourceRoot, cleanPath);
+
+    // Verify targetPath is strictly within sourceRoot
+    if (!targetPath.startsWith(sourceRoot)) {
+      return res.status(403).json({ detail: 'Access denied: Invalid file path.' });
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      return res.status(404).json({ detail: `File '${cleanPath}' not found in repository.` });
+    }
+
+    const stat = fs.statSync(targetPath);
+    if (stat.isDirectory()) {
+      return res.status(400).json({ detail: `Path '${cleanPath}' is a directory, not a file.` });
+    }
+
+    const ext = path.extname(targetPath).toLowerCase();
+    const isBinaryExt = BINARY_EXTENSIONS.has(ext);
+
+    if (isBinaryExt) {
+      return res.json({
+        path: cleanPath,
+        name: path.basename(targetPath),
+        extension: ext,
+        language: 'binary',
+        size_bytes: stat.size,
+        is_binary: true,
+        is_truncated: false,
+        content: null,
+        message: 'Binary file preview is not supported.',
+      });
+    }
+
+    // Read initial buffer to detect null bytes (binary content check)
+    const readLimit = Math.min(stat.size, MAX_PREVIEW_BYTES);
+    const fd = fs.openSync(targetPath, 'r');
+    const buffer = Buffer.alloc(readLimit);
+    fs.readSync(fd, buffer, 0, readLimit, 0);
+    fs.closeSync(fd);
+
+    let isBinary = false;
+    for (let i = 0; i < Math.min(buffer.length, 1024); i++) {
+      if (buffer[i] === 0) {
+        isBinary = true;
+        break;
+      }
+    }
+
+    if (isBinary) {
+      return res.json({
+        path: cleanPath,
+        name: path.basename(targetPath),
+        extension: ext,
+        language: 'binary',
+        size_bytes: stat.size,
+        is_binary: true,
+        is_truncated: false,
+        content: null,
+        message: 'Binary file preview is not supported.',
+      });
+    }
+
+    const isTruncated = stat.size > MAX_PREVIEW_BYTES;
+    const content = buffer.toString('utf-8');
+    const lineCount = content.split('\n').length;
+    const detectedLanguage = EXTENSION_LANGUAGE_MAP[ext] || 'plaintext';
+
+    return res.json({
+      path: cleanPath,
+      name: path.basename(targetPath),
+      extension: ext,
+      language: detectedLanguage,
+      size_bytes: stat.size,
+      line_count: lineCount,
+      is_binary: false,
+      is_truncated: isTruncated,
+      content,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      detail: `Error reading file content: ${err.message}`,
+    });
+  }
+}

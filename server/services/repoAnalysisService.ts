@@ -73,6 +73,10 @@ export class RepoAnalysisService {
           continue;
         }
 
+        if (item.name === '.clone_complete') {
+          continue;
+        }
+
         const fullPath = path.join(currentPath, item.name);
         const relPath = path.relative(rootPath, fullPath).replace(/\\/g, '/');
 

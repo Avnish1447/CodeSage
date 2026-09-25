@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft,
@@ -20,8 +20,16 @@ import {
   Server,
   Zap,
   Moon,
-  Sun
+  Sun,
+  Download,
+  FileText,
+  ChevronDown,
+  Loader2,
+  Check,
+  Presentation
 } from 'lucide-react';
+import { exportPitchDeckPDF, exportPitchDeckPPTX } from '../utils/pitchDeckExport';
+import { PitchDeckPrintView } from './PitchDeckPrintView';
 
 interface PresentationModeProps {
   onClose?: () => void;
@@ -92,6 +100,42 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
   const isDark = propIsDark !== undefined ? propIsDark : localIsDark;
   const toggleTheme = propToggleTheme || (() => setLocalIsDark(!localIsDark));
 
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [isExportingPPTX, setIsExportingPPTX] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState<string | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    if (exportMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [exportMenuOpen]);
+
+  const handleExportPDF = () => {
+    setExportMenuOpen(false);
+    exportPitchDeckPDF();
+  };
+
+  const handleExportPPTX = async () => {
+    try {
+      setIsExportingPPTX(true);
+      await exportPitchDeckPPTX();
+      setExportSuccess('PPTX');
+      setTimeout(() => setExportSuccess(null), 3000);
+    } catch (err) {
+      console.error('Failed to export PPTX:', err);
+    } finally {
+      setIsExportingPPTX(false);
+      setExportMenuOpen(false);
+    }
+  };
+
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev < SLIDES.length - 1 ? prev + 1 : prev));
   };
@@ -156,7 +200,8 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
   };
 
   return (
-    <div className={`w-full border rounded-2xl overflow-hidden flex flex-col min-h-[720px] relative transition-colors duration-300 ${isDark ? 'dark' : ''} ${theme.wrapper}`}>
+    <>
+      <div className={`pitch-deck-screen-view print:hidden w-full border rounded-2xl overflow-hidden flex flex-col min-h-[720px] relative transition-colors duration-300 ${isDark ? 'dark' : ''} ${theme.wrapper}`}>
       {/* Top Pitch Deck Control Header */}
       <div className={`flex items-center justify-between px-6 py-4 border-b backdrop-blur-md z-20 ${theme.header}`}>
         <div className="flex items-center space-x-3">
@@ -190,8 +235,92 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
           ))}
         </div>
 
-        {/* Theme and Fullscreen Actions */}
+        {/* Export, Theme and Fullscreen Actions */}
         <div className="flex items-center space-x-2">
+          {/* Dual Export Dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              disabled={isExportingPPTX}
+              className={`p-2 rounded-lg transition-colors cursor-pointer text-xs flex items-center space-x-1.5 border ${
+                exportMenuOpen
+                  ? 'bg-orange-500/10 border-orange-500/30 text-orange-600 dark:text-[#e8702a]'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+              title="Export Pitch Deck (PDF or PPTX)"
+              aria-label="Export Pitch Deck"
+              aria-expanded={exportMenuOpen}
+            >
+              {isExportingPPTX ? (
+                <Loader2 className="w-4 h-4 animate-spin text-orange-600 dark:text-[#e8702a]" />
+              ) : exportSuccess ? (
+                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <Download className="w-4 h-4 text-orange-600 dark:text-[#e8702a]" />
+              )}
+              <span className="hidden sm:inline font-medium">
+                {isExportingPPTX ? 'Exporting...' : exportSuccess ? 'Exported!' : 'Export Deck'}
+              </span>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {exportMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-2 w-64 rounded-xl bg-white dark:bg-[#111113] border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-50 focus:outline-none"
+                >
+                  <div className="px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold border-b border-slate-100 dark:border-slate-800 mb-1">
+                    Export Presentation
+                  </div>
+
+                  {/* Option 1: PDF Export */}
+                  <button
+                    onClick={handleExportPDF}
+                    className="w-full p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors flex items-start space-x-2.5 group cursor-pointer"
+                  >
+                    <div className="p-1.5 rounded-md bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 mt-0.5 group-hover:scale-105 transition-transform">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+                        <span>Export as PDF</span>
+                        <span className="text-[10px] font-mono px-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">.pdf</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                        Landscape 16:9 vector print layout ready for pitch submission
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Option 2: PPTX Export */}
+                  <button
+                    onClick={handleExportPPTX}
+                    disabled={isExportingPPTX}
+                    className="w-full p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors flex items-start space-x-2.5 group cursor-pointer mt-1"
+                  >
+                    <div className="p-1.5 rounded-md bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Presentation className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+                        <span>Export as PowerPoint</span>
+                        <span className="text-[10px] font-mono px-1 rounded bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-400">.pptx</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                        Native editable slides compatible with PowerPoint & Keynote
+                      </div>
+                    </div>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer text-xs flex items-center space-x-1.5 border border-slate-200 dark:border-slate-700"
@@ -662,5 +791,9 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
         </div>
       </div>
     </div>
+
+    {/* Print View: 7 Landscape Pages for Vector PDF Export */}
+    <PitchDeckPrintView />
+  </>
   );
 };
