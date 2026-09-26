@@ -1,6 +1,7 @@
 import React from 'react';
 import { RepoFacts } from '../types';
-import { Code2, Layers, FileCode2 } from 'lucide-react';
+import { Code2, FileCode2 } from 'lucide-react';
+import { FrameworkIcon } from './ui/FrameworkIcon';
 
 interface TechStackCardProps {
   facts: RepoFacts;
@@ -105,9 +106,9 @@ export const TechStackCard: React.FC<TechStackCardProps> = ({ facts }) => {
             {facts.frameworks.map((fw) => (
               <span
                 key={fw}
-                className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] transition-colors"
+                className="inline-flex items-center space-x-2 px-2.5 py-1.5 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] transition-all hover:scale-[1.02]"
               >
-                <Layers className="w-3 h-3 text-[#e8702a]" />
+                <FrameworkIcon name={fw} className="w-3.5 h-3.5" />
                 <span>{fw}</span>
               </span>
             ))}

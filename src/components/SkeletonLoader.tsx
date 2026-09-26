@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Sparkles, FolderGit2, Code2, Layers, BookOpen, MessageSquare } from 'lucide-react';
+import { Loader2, FolderGit2, Code2, Layers, BookOpen, MessageSquare } from 'lucide-react';
 
 export const SkeletonLoader: React.FC = () => {
   return (
@@ -18,10 +18,6 @@ export const SkeletonLoader: React.FC = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400">Cloning tree, parsing dependencies, analyzing stratigraphy & preparing RAG index.</p>
           </div>
         </div>
-        <span className="hidden sm:inline-flex items-center px-3 py-1 bg-slate-100 dark:bg-slate-950 border border-[#e8702a]/30 rounded-full text-xs font-mono font-semibold text-[#e8702a]">
-          <Sparkles className="w-3.5 h-3.5 mr-1 text-[#e8702a] animate-pulse" />
-          Lithos RAG
-        </span>
       </div>
 
       {/* Repo Overview Card Skeleton */}
