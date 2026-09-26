@@ -39,12 +39,19 @@ All critical configuration items have been addressed:
 | **iMessage-Inspired Spring Chat Physics** | `src/components/RagChatSection.tsx` | Staggered 3-dot typing wave indicator, bottom-corner spring pop animations, and organic bubble expansion. | ✅ Completed |
 | **Branch Switching Selector** | `src/components/RepoInput.tsx`, `server/services/repoCloneService.ts`, `server/routes/api.ts` | Lightweight remote branch detection via `git ls-remote --heads`. Branch selector appears strictly when multiple branches exist, with Vercel popover search and isolated branch analysis. | ✅ Completed |
 | **IndexedDB & SQLite Analysis Cache** | `src/lib/indexedDbService.ts`, `server/services/sqliteCacheService.ts`, `src/App.tsx` | Instantaneous zero-latency (0ms) client-side reloads via IndexedDB, backed by sub-2ms server-side SQLite prepared statement cache with refresh controls. | ✅ Completed |
+| **GitReverse AI Builder Prompt** | `server/services/gitReverseService.ts`, `src/components/GitReversePromptCard.tsx`, `server/routes/api.ts` | Reverse-engineer public GitHub repositories into a natural-language "build-from" prompt for Cursor / Claude Code via GitReverse API with Google Gemini 2.5 Flash fallback. | ✅ Completed |
 
 ---
 
 ## 🏆 2. Recently Completed & Shipped (Sprint 06 - Sept 24-26, 2026)
 
 The following major milestones and design refinements have been implemented and verified:
+
+- [x] **GitReverse AI Builder Prompt Integration:**
+  - Automated integration with `https://www.gitreverse.com/api/reverse-prompt` to extract reverse-engineered AI builder prompts for any submitted GitHub repository.
+  - Seamless fallback to Google Gemini 2.5 Flash if GitReverse is unreachable or rate-limited.
+  - Built `GitReversePromptCard` with 1-click clipboard copy for Cursor / Claude Code, Reading View vs. Raw Markdown toggles, and direct external link to GitReverse.com.
+  - Synchronized across the Dual Workbench, Quick Filter navigation, and dual SQLite / IndexedDB 0ms caches.
 
 - [x] **Smooth Application-Wide Theme Cross-Fade:**
   - Modern View Transition API integration (`document.startViewTransition`) with custom `cubic-bezier(0.16, 1, 0.3, 1)` easing and 420ms duration.
