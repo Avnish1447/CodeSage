@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GitReversePromptData, RepoOverview } from '../types';
-import { Sparkles, Copy, Check, ExternalLink, RefreshCw, Terminal, Zap } from 'lucide-react';
+import { Sparkles, Copy, Check, RefreshCw, Terminal } from 'lucide-react';
 import { FloatingDotsButton } from './ui/FloatingDotsButton';
 
 interface GitReversePromptCardProps {
@@ -13,7 +13,7 @@ interface GitReversePromptCardProps {
 
 export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
   promptData,
-  overview,
+  overview: _overview,
   onRefreshPrompt,
   onReverseEngineer,
   isRefreshing = false,
@@ -24,8 +24,6 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
   const handleAction = onReverseEngineer || onRefreshPrompt;
 
   const promptText = promptData?.prompt || '';
-  const gitreverseWebUrl = promptData?.url || `https://gitreverse.com/${overview.owner}/${overview.repo}`;
-  const isGitReverseSource = promptData?.source === 'gitreverse';
 
   const handleCopy = async () => {
     if (!promptText) return;
@@ -61,9 +59,6 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
               <h3 className="text-lg font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight">
                 GitReverse AI Builder Prompt
               </h3>
-              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-[#64748B] dark:text-[#A1A1A1]">
-                Cursor / Claude Code
-              </span>
             </div>
             <p className="text-xs text-[#64748B] dark:text-[#8F8F8F] mt-0.5">
               Natural-language reverse-engineered specification prompt to build or replicate this codebase
@@ -72,37 +67,6 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          {promptData ? (
-            <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium ${
-              isGitReverseSource
-                ? 'bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400'
-                : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-            }`}>
-              {isGitReverseSource ? (
-                <>
-                  <Zap className="w-3 h-3 text-amber-500 animate-pulse" />
-                  <span>GitReverse Engine</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3 h-3 text-emerald-500" />
-                  <span>Gemini Synthesis</span>
-                </>
-              )}
-            </div>
-          ) : null}
-
-          <a
-            href={gitreverseWebUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center space-x-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] text-[#171717] dark:text-[#EDEDED] transition-colors"
-            title="Open on GitReverse.com"
-          >
-            <span>GitReverse.com</span>
-            <ExternalLink className="w-3.5 h-3.5 text-[#8F8F8F]" />
-          </a>
-
           {promptText && handleAction && (
             <button
               onClick={() => handleAction(true)}
@@ -164,11 +128,10 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
 
             <button
               onClick={handleCopy}
-              className={`flex items-center space-x-1.5 text-xs font-medium px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                copied
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-[#e8702a] text-white hover:bg-[#d6601c] shadow-sm'
-              }`}
+              className={`flex items-center space-x-1.5 text-xs font-medium px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${copied
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-[#e8702a] text-white hover:bg-[#d6601c] shadow-sm'
+                }`}
             >
               {copied ? (
                 <>
@@ -178,7 +141,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Copy for Cursor / Claude</span>
+                  
                 </>
               )}
             </button>
@@ -187,9 +150,8 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
           {/* Prompt Body Box */}
           <div className="relative rounded-lg border border-black/[0.08] dark:border-white/[0.08] bg-[#FAFAFA] dark:bg-[#0c0c0e] overflow-hidden">
             <div
-              className={`p-4 text-xs sm:text-sm font-sans leading-relaxed text-[#171717] dark:text-[#E2E8F0] ${
-                expanded ? 'max-h-none' : 'max-h-[260px] overflow-hidden'
-              }`}
+              className={`p-4 text-xs sm:text-sm font-sans leading-relaxed text-[#171717] dark:text-[#E2E8F0] ${expanded ? 'max-h-none' : 'max-h-[260px] overflow-hidden'
+                }`}
             >
               <div className="space-y-3.5">
                 {paragraphs.map((p, idx) => (
