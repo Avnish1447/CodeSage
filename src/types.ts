@@ -41,6 +41,14 @@ export interface RepoBranchesResponse {
   has_multiple_branches: boolean;
 }
 
+export interface GitReversePromptData {
+  prompt: string;
+  source: 'gitreverse' | 'gemini_fallback';
+  url?: string;
+  headline?: string;
+  created_at?: number;
+}
+
 export interface RepoResponse {
   repository_id: string;
   status: string;
@@ -51,6 +59,7 @@ export interface RepoResponse {
   storage_path: string;
   gemini_available?: boolean;
   gemini_status?: 'live' | 'missing_key' | 'quota_exhausted';
+  gitreverse_prompt?: GitReversePromptData;
   from_cache?: boolean;
   cache_source?: 'indexeddb' | 'sqlite' | 'fresh';
   cached_at?: number;

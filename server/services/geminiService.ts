@@ -329,3 +329,55 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
   }
 }
 
+export async function generateGitReverseFallbackPrompt(repoData: any): Promise<string> {
+  ensureEnvLoaded();
+  const apiKey = process.env.GEMINI_API_KEY;
+  const owner = repoData.overview?.owner || 'owner';
+  const repo = repoData.overview?.repo || 'repo';
+  const rawLangs = extractStringArray(repoData.facts?.languages);
+  const rawFws = extractStringArray(repoData.facts?.frameworks);
+  const rawImpFiles = extractStringArray(repoData.facts?.important_files);
+
+  const languages = rawLangs.slice(0, 5).join(', ') || 'TypeScript / JavaScript';
+  const frameworks = rawFws.slice(0, 5).join(', ') || 'Standard Libraries';
+  const importantFiles = rawImpFiles.slice(0, 8).join(', ') || 'Core files';
+  const fileCount = repoData.facts?.stats?.file_count || 0;
+
+  if (!apiKey) {
+    return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
+  }
+
+  const prompt = `You are GitReverse, an elite reverse-engineering system.
+Analyze the following repository metadata and generate a single, comprehensive, natural-language "build-from" prompt that a developer could feed into an AI coding assistant (like Cursor, Claude Code, or v0) to recreate this project or build an equivalent system from scratch.
+
+Repository: ${owner}/${repo}
+Languages: ${languages}
+Frameworks / Tools: ${frameworks}
+Key Architecture Files: ${importantFiles}
+Total Files: ${fileCount}
+
+Guidelines for the prompt:
+- Write in first person ("Build me a...", "Create a...", "I want to build...").
+- Specify the core goals, technology choices, required features, routing/API layout, and file organization.
+- Mention key libraries and configuration patterns.
+- Ask for realistic tests and an example starter / demo.
+- Keep the prompt focused, actionable, and between 2 to 4 concise paragraphs.
+- Do NOT output extra conversational preamble or markdown code fences around the prompt. Return ONLY the prompt text itself.`;
+
+  for (const model of FREE_FLASH_MODELS) {
+    try {
+      const ai = getAiClient();
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
+      const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (text && text.length > 50) return text;
+    } catch {
+      continue;
+    }
+  }
+
+  return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
+}
+

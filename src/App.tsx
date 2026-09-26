@@ -11,10 +11,11 @@ import { RagChatSection } from './components/RagChatSection';
 import { SkeletonLoader } from './components/SkeletonLoader';
 import { LithosHero } from './components/LithosHero';
 import { ApiHealthBanner } from './components/ApiHealthBanner';
+import { GitReversePromptCard } from './components/GitReversePromptCard';
 const PresentationMode = React.lazy(() =>
   import('./components/PresentationMode').then((m) => ({ default: m.PresentationMode }))
 );
-import { RepoResponse, CachedAnalysisSummary } from './types';
+import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
 import {
@@ -115,11 +116,14 @@ export function App() {
 
   // Workbench View Modes: 'split' | 'chat' | 'explorer' | 'presentation'
   const [viewMode, setViewMode] = useState<'split' | 'chat' | 'explorer' | 'presentation'>('split');
-  // Left Panel Sub-tab inside split view or explorer: 'all' | 'stack' | 'tree' | 'learning'
-  const [leftTab, setLeftTab] = useState<'all' | 'stack' | 'tree' | 'learning'>('all');
+  // Left Panel Sub-tab inside split view or explorer: 'all' | 'prompt' | 'stack' | 'tree' | 'learning'
+  const [leftTab, setLeftTab] = useState<'all' | 'prompt' | 'stack' | 'tree' | 'learning'>('all');
 
   // Gemini API Health & Key Exhaustion Guard State
   const [geminiStatus, setGeminiStatus] = useState<'live' | 'missing_key' | 'quota_exhausted'>('live');
+
+  // GitReverse Prompt state
+  const [isRefreshingPrompt, setIsRefreshingPrompt] = useState(false);
 
   // Firebase Auth & Firestore State
   const { user } = useAuth();
@@ -141,6 +145,46 @@ export function App() {
   useEffect(() => {
     loadCachedList();
   }, []);
+
+  const handleRefreshReversePrompt = async () => {
+    if (!repoData?.repository_id) return;
+    setIsRefreshingPrompt(true);
+    try {
+      const res = await fetch(`/api/v1/repositories/${repoData.repository_id}/reverse-prompt?force=true`);
+      if (res.ok) {
+        const promptData: GitReversePromptData = await res.json();
+        const updated: RepoResponse = {
+          ...repoData,
+          gitreverse_prompt: promptData,
+        };
+        setRepoData(updated);
+        await indexedDbService.saveAnalysisToCache(updated);
+      }
+    } catch (err) {
+      console.error('Failed to refresh GitReverse prompt:', err);
+    } finally {
+      setIsRefreshingPrompt(false);
+    }
+  };
+
+  // Background lazy-fetch of GitReverse prompt if repo was loaded from a cache without it
+  useEffect(() => {
+    if (repoData?.repository_id && !repoData.gitreverse_prompt) {
+      fetch(`/api/v1/repositories/${repoData.repository_id}/reverse-prompt`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((promptData) => {
+          if (promptData && promptData.prompt) {
+            setRepoData((prev) => {
+              if (!prev || prev.repository_id !== repoData.repository_id) return prev;
+              const updated = { ...prev, gitreverse_prompt: promptData };
+              indexedDbService.saveAnalysisToCache(updated);
+              return updated;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [repoData?.repository_id]);
 
   // Load user repository history from Firestore when authenticated
   useEffect(() => {
@@ -326,6 +370,7 @@ export function App() {
                   <div className="space-y-1">
                     {[
                       { id: 'all', label: 'Show All Sections', icon: LayoutGrid },
+                      { id: 'prompt', label: 'Reverse Prompt', icon: Terminal },
                       { id: 'stack', label: 'Tech Stack', icon: Layers },
                       { id: 'tree', label: 'File Tree', icon: Folder },
                       { id: 'learning', label: 'Architecture Guide', icon: BookOpen },
@@ -578,6 +623,7 @@ export function App() {
                   cacheSource={repoData.cache_source}
                   onRefresh={() => analyzeRepository(repoData.overview.normalized_url, repoData.overview.branch, true)}
                   isRefreshing={isRefreshing}
+                  onJumpToPrompt={() => { setViewMode('split'); setLeftTab('prompt'); }}
                 />
 
                 {/* WORKBENCH BODY WITH SPRING MOTION */}
@@ -593,6 +639,16 @@ export function App() {
                     >
                       {/* Left Workspace (7 cols): Codebase Insights */}
                       <div className="lg:col-span-7 space-y-6">
+                        {/* GitReverse AI Builder Prompt */}
+                        {(leftTab === 'all' || leftTab === 'prompt') && (
+                          <GitReversePromptCard
+                            promptData={repoData.gitreverse_prompt}
+                            overview={repoData.overview}
+                            onRefreshPrompt={handleRefreshReversePrompt}
+                            isRefreshing={isRefreshingPrompt}
+                          />
+                        )}
+
                         {/* Render based on sub-tab filter */}
                         {(leftTab === 'all' || leftTab === 'stack') && (
                           <TechStackCard facts={repoData.facts} />
@@ -652,6 +708,12 @@ export function App() {
                       transition={{ type: 'spring', damping: 28, stiffness: 320 }}
                       className="space-y-6"
                     >
+                      <GitReversePromptCard
+                        promptData={repoData.gitreverse_prompt}
+                        overview={repoData.overview}
+                        onRefreshPrompt={handleRefreshReversePrompt}
+                        isRefreshing={isRefreshingPrompt}
+                      />
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <TechStackCard facts={repoData.facts} />
                         <FileTreeViewer

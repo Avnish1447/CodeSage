@@ -5,6 +5,7 @@ import { RepoCloneService } from '../services/repoCloneService.js';
 import { RepoValidationService } from '../services/repoValidationService.js';
 import { RepoAnalysisService } from '../services/repoAnalysisService.js';
 import { SqliteCacheService } from '../services/sqliteCacheService.js';
+import { GitReverseService } from '../services/gitReverseService.js';
 import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
 
 export const apiRouter = Router();
@@ -115,7 +116,7 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
     const [repoPath, metadata] = await RepoCloneService.cloneRepository(url, 1000, 50, undefined, branch);
     const analysis = RepoAnalysisService.analyzeRepository(repoPath);
 
-    const initialData = {
+    const initialData: any = {
       repository_id: metadata.repository_id,
       status: 'ready',
       overview: {
@@ -142,12 +143,22 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
       storage_path: metadata.storage_path,
     };
 
-    // Optionally generate insights via Gemini if key is available
-    const insights = await generateRepositoryInsights(initialData);
+    // Parallel execution: Generate Gemini insights + Fetch GitReverse prompt
+    const [insights, gitreversePrompt] = await Promise.all([
+      generateRepositoryInsights(initialData),
+      GitReverseService.fetchReversePrompt(
+        metadata.normalized_url,
+        metadata.owner,
+        metadata.repo,
+        initialData
+      ),
+    ]);
+
     initialData.learning_path = insights.learning_path;
     initialData.architecture_summary = insights.architecture_summary;
-    (initialData as any).gemini_available = insights.gemini_available;
-    (initialData as any).gemini_status = insights.gemini_status;
+    initialData.gemini_available = insights.gemini_available;
+    initialData.gemini_status = insights.gemini_status;
+    initialData.gitreverse_prompt = gitreversePrompt;
 
     // Persist response metadata to disk
     const metadataFile = path.join(path.dirname(repoPath), 'metadata.json');
@@ -164,6 +175,54 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(400).json({ detail: err.message || 'Error processing repository.' });
+  }
+});
+
+// Dedicated endpoint to fetch or regenerate GitReverse prompt for a repository
+apiRouter.get('/repositories/:repo_id/reverse-prompt', async (req: Request, res: Response) => {
+  try {
+    const repoId = req.params.repo_id;
+    const force = req.query.force === 'true';
+
+    // 1. Check SQLite cache
+    const sqliteCached = SqliteCacheService.get(repoId);
+    if (!force && sqliteCached?.gitreverse_prompt?.prompt) {
+      return res.json(sqliteCached.gitreverse_prompt);
+    }
+
+    // 2. Check metadata.json
+    const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
+    let repoData = sqliteCached;
+    if (!repoData && fs.existsSync(metadataFile)) {
+      repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
+    }
+
+    if (!repoData) {
+      return res.status(404).json({ detail: `Repository '${repoId}' not found.` });
+    }
+
+    if (!force && repoData.gitreverse_prompt?.prompt) {
+      return res.json(repoData.gitreverse_prompt);
+    }
+
+    // 3. Fetch from GitReverse with fallback
+    const result = await GitReverseService.fetchReversePrompt(
+      repoData.facts?.url || repoData.overview?.normalized_url,
+      repoData.overview?.owner,
+      repoData.overview?.repo,
+      repoData
+    );
+
+    // Update in memory and cache
+    repoData.gitreverse_prompt = result;
+    SqliteCacheService.set(repoData);
+    if (fs.existsSync(metadataFile)) {
+      fs.writeFileSync(metadataFile, JSON.stringify(repoData, null, 2), 'utf-8');
+    }
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
   }
 });
 

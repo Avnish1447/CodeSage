@@ -1,6 +1,6 @@
 import React from 'react';
 import { RepoOverview, RepoStats } from '../types';
-import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw } from 'lucide-react';
+import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw, Terminal } from 'lucide-react';
 
 interface RepoOverviewCardProps {
   overview: RepoOverview;
@@ -9,6 +9,7 @@ interface RepoOverviewCardProps {
   cacheSource?: 'indexeddb' | 'sqlite' | 'fresh';
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  onJumpToPrompt?: () => void;
 }
 
 export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
@@ -18,6 +19,7 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
   cacheSource,
   onRefresh,
   isRefreshing,
+  onJumpToPrompt,
 }) => {
   return (
     <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-6 space-y-6 transition-colors duration-200">
@@ -61,6 +63,17 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
                 {cacheSource === 'indexeddb' ? '0ms Cache (IndexedDB)' : 'Fast Cache (SQLite)'}
               </span>
             </div>
+          )}
+
+          {onJumpToPrompt && (
+            <button
+              onClick={onJumpToPrompt}
+              className="flex items-center space-x-1.5 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] px-2.5 py-1 rounded-full text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium transition-colors cursor-pointer"
+              title="Jump to GitReverse AI Builder Prompt"
+            >
+              <Terminal className="w-3 h-3 text-[#e8702a]" />
+              <span>Reverse Prompt</span>
+            </button>
           )}
 
           <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full text-emerald-700 dark:text-emerald-400 text-xs font-mono font-medium">
