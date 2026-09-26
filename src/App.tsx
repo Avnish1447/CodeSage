@@ -146,11 +146,12 @@ export function App() {
     loadCachedList();
   }, []);
 
-  const handleRefreshReversePrompt = async () => {
+  const handleReverseEngineer = async (force: boolean = false) => {
     if (!repoData?.repository_id) return;
     setIsRefreshingPrompt(true);
     try {
-      const res = await fetch(`/api/v1/repositories/${repoData.repository_id}/reverse-prompt?force=true`);
+      const url = `/api/v1/repositories/${repoData.repository_id}/reverse-prompt${force ? '?force=true' : ''}`;
+      const res = await fetch(url);
       if (res.ok) {
         const promptData: GitReversePromptData = await res.json();
         const updated: RepoResponse = {
@@ -161,30 +162,11 @@ export function App() {
         await indexedDbService.saveAnalysisToCache(updated);
       }
     } catch (err) {
-      console.error('Failed to refresh GitReverse prompt:', err);
+      console.error('Failed to fetch GitReverse prompt:', err);
     } finally {
       setIsRefreshingPrompt(false);
     }
   };
-
-  // Background lazy-fetch of GitReverse prompt if repo was loaded from a cache without it
-  useEffect(() => {
-    if (repoData?.repository_id && !repoData.gitreverse_prompt) {
-      fetch(`/api/v1/repositories/${repoData.repository_id}/reverse-prompt`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((promptData) => {
-          if (promptData && promptData.prompt) {
-            setRepoData((prev) => {
-              if (!prev || prev.repository_id !== repoData.repository_id) return prev;
-              const updated = { ...prev, gitreverse_prompt: promptData };
-              indexedDbService.saveAnalysisToCache(updated);
-              return updated;
-            });
-          }
-        })
-        .catch(() => {});
-    }
-  }, [repoData?.repository_id]);
 
   // Load user repository history from Firestore when authenticated
   useEffect(() => {
@@ -623,7 +605,15 @@ export function App() {
                   cacheSource={repoData.cache_source}
                   onRefresh={() => analyzeRepository(repoData.overview.normalized_url, repoData.overview.branch, true)}
                   isRefreshing={isRefreshing}
-                  onJumpToPrompt={() => { setViewMode('split'); setLeftTab('prompt'); }}
+                  hasPrompt={Boolean(repoData.gitreverse_prompt?.prompt)}
+                  isGeneratingPrompt={isRefreshingPrompt}
+                  onJumpToPrompt={() => {
+                    setViewMode('split');
+                    setLeftTab('prompt');
+                    if (!repoData.gitreverse_prompt?.prompt) {
+                      handleReverseEngineer(false);
+                    }
+                  }}
                 />
 
                 {/* WORKBENCH BODY WITH SPRING MOTION */}
@@ -644,7 +634,7 @@ export function App() {
                           <GitReversePromptCard
                             promptData={repoData.gitreverse_prompt}
                             overview={repoData.overview}
-                            onRefreshPrompt={handleRefreshReversePrompt}
+                            onReverseEngineer={handleReverseEngineer}
                             isRefreshing={isRefreshingPrompt}
                           />
                         )}
@@ -711,7 +701,7 @@ export function App() {
                       <GitReversePromptCard
                         promptData={repoData.gitreverse_prompt}
                         overview={repoData.overview}
-                        onRefreshPrompt={handleRefreshReversePrompt}
+                        onReverseEngineer={handleReverseEngineer}
                         isRefreshing={isRefreshingPrompt}
                       />
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

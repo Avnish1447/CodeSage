@@ -1,6 +1,6 @@
 import React from 'react';
 import { RepoOverview, RepoStats } from '../types';
-import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw, Terminal } from 'lucide-react';
+import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw, Terminal, Sparkles } from 'lucide-react';
 
 interface RepoOverviewCardProps {
   overview: RepoOverview;
@@ -10,6 +10,8 @@ interface RepoOverviewCardProps {
   onRefresh?: () => void;
   isRefreshing?: boolean;
   onJumpToPrompt?: () => void;
+  hasPrompt?: boolean;
+  isGeneratingPrompt?: boolean;
 }
 
 export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
@@ -20,6 +22,8 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
   onRefresh,
   isRefreshing,
   onJumpToPrompt,
+  hasPrompt,
+  isGeneratingPrompt,
 }) => {
   return (
     <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-6 space-y-6 transition-colors duration-200">
@@ -68,11 +72,22 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
           {onJumpToPrompt && (
             <button
               onClick={onJumpToPrompt}
-              className="flex items-center space-x-1.5 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] px-2.5 py-1 rounded-full text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium transition-colors cursor-pointer"
-              title="Jump to GitReverse AI Builder Prompt"
+              disabled={isGeneratingPrompt}
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium transition-all cursor-pointer ${
+                hasPrompt
+                  ? 'bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] text-[#171717] dark:text-[#EDEDED]'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-[#e8702a] border border-amber-500/20 shadow-sm'
+              }`}
+              title={hasPrompt ? 'Jump to GitReverse AI Builder Prompt' : 'Reverse engineer this repository with GitReverse'}
             >
-              <Terminal className="w-3 h-3 text-[#e8702a]" />
-              <span>Reverse Prompt</span>
+              {isGeneratingPrompt ? (
+                <RefreshCw className="w-3 h-3 text-[#e8702a] animate-spin" />
+              ) : hasPrompt ? (
+                <Terminal className="w-3 h-3 text-[#e8702a]" />
+              ) : (
+                <Sparkles className="w-3 h-3 text-[#e8702a]" />
+              )}
+              <span>{isGeneratingPrompt ? 'Generating...' : hasPrompt ? 'Reverse Prompt' : 'Reverse Engineer This'}</span>
             </button>
           )}
 

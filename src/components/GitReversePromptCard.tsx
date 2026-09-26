@@ -5,7 +5,8 @@ import { Sparkles, Copy, Check, ExternalLink, RefreshCw, Terminal, Zap, Code2, F
 interface GitReversePromptCardProps {
   promptData?: GitReversePromptData;
   overview: RepoOverview;
-  onRefreshPrompt?: () => Promise<void>;
+  onRefreshPrompt?: (force?: boolean) => Promise<void> | void;
+  onReverseEngineer?: (force?: boolean) => Promise<void> | void;
   isRefreshing?: boolean;
 }
 
@@ -13,11 +14,14 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
   promptData,
   overview,
   onRefreshPrompt,
+  onReverseEngineer,
   isRefreshing = false,
 }) => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+
+  const handleAction = onReverseEngineer || onRefreshPrompt;
 
   const promptText = promptData?.prompt || '';
   const gitreverseWebUrl = promptData?.url || `https://gitreverse.com/${overview.owner}/${overview.repo}`;
@@ -99,9 +103,9 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
             <ExternalLink className="w-3.5 h-3.5 text-[#8F8F8F]" />
           </a>
 
-          {onRefreshPrompt && (
+          {promptText && handleAction && (
             <button
-              onClick={onRefreshPrompt}
+              onClick={() => handleAction(true)}
               disabled={isRefreshing}
               className="p-1.5 rounded-lg text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] transition-colors cursor-pointer"
               title="Re-generate prompt from GitReverse"
@@ -127,19 +131,29 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
           </p>
         </div>
       ) : !promptText ? (
-        <div className="p-8 text-center space-y-3 bg-[#FAFAFA] dark:bg-[#161618] rounded-lg border border-black/[0.06] dark:border-white/[0.08]">
-          <FileCode className="w-8 h-8 text-[#8F8F8F] mx-auto opacity-70" />
-          <p className="text-sm font-medium text-[#171717] dark:text-[#EDEDED]">
-            No GitReverse prompt generated yet
-          </p>
-          {onRefreshPrompt && (
-            <button
-              onClick={onRefreshPrompt}
-              className="inline-flex items-center space-x-2 text-xs font-semibold px-4 py-2 rounded-lg bg-[#e8702a] text-white hover:bg-[#d6601c] transition-colors cursor-pointer shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Generate GitReverse Prompt</span>
-            </button>
+        <div className="p-8 text-center space-y-4 bg-[#FAFAFA] dark:bg-[#161618] rounded-lg border border-black/[0.06] dark:border-white/[0.08]">
+          <div className="mx-auto w-12 h-12 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 flex items-center justify-center text-[#e8702a]">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1.5">
+            <h4 className="text-sm font-semibold text-[#171717] dark:text-[#EDEDED]">
+              Want a Reverse-Engineered Prompt?
+            </h4>
+            <p className="text-xs text-[#64748B] dark:text-[#8F8F8F] leading-relaxed">
+              We keep this prompt generation strictly optional to keep repository analysis instant and prevent unwanted API requests. Click below when you're ready to extract the Cursor &amp; Claude Code build prompt.
+            </p>
+          </div>
+          {handleAction && (
+            <div className="pt-2">
+              <button
+                onClick={() => handleAction(false)}
+                disabled={isRefreshing}
+                className="inline-flex items-center space-x-2 text-xs font-semibold px-5 py-2.5 rounded-lg bg-[#e8702a] text-white hover:bg-[#d6601c] active:scale-[0.98] transition-all cursor-pointer shadow-sm shadow-[#e8702a]/20"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Reverse Engineer This</span>
+              </button>
+            </div>
           )}
         </div>
       ) : (

@@ -143,22 +143,13 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
       storage_path: metadata.storage_path,
     };
 
-    // Parallel execution: Generate Gemini insights + Fetch GitReverse prompt
-    const [insights, gitreversePrompt] = await Promise.all([
-      generateRepositoryInsights(initialData),
-      GitReverseService.fetchReversePrompt(
-        metadata.normalized_url,
-        metadata.owner,
-        metadata.repo,
-        initialData
-      ),
-    ]);
+    // Generate Gemini insights (GitReverse prompt is fetched on-demand to save requests)
+    const insights = await generateRepositoryInsights(initialData);
 
     initialData.learning_path = insights.learning_path;
     initialData.architecture_summary = insights.architecture_summary;
     initialData.gemini_available = insights.gemini_available;
     initialData.gemini_status = insights.gemini_status;
-    initialData.gitreverse_prompt = gitreversePrompt;
 
     // Persist response metadata to disk
     const metadataFile = path.join(path.dirname(repoPath), 'metadata.json');

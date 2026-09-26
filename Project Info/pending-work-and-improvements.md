@@ -47,11 +47,13 @@ All critical configuration items have been addressed:
 
 The following major milestones and design refinements have been implemented and verified:
 
-- [x] **GitReverse AI Builder Prompt Integration:**
-  - Automated integration with `https://www.gitreverse.com/api/reverse-prompt` to extract reverse-engineered AI builder prompts for any submitted GitHub repository.
+- [x] **GitReverse AI Builder Prompt Integration (Strictly Opt-In & On-Demand):**
+  - Live querying against `https://www.gitreverse.com/api/reverse-prompt` to extract reverse-engineered AI builder prompts for Cursor, Claude Code, and Windsurf.
+  - Kept completely optional on initial repository dig to eliminate latency and avoid unnecessary external requests.
+  - User-driven on-demand generation triggered only when clicking **"Reverse Engineer This"** in the overview bar or prompt card.
   - Seamless fallback to Google Gemini 2.5 Flash if GitReverse is unreachable or rate-limited.
   - Built `GitReversePromptCard` with 1-click clipboard copy for Cursor / Claude Code, Reading View vs. Raw Markdown toggles, and direct external link to GitReverse.com.
-  - Synchronized across the Dual Workbench, Quick Filter navigation, and dual SQLite / IndexedDB 0ms caches.
+  - Persisted in dual SQLite / IndexedDB 0ms caches once generated to ensure zero repeat API calls on subsequent views.
 
 - [x] **Smooth Application-Wide Theme Cross-Fade:**
   - Modern View Transition API integration (`document.startViewTransition`) with custom `cubic-bezier(0.16, 1, 0.3, 1)` easing and 420ms duration.
