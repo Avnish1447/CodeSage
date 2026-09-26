@@ -124,6 +124,7 @@ export function App() {
 
   // GitReverse Prompt state
   const [isRefreshingPrompt, setIsRefreshingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
 
   // Firebase Auth & Firestore State
   const { user } = useAuth();
@@ -149,6 +150,7 @@ export function App() {
   const handleReverseEngineer = async (force: boolean = false) => {
     if (!repoData?.repository_id) return;
     setIsRefreshingPrompt(true);
+    setPromptError(null);
     try {
       const url = `/api/v1/repositories/${repoData.repository_id}/reverse-prompt${force ? '?force=true' : ''}`;
       const res = await fetch(url);
@@ -160,9 +162,24 @@ export function App() {
         };
         setRepoData(updated);
         await indexedDbService.saveAnalysisToCache(updated);
+      } else {
+        let errMsg = `Failed to generate prompt (status ${res.status})`;
+        try {
+          const errData = await res.json();
+          if (errData?.detail || errData?.error) {
+            errMsg = errData.detail || errData.error;
+            if (errData.retry_after_seconds) {
+              errMsg += ` - Retry after ${errData.retry_after_seconds}s`;
+            }
+          }
+        } catch {
+          // ignore
+        }
+        setPromptError(errMsg);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch GitReverse prompt:', err);
+      setPromptError(err?.message || 'Network error fetching GitReverse prompt');
     } finally {
       setIsRefreshingPrompt(false);
     }
@@ -227,7 +244,11 @@ export function App() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Failed to analyze repository');
+        let msg = data.detail || data.error || 'Failed to analyze repository';
+        if (data.retry_after_seconds) {
+          msg += ` (Please retry after ${data.retry_after_seconds}s)`;
+        }
+        throw new Error(msg);
       }
 
       setRepoData(data);
@@ -636,6 +657,7 @@ export function App() {
                             overview={repoData.overview}
                             onReverseEngineer={handleReverseEngineer}
                             isRefreshing={isRefreshingPrompt}
+                            errorMessage={promptError}
                           />
                         )}
 
@@ -703,6 +725,7 @@ export function App() {
                         overview={repoData.overview}
                         onReverseEngineer={handleReverseEngineer}
                         isRefreshing={isRefreshingPrompt}
+                        errorMessage={promptError}
                       />
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <TechStackCard facts={repoData.facts} />

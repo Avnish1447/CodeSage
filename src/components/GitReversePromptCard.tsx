@@ -9,6 +9,7 @@ interface GitReversePromptCardProps {
   onRefreshPrompt?: (force?: boolean) => Promise<void> | void;
   onReverseEngineer?: (force?: boolean) => Promise<void> | void;
   isRefreshing?: boolean;
+  errorMessage?: string | null;
 }
 
 export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
@@ -17,6 +18,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
   onRefreshPrompt,
   onReverseEngineer,
   isRefreshing = false,
+  errorMessage,
 }) => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -80,6 +82,16 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Error or Rate Limit Alert */}
+      {errorMessage && (
+        <div className="p-3 text-xs bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-lg flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Error</span>
+            <span>{errorMessage}</span>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       {!promptText && isRefreshing ? (

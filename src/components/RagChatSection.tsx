@@ -118,7 +118,19 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned status ${res.status}`);
+        let errMessage = `Server returned status ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData?.detail || errData?.error) {
+            errMessage = errData.detail || errData.error;
+            if (errData.retry_after_seconds) {
+              errMessage += ` (Retry after ${errData.retry_after_seconds}s)`;
+            }
+          }
+        } catch {
+          // ignore parsing error
+        }
+        throw new Error(errMessage);
       }
 
       const contentType = res.headers.get('content-type') || '';
@@ -484,6 +496,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question about this repository..."
           aria-label="Ask a question about this repository"
+          maxLength={4000}
           disabled={loading}
           className="flex-1 bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] focus:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0072F5] dark:focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#0072F5] outline-none rounded-lg px-3.5 py-2 text-xs sm:text-[13px] font-sans transition-all disabled:opacity-50"
         />

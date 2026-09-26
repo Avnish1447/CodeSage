@@ -7,6 +7,13 @@ import { RepoAnalysisService } from '../services/repoAnalysisService.js';
 import { SqliteCacheService } from '../services/sqliteCacheService.js';
 import { GitReverseService } from '../services/gitReverseService.js';
 import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
+import { RATE_LIMIT_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
+import {
+  cloneLimiter,
+  chatLimiter,
+  reversePromptLimiter,
+  healthLimiter,
+} from '../middleware/rateLimiter.js';
 
 export const apiRouter = Router();
 
@@ -14,7 +21,7 @@ const PROJECT_NAME = 'CodeSage';
 const VERSION = '0.1.0';
 
 // Health check endpoint
-apiRouter.get('/health', async (req: Request, res: Response) => {
+apiRouter.get('/health', healthLimiter, async (req: Request, res: Response) => {
   const gemini = await checkGeminiHealth(false);
   res.json({
     project: PROJECT_NAME,
@@ -25,10 +32,34 @@ apiRouter.get('/health', async (req: Request, res: Response) => {
 });
 
 // Dedicated Gemini API Health check endpoint
-apiRouter.get('/gemini/health', async (req: Request, res: Response) => {
+apiRouter.get('/gemini/health', healthLimiter, async (req: Request, res: Response) => {
   const probe = req.query.probe === 'true';
   const health = await checkGeminiHealth(probe);
   return res.json(health);
+});
+
+// Expose configured API rate & resource limits
+apiRouter.get('/limits', (_req: Request, res: Response) => {
+  res.json({
+    rate_limits: {
+      window_ms: RATE_LIMIT_CONFIG.WINDOW_MS,
+      window_minutes: Math.round(RATE_LIMIT_CONFIG.WINDOW_MS / (60 * 1000)),
+      general_max: RATE_LIMIT_CONFIG.GENERAL_MAX,
+      clone_max: RATE_LIMIT_CONFIG.CLONE_MAX,
+      chat_max: RATE_LIMIT_CONFIG.CHAT_MAX,
+      reverse_prompt_max: RATE_LIMIT_CONFIG.REVERSE_PROMPT_MAX,
+      health_max: RATE_LIMIT_CONFIG.HEALTH_MAX,
+    },
+    resource_limits: {
+      max_body_size: RESOURCE_LIMITS.MAX_BODY_SIZE,
+      max_repo_files: RESOURCE_LIMITS.MAX_REPO_FILES,
+      max_repo_size_mb: RESOURCE_LIMITS.MAX_REPO_SIZE_MB,
+      max_preview_bytes: RESOURCE_LIMITS.MAX_PREVIEW_BYTES,
+      max_chat_message_length: RESOURCE_LIMITS.MAX_CHAT_MESSAGE_LENGTH,
+      max_url_length: RESOURCE_LIMITS.MAX_URL_LENGTH,
+      max_branch_name_length: RESOURCE_LIMITS.MAX_BRANCH_NAME_LENGTH,
+    },
+  });
 });
 
 // Server SQLite cache stats endpoint
@@ -67,11 +98,25 @@ apiRouter.get('/repositories/branches', async (req: Request, res: Response) => {
 });
 
 // Submit repository endpoint with SQLite fast cache retrieval
-apiRouter.post('/repositories', async (req: Request, res: Response) => {
+apiRouter.post('/repositories', cloneLimiter, async (req: Request, res: Response) => {
   try {
     const { url, branch, force_refresh } = req.body;
-    if (!url) {
+    if (!url || typeof url !== 'string' || !url.trim()) {
       return res.status(400).json({ detail: 'Field "url" is required in request body.' });
+    }
+
+    if (url.trim().length > RESOURCE_LIMITS.MAX_URL_LENGTH) {
+      return res.status(400).json({
+        detail: `Repository URL exceeds maximum permitted length of ${RESOURCE_LIMITS.MAX_URL_LENGTH} characters.`,
+        code: 'URL_TOO_LONG',
+      });
+    }
+
+    if (branch && typeof branch === 'string' && branch.trim().length > RESOURCE_LIMITS.MAX_BRANCH_NAME_LENGTH) {
+      return res.status(400).json({
+        detail: `Branch name exceeds maximum permitted length of ${RESOURCE_LIMITS.MAX_BRANCH_NAME_LENGTH} characters.`,
+        code: 'BRANCH_NAME_TOO_LONG',
+      });
     }
 
     // 1. Check SQLite fast cache first if fresh re-dig was not explicitly requested
@@ -113,7 +158,13 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
       }
     }
 
-    const [repoPath, metadata] = await RepoCloneService.cloneRepository(url, 1000, 50, undefined, branch);
+    const [repoPath, metadata] = await RepoCloneService.cloneRepository(
+      url,
+      RESOURCE_LIMITS.MAX_REPO_FILES,
+      RESOURCE_LIMITS.MAX_REPO_SIZE_MB,
+      undefined,
+      branch
+    );
     const analysis = RepoAnalysisService.analyzeRepository(repoPath);
 
     const initialData: any = {
@@ -170,7 +221,7 @@ apiRouter.post('/repositories', async (req: Request, res: Response) => {
 });
 
 // Dedicated endpoint to fetch or regenerate GitReverse prompt for a repository
-apiRouter.get('/repositories/:repo_id/reverse-prompt', async (req: Request, res: Response) => {
+apiRouter.get('/repositories/:repo_id/reverse-prompt', reversePromptLimiter, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
     const force = req.query.force === 'true';
@@ -240,14 +291,21 @@ apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
 });
 
 // Interactive RAG chat query for repository (Supports real-time SSE streaming & JSON fallback)
-apiRouter.post('/repositories/:repo_id/chat', async (req: Request, res: Response) => {
+apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
     const { message, style, stream = true } = req.body;
     const wantsStream = stream === true || req.headers.accept?.includes('text/event-stream');
 
-    if (!message) {
-      return res.status(400).json({ detail: 'Message is required.' });
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ detail: 'Message string is required in request body.' });
+    }
+
+    if (message.length > RESOURCE_LIMITS.MAX_CHAT_MESSAGE_LENGTH) {
+      return res.status(400).json({
+        detail: `Chat message exceeds maximum allowed limit of ${RESOURCE_LIMITS.MAX_CHAT_MESSAGE_LENGTH} characters (received ${message.length}).`,
+        code: 'CHAT_MESSAGE_TOO_LONG',
+      });
     }
 
     const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
@@ -379,8 +437,8 @@ const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
   '.dockerfile': 'dockerfile',
 };
 
-// Maximum text preview limit (512 KB)
-const MAX_PREVIEW_BYTES = 512 * 1024;
+// Maximum text preview limit
+const MAX_PREVIEW_BYTES = RESOURCE_LIMITS.MAX_PREVIEW_BYTES;
 
 // Get file content endpoint supporting both query param (?path=...) and wildcard path (/files/*)
 apiRouter.get('/repositories/:repo_id/file', handleGetFileContent);

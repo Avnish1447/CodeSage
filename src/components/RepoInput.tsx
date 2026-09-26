@@ -173,6 +173,7 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://github.com/owner/repository"
             aria-label="GitHub repository URL"
+            maxLength={500}
             disabled={loading}
             className="w-full bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] focus:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0072F5] dark:focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#0072F5] outline-none rounded-lg pl-10 pr-32 py-2.5 text-xs sm:text-sm font-mono transition-all disabled:opacity-50"
           />
