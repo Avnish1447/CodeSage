@@ -1,6 +1,7 @@
 import React from 'react';
 import { RepoOverview, RepoStats } from '../types';
 import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw, Terminal, Sparkles } from 'lucide-react';
+import { FloatingDotsButton } from './ui/FloatingDotsButton';
 
 interface RepoOverviewCardProps {
   overview: RepoOverview;
@@ -70,25 +71,25 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
           )}
 
           {onJumpToPrompt && (
-            <button
-              onClick={onJumpToPrompt}
-              disabled={isGeneratingPrompt}
-              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium transition-all cursor-pointer ${
-                hasPrompt
-                  ? 'bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] text-[#171717] dark:text-[#EDEDED]'
-                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-[#e8702a] border border-amber-500/20 shadow-sm'
-              }`}
-              title={hasPrompt ? 'Jump to GitReverse AI Builder Prompt' : 'Reverse engineer this repository with GitReverse'}
-            >
-              {isGeneratingPrompt ? (
-                <RefreshCw className="w-3 h-3 text-[#e8702a] animate-spin" />
-              ) : hasPrompt ? (
+            hasPrompt ? (
+              <button
+                onClick={onJumpToPrompt}
+                className="flex items-center space-x-1.5 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] px-2.5 py-1 rounded-full text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium transition-colors cursor-pointer"
+                title="Jump to GitReverse AI Builder Prompt"
+              >
                 <Terminal className="w-3 h-3 text-[#e8702a]" />
-              ) : (
-                <Sparkles className="w-3 h-3 text-[#e8702a]" />
-              )}
-              <span>{isGeneratingPrompt ? 'Generating...' : hasPrompt ? 'Reverse Prompt' : 'Reverse Engineer This'}</span>
-            </button>
+                <span>Reverse Prompt</span>
+              </button>
+            ) : (
+              <FloatingDotsButton
+                onClick={onJumpToPrompt}
+                loading={isGeneratingPrompt}
+                loadingText="Generating..."
+                label="Reverse Engineer This"
+                size="sm"
+                title="Reverse engineer this repository with GitReverse"
+              />
+            )
           )}
 
           <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full text-emerald-700 dark:text-emerald-400 text-xs font-mono font-medium">

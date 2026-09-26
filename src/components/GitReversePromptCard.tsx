@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GitReversePromptData, RepoOverview } from '../types';
 import { Sparkles, Copy, Check, ExternalLink, RefreshCw, Terminal, Zap } from 'lucide-react';
+import { FloatingDotsButton } from './ui/FloatingDotsButton';
 
 interface GitReversePromptCardProps {
   promptData?: GitReversePromptData;
@@ -143,15 +144,13 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
             </p>
           </div>
           {handleAction && (
-            <div className="pt-2">
-              <button
+            <div className="pt-2 flex justify-center">
+              <FloatingDotsButton
                 onClick={() => handleAction(false)}
-                disabled={isRefreshing}
-                className="inline-flex items-center space-x-2 text-xs font-semibold px-5 py-2.5 rounded-lg bg-[#e8702a] text-white hover:bg-[#d6601c] active:scale-[0.98] transition-all cursor-pointer shadow-sm shadow-[#e8702a]/20"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Reverse Engineer This</span>
-              </button>
+                loading={isRefreshing}
+                loadingText="Reverse Engineering..."
+                label="Reverse Engineer This"
+              />
             </div>
           )}
         </div>
