@@ -5,9 +5,10 @@ import { RepoCloneService } from '../services/repoCloneService.js';
 import { RepoValidationService } from '../services/repoValidationService.js';
 import { RepoAnalysisService } from '../services/repoAnalysisService.js';
 import { SqliteCacheService } from '../services/sqliteCacheService.js';
+import { SpendingService } from '../services/spendingService.js';
 import { GitReverseService } from '../services/gitReverseService.js';
 import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
-import { RATE_LIMIT_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
+import { RATE_LIMIT_CONFIG, RESOURCE_LIMITS, SPENDING_CAP_CONFIG } from '../config/limits.js';
 import {
   cloneLimiter,
   chatLimiter,
@@ -38,7 +39,7 @@ apiRouter.get('/gemini/health', healthLimiter, async (req: Request, res: Respons
   return res.json(health);
 });
 
-// Expose configured API rate & resource limits
+// Expose configured API rate & resource limits and spending caps
 apiRouter.get('/limits', (_req: Request, res: Response) => {
   res.json({
     rate_limits: {
@@ -59,7 +60,19 @@ apiRouter.get('/limits', (_req: Request, res: Response) => {
       max_url_length: RESOURCE_LIMITS.MAX_URL_LENGTH,
       max_branch_name_length: RESOURCE_LIMITS.MAX_BRANCH_NAME_LENGTH,
     },
+    spending_caps: {
+      daily_spend_cap_usd: SPENDING_CAP_CONFIG.DAILY_SPEND_CAP_USD,
+      monthly_spend_cap_usd: SPENDING_CAP_CONFIG.MONTHLY_SPEND_CAP_USD,
+      daily_token_cap: SPENDING_CAP_CONFIG.DAILY_TOKEN_CAP,
+      max_output_tokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
+    },
+    current_spending: SpendingService.getSpendingSummary(),
   });
+});
+
+// Dedicated spending and budget breakdown endpoint
+apiRouter.get('/spending', (_req: Request, res: Response) => {
+  return res.json(SpendingService.getSpendingSummary());
 });
 
 // Server SQLite cache stats endpoint
@@ -318,6 +331,11 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
     const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
 
     if (wantsStream) {
+      let isClientConnected = true;
+      req.on('close', () => {
+        isClientConnected = false;
+      });
+
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
@@ -325,7 +343,7 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
       res.flushHeaders?.();
 
       const sendEvent = (event: string, data: any) => {
-        if (!res.writableEnded && res.writable) {
+        if (isClientConnected && !res.writableEnded && res.writable) {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         }
       };
@@ -336,20 +354,31 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
           message,
           style || 'technical',
           (delta: string) => {
-            sendEvent('chunk', { delta });
+            if (isClientConnected) {
+              sendEvent('chunk', { delta });
+            }
           },
           (status, model) => {
-            sendEvent('status', { status, model });
+            if (isClientConnected) {
+              sendEvent('status', { status, model });
+            }
           }
         );
 
-        sendEvent('done', {
-          answer: result.answer,
-          gemini_status: result.gemini_status,
-        });
+        if (isClientConnected) {
+          sendEvent('done', {
+            answer: result.answer,
+            gemini_status: result.gemini_status,
+          });
+        }
         return res.end();
       } catch (err: any) {
-        sendEvent('error', { detail: err.message || 'Streaming generation failed.' });
+        if (isClientConnected && !res.writableEnded) {
+          sendEvent('error', {
+            detail: err.message || 'Streaming generation failed.',
+            code: err.code || 'STREAM_ERROR',
+          });
+        }
         return res.end();
       }
     }

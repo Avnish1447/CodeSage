@@ -97,4 +97,6 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   status?: 'live' | 'missing_key' | 'quota_exhausted';
+  isError?: boolean;
+  retryQuery?: string;
 }

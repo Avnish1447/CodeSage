@@ -47,3 +47,22 @@ export const RESOURCE_LIMITS = {
   // Maximum branch name character length
   MAX_BRANCH_NAME_LENGTH: parseInt(process.env.API_MAX_BRANCH_NAME_LENGTH || '100', 10),
 };
+
+// Spending Caps & Budget Controls
+export const SPENDING_CAP_CONFIG = {
+  // Daily spending limit in USD (default: $5.00/day)
+  DAILY_SPEND_CAP_USD: parseFloat(process.env.SPENDING_CAP_DAILY_USD || '5.00'),
+
+  // Monthly spending limit in USD (default: $50.00/month)
+  MONTHLY_SPEND_CAP_USD: parseFloat(process.env.SPENDING_CAP_MONTHLY_USD || '50.00'),
+
+  // Daily token consumption ceiling across all AI calls (default: 1,000,000 tokens)
+  DAILY_TOKEN_CAP: parseInt(process.env.SPENDING_CAP_DAILY_TOKENS || '1000000', 10),
+
+  // Maximum output tokens allowed per Gemini generation
+  MAX_OUTPUT_TOKENS: parseInt(process.env.SPENDING_MAX_OUTPUT_TOKENS || '2048', 10),
+
+  // Cost estimates for Gemini Flash tiers ($ per 1,000 tokens)
+  COST_PER_1K_INPUT_TOKENS: 0.0001,  // $0.10 per 1M tokens
+  COST_PER_1K_OUTPUT_TOKENS: 0.0004, // $0.40 per 1M tokens
+};

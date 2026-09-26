@@ -1,4 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
+import { SpendingService } from './spendingService.js';
+import { SPENDING_CAP_CONFIG } from '../config/limits.js';
 
 function ensureEnvLoaded() {
   if (!process.env.GEMINI_API_KEY && typeof process.loadEnvFile === 'function') {
@@ -78,6 +80,19 @@ export async function generateRepositoryInsights(repoData: any) {
     };
   }
 
+  // Enforce spending cap pre-flight guard
+  const capCheck = SpendingService.checkSpendingCap();
+  if (!capCheck.allowed) {
+    console.log(`[Gemini Insights] Spending cap enforced: ${capCheck.reason}. Serving deterministic insights.`);
+    return {
+      ...defaultInsights,
+      gemini_available: false,
+      gemini_status: 'quota_exhausted' as const,
+      spending_capped: true,
+      cap_reason: capCheck.reason,
+    };
+  }
+
   const ai = getAiClient();
   const prompt = `Analyze this software repository facts and generate a structured overview:
 Repository: ${owner}/${repo}
@@ -105,6 +120,17 @@ Respond ONLY with valid JSON.`;
       const text = response.text || '{}';
       const parsed = JSON.parse(text);
       if (parsed.learning_path && parsed.architecture_summary) {
+        // Record token usage in persistent spending ledger
+        const promptTokens = Math.ceil(prompt.length / 4);
+        const completionTokens = Math.ceil(text.length / 4);
+        SpendingService.recordUsage({
+          service: 'gemini_insights',
+          model: modelName,
+          promptTokens,
+          completionTokens,
+          repositoryId: repoData.repository_id,
+        });
+
         return {
           learning_path: parsed.learning_path,
           architecture_summary: parsed.architecture_summary,
@@ -163,6 +189,22 @@ export async function streamRepositoryQuery(
     };
   }
 
+  // Pre-flight check: Prevent runaway costs if spending caps are exceeded
+  const capCheck = SpendingService.checkSpendingCap();
+  if (!capCheck.allowed) {
+    console.log(`[Gemini Stream] Spending cap enforced: ${capCheck.reason}. Serving context fallback.`);
+    const capNotice = style === 'simple'
+      ? `### ⚠️ Daily AI Spending Limit Reached\n\nTo prevent unexpected API costs, the configured daily budget cap ($${capCheck.dailyCapUsd.toFixed(2)}) is currently in effect. Here is an overview of **${owner}/${repo}** from cached repository context:\n\n- **Languages**: ${languages}\n- **Frameworks**: ${frameworks}\n- **Key Starting Files**: ${importantFiles}\n\n**Regarding your query ("*${userQuery}*")**: This project utilizes ${languages} with key structure rooted around \`${importantFiles.split(', ')[0] || 'package.json'}\`.\n\n*The spending cap will automatically reset tomorrow.*`
+      : `### ⚠️ AI Spending Cap Enforced\n\nDaily spending cap reached ($${capCheck.dailySpendUsd.toFixed(2)} / $${capCheck.dailyCapUsd.toFixed(2)} USD). Switching to deterministic metadata context response:\n\n- **Languages**: ${languages}\n- **Libraries**: ${frameworks}\n- **Core Components**: ${importantFiles}\n- **File Count**: ${fileCount} files\n\n#### Architectural Response for ("*${userQuery}*"):\nBased on the indexed codebase topology for **${owner}/${repo}**, the system organizes its logic across ${languages}.\n\n${repoData.architecture_summary ? `**Architecture Summary**: ${repoData.architecture_summary}` : ''}\n\n*Budget caps protect your Gemini API account from uncontrolled billing.*`;
+
+    onStatus?.('quota_exhausted');
+    onChunk(capNotice);
+    return {
+      answer: capNotice,
+      gemini_status: 'quota_exhausted',
+    };
+  }
+
   const ai = getAiClient();
 
   const styleDirective = style === 'simple'
@@ -209,6 +251,17 @@ User Question: ${userQuery}`;
       }
 
       if (accumulated.trim().length > 0) {
+        // Record token usage in persistent spending ledger
+        const promptTokens = Math.ceil(contextPrompt.length / 4);
+        const completionTokens = Math.ceil(accumulated.length / 4);
+        SpendingService.recordUsage({
+          service: 'gemini_chat',
+          model: modelName,
+          promptTokens,
+          completionTokens,
+          repositoryId: repoData.repository_id,
+        });
+
         return {
           answer: accumulated,
           gemini_status: 'live',
@@ -344,6 +397,12 @@ export async function generateGitReverseFallbackPrompt(repoData: any): Promise<s
   const fileCount = repoData.facts?.stats?.file_count || 0;
 
   if (!apiKey) {
+    return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
+  }
+
+  // Pre-flight check: skip AI call if spending cap exceeded
+  const capCheck = SpendingService.checkSpendingCap();
+  if (!capCheck.allowed) {
     return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
   }
 

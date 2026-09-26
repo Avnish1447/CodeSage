@@ -14,6 +14,7 @@ import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes/api.js';
 import { RESOURCE_LIMITS } from './server/config/limits.js';
 import { generalLimiter } from './server/middleware/rateLimiter.js';
+import { errorHandler } from './server/middleware/errorHandler.js';
 
 async function startServer() {
   const app = express();
@@ -26,27 +27,11 @@ async function startServer() {
   // General rate limiting across API routes
   app.use('/api', generalLimiter);
 
-  // Custom API payload size & syntax error handler
-  app.use('/api', (err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (err?.type === 'entity.too.large' || err?.status === 413) {
-      return res.status(413).json({
-        error: 'Payload Too Large',
-        detail: `Request body exceeds the maximum permitted limit of ${RESOURCE_LIMITS.MAX_BODY_SIZE}.`,
-        code: 'PAYLOAD_TOO_LARGE',
-      });
-    }
-    if (err instanceof SyntaxError && 'body' in err) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        detail: 'Malformed JSON payload.',
-        code: 'INVALID_JSON',
-      });
-    }
-    next(err);
-  });
-
   // Mount API router
   app.use('/api/v1', apiRouter);
+
+  // Centralized API error handling
+  app.use('/api', errorHandler);
 
   // Serve logos and static assets explicitly with fresh cache headers
   app.use('/logos', express.static(path.join(process.cwd(), 'public/logos'), {

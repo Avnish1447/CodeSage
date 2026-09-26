@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { ChatMessage, RepoResponse } from '../types';
-import { Send, Bot, User, Loader2, HelpCircle, Code2, Feather } from 'lucide-react';
+import { Send, Bot, User, Loader2, HelpCircle, Code2, Feather, AlertCircle, RefreshCw } from 'lucide-react';
 import { ApiHealthBanner } from './ApiHealthBanner';
 
 interface RagChatSectionProps {
@@ -51,6 +51,14 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const prevRepoIdRef = useRef(repoData.repository_id);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Clean up any ongoing fetch if component unmounts
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   if (prevRepoIdRef.current !== repoData.repository_id) {
     prevRepoIdRef.current = repoData.repository_id;
@@ -87,6 +95,36 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
     const query = (textToSend || input).trim();
     if (!query || loading) return;
 
+    // Check offline connection
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const offlineMsgId = `err-${Date.now()}`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          text: query,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+        {
+          id: offlineMsgId,
+          role: 'assistant',
+          text: '⚠️ **Network Offline**: You appear to be disconnected from the internet. Please check your network connection and try again.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isError: true,
+          retryQuery: query,
+        },
+      ]);
+      return;
+    }
+
+    // Cancel any in-flight streaming request cleanly
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -98,7 +136,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
     const botMsg: ChatMessage = {
       id: botMsgId,
       role: 'assistant',
-      text: '', // Empty text renders the signature iMessage 3-dot wave inside the bubble!
+      text: '', // Empty text renders the signature iMessage 3-dot wave inside the bubble
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -106,6 +144,8 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
     setStreamingId(botMsgId);
     if (!textToSend) setInput('');
     setLoading(true);
+
+    let accumulatedText = '';
 
     try {
       const res = await fetch(`/api/v1/repositories/${repoData.repository_id}/chat`, {
@@ -115,6 +155,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
           'Accept': 'text/event-stream',
         },
         body: JSON.stringify({ message: query, style: responseStyle, stream: true }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -124,7 +165,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
           if (errData?.detail || errData?.error) {
             errMessage = errData.detail || errData.error;
             if (errData.retry_after_seconds) {
-              errMessage += ` (Retry after ${errData.retry_after_seconds}s)`;
+              errMessage += ` (Please wait ${errData.retry_after_seconds}s before retrying)`;
             }
           }
         } catch {
@@ -138,7 +179,6 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let accumulatedText = '';
         let hasReceivedFirstToken = false;
 
         while (true) {
@@ -165,44 +205,47 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
 
             if (!eventData) continue;
 
+            let payload: any = null;
             try {
-              const payload = JSON.parse(eventData);
+              payload = JSON.parse(eventData);
+            } catch {
+              // Ignore partial or non-JSON chunk
+              continue;
+            }
 
-              if (eventType === 'status' || payload.status) {
-                const st = payload.status;
-                setChatGeminiStatus(st);
-                if (onStatusChange) onStatusChange(st);
+            // Propagate server-sent stream errors cleanly
+            if (eventType === 'error') {
+              throw new Error(payload?.detail || payload?.error || 'Streaming generation failed.');
+            }
+
+            if (eventType === 'status' || payload.status) {
+              const st = payload.status;
+              setChatGeminiStatus(st);
+              if (onStatusChange) onStatusChange(st);
+            }
+
+            if (eventType === 'chunk' && payload.delta) {
+              if (!hasReceivedFirstToken) {
+                hasReceivedFirstToken = true;
+                // Natural breath for typing wave animation
+                await new Promise((r) => setTimeout(r, 180));
               }
+              accumulatedText += payload.delta;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === botMsgId ? { ...m, text: accumulatedText } : m))
+              );
+            }
 
-              if (eventType === 'chunk' && payload.delta) {
-                if (!hasReceivedFirstToken) {
-                  hasReceivedFirstToken = true;
-                  // Allow the 3-dot wave animation to be perceptible for a natural breath
-                  await new Promise((r) => setTimeout(r, 220));
-                }
-                accumulatedText += payload.delta;
+            if (eventType === 'done') {
+              if (payload.gemini_status) {
+                setChatGeminiStatus(payload.gemini_status);
+                if (onStatusChange) onStatusChange(payload.gemini_status);
+              }
+              if (payload.answer && !accumulatedText) {
                 setMessages((prev) =>
-                  prev.map((m) => (m.id === botMsgId ? { ...m, text: accumulatedText } : m))
+                  prev.map((m) => (m.id === botMsgId ? { ...m, text: payload.answer } : m))
                 );
               }
-
-              if (eventType === 'done') {
-                if (payload.gemini_status) {
-                  setChatGeminiStatus(payload.gemini_status);
-                  if (onStatusChange) onStatusChange(payload.gemini_status);
-                }
-                if (payload.answer && !accumulatedText) {
-                  setMessages((prev) =>
-                    prev.map((m) => (m.id === botMsgId ? { ...m, text: payload.answer } : m))
-                  );
-                }
-              }
-
-              if (eventType === 'error') {
-                throw new Error(payload.detail || 'Streaming failed');
-              }
-            } catch {
-              // Ignore partial JSON chunks
             }
           }
         }
@@ -222,16 +265,28 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
         );
       }
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // Request cancelled cleanly, ignore
+        return;
+      }
       setMessages((prev) =>
         prev.map((m) =>
           m.id === botMsgId
-            ? { ...m, text: `Error reaching RAG assistant: ${err.message}` }
+            ? {
+                ...m,
+                text: accumulatedText
+                  ? `${accumulatedText}\n\n*(Generation stopped: ${err.message})*`
+                  : `⚠️ **Unable to complete response**\n\n${err.message}`,
+                isError: true,
+                retryQuery: query,
+              }
             : m
         )
       );
     } finally {
       setStreamingId(null);
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -365,7 +420,9 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
                 layout: { type: 'spring', stiffness: 450, damping: 32, mass: 0.7 },
               }}
               className={`w-fit max-w-[85%] px-4 py-2.5 text-xs sm:text-[13px] leading-relaxed transition-all duration-200 ${
-                msg.role === 'user'
+                msg.isError
+                  ? 'bg-red-500/10 dark:bg-red-500/15 border border-red-500/25 rounded-2xl rounded-bl-[4px] text-red-900 dark:text-red-300 font-sans shadow-sm'
+                  : msg.role === 'user'
                   ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] rounded-2xl rounded-br-[4px] shadow-sm ml-auto'
                   : `bg-[#FAFAFA] dark:bg-[#161618] rounded-2xl rounded-bl-[4px] text-[#171717] dark:text-[#EDEDED] font-sans ${
                       msg.id === streamingId
@@ -442,6 +499,17 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
                       }}
                       className="inline-block w-1.5 h-3.5 ml-1 bg-[#e8702a] rounded-xs align-middle shadow-[0_0_8px_rgba(232,112,42,0.7)]"
                     />
+                  )}
+                  {msg.isError && msg.retryQuery && (
+                    <button
+                      type="button"
+                      onClick={() => handleSend(msg.retryQuery)}
+                      disabled={loading}
+                      className="mt-2 text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Retry question</span>
+                    </button>
                   )}
                 </div>
               )}
