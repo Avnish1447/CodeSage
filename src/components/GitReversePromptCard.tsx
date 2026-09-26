@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GitReversePromptData, RepoOverview } from '../types';
-import { Sparkles, Copy, Check, ExternalLink, RefreshCw, Terminal, Zap, Code2, FileCode } from 'lucide-react';
+import { Sparkles, Copy, Check, ExternalLink, RefreshCw, Terminal, Zap } from 'lucide-react';
 
 interface GitReversePromptCardProps {
   promptData?: GitReversePromptData;
@@ -19,7 +19,6 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
 
   const handleAction = onReverseEngineer || onRefreshPrompt;
 
@@ -159,54 +158,31 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
       ) : (
         <div className="space-y-3">
           {/* Action Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center space-x-1.5">
-              <button
-                onClick={() => setViewMode('formatted')}
-                className={`flex items-center space-x-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                  viewMode === 'formatted'
-                    ? 'bg-[#171717] text-white dark:bg-white dark:text-black'
-                    : 'text-[#64748B] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-                }`}
-              >
-                <Sparkles className="w-3 h-3" />
-                <span>Reading View</span>
-              </button>
-              <button
-                onClick={() => setViewMode('raw')}
-                className={`flex items-center space-x-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                  viewMode === 'raw'
-                    ? 'bg-[#171717] text-white dark:bg-white dark:text-black'
-                    : 'text-[#64748B] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-                }`}
-              >
-                <Code2 className="w-3 h-3" />
-                <span>Raw Markdown</span>
-              </button>
-            </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-[#64748B] dark:text-[#8F8F8F] font-medium">
+              Specification Prompt
+            </span>
 
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handleCopy}
-                className={`flex items-center space-x-1.5 text-xs font-medium px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  copied
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-[#e8702a] text-white hover:bg-[#d6601c] shadow-sm'
-                }`}
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Copied to Clipboard!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy for Cursor / Claude</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleCopy}
+              className={`flex items-center space-x-1.5 text-xs font-medium px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                copied
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-[#e8702a] text-white hover:bg-[#d6601c] shadow-sm'
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Copied to Clipboard!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy for Cursor / Claude</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* Prompt Body Box */}
@@ -216,19 +192,13 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
                 expanded ? 'max-h-none' : 'max-h-[260px] overflow-hidden'
               }`}
             >
-              {viewMode === 'formatted' ? (
-                <div className="space-y-3.5">
-                  {paragraphs.map((p, idx) => (
-                    <p key={idx} className="leading-relaxed">
-                      {p}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <pre className="font-mono text-xs whitespace-pre-wrap select-all text-[#334155] dark:text-[#CBD5E1]">
-                  {promptText}
-                </pre>
-              )}
+              <div className="space-y-3.5">
+                {paragraphs.map((p, idx) => (
+                  <p key={idx} className="leading-relaxed whitespace-pre-wrap">
+                    {p}
+                  </p>
+                ))}
+              </div>
             </div>
 
             {/* Fade overlay if collapsed and long */}
