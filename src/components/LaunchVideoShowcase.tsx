@@ -19,6 +19,7 @@ import {
   Code2,
   Sliders
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 interface LaunchVideoShowcaseProps {
   onClose?: () => void;
@@ -29,6 +30,7 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
   onClose,
   isModal = false,
 }) => {
+  const { showSuccess } = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<'extended' | 'teaser'>('extended');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -79,6 +81,8 @@ export const LaunchVideoShowcase: React.FC<LaunchVideoShowcaseProps> = ({
   const handleCopy = (tab: 'x' | 'linkedin' | 'discord') => {
     navigator.clipboard.writeText(shareTexts[tab]);
     setCopiedTab(tab);
+    const platform = tab === 'x' ? 'Twitter / X' : tab === 'linkedin' ? 'LinkedIn' : 'Discord';
+    showSuccess(`${platform} launch announcement copied to clipboard!`, 'Post Copied');
     setTimeout(() => setCopiedTab(null), 2500);
   };
 
