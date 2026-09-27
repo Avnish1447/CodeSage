@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { RepoValidationService } from './repoValidationService.js';
-import { TIMEOUT_CONFIG } from '../config/limits.js';
+import { TIMEOUT_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
 import { REPOS_DIR } from '../config/paths.js';
 
 const execFileAsync = promisify(execFile);
@@ -396,8 +396,14 @@ export class RepoCloneService {
     });
 
     const fileItems = sorted.slice(0, 500);
+    let cumulativeBytes = 0;
+    const MAX_CUMULATIVE_BYTES = RESOURCE_LIMITS.MAX_REPO_SIZE_MB * 1024 * 1024;
+    const MAX_SINGLE_FILE_BYTES = 5 * 1024 * 1024; // 5MB per file limit
 
     for (const item of fileItems) {
+      if (cumulativeBytes >= MAX_CUMULATIVE_BYTES) break;
+      if (item.size && item.size > MAX_SINGLE_FILE_BYTES) continue;
+
       const relPath = item.path;
       const fullPath = path.join(targetPath, relPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -408,8 +414,11 @@ export class RepoCloneService {
           signal: AbortSignal.timeout(8000),
         });
         if (fileResp.ok) {
-          const content = await fileResp.text();
-          fs.writeFileSync(fullPath, content, 'utf-8');
+          const buffer = await fileResp.arrayBuffer();
+          if (buffer.byteLength > MAX_SINGLE_FILE_BYTES) continue;
+          if (cumulativeBytes + buffer.byteLength > MAX_CUMULATIVE_BYTES) break;
+          cumulativeBytes += buffer.byteLength;
+          fs.writeFileSync(fullPath, Buffer.from(buffer));
         }
       } catch {
         // ignore individual file download error
