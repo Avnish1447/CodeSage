@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Menu, X, Sun, Moon } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { LiquidGlassButton } from './ui/LiquidGlassButton';
 
 const BG_IMAGE_1 = "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_195923_b0ba8ace-1d1d-4f2c-9a28-1ab84b330680.png&w=1280&q=85";
@@ -33,8 +33,6 @@ interface LithosHeroProps {
 }
 
 export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = true, onToggleTheme }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('Course');
 
   const revealRef = useRef<HTMLDivElement | null>(null);
   const mouseRef = useRef({ x: -999, y: -999 });
@@ -125,8 +123,6 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
     };
   }, []);
 
-  const navItems = ['Workbench', 'Grounded RAG', 'Tech Stack', 'Architecture Guide', 'GitReverse'];
-
   return (
     <section className="relative w-full overflow-hidden h-screen bg-black" style={{ height: '100dvh' }}>
       {/* 1. Base Dimmed Silhouette Layer */}
@@ -182,24 +178,6 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
           </picture>
         </a>
 
-        {/* Center Desktop Navigation Links */}
-        <div className="hidden md:flex items-center space-x-6">
-          {navItems.map((item) => (
-            <a
-              key={item}
-              href="#workbench"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab(item);
-                if (onStartDigging) onStartDigging();
-              }}
-              className="text-xs font-mono text-white/70 hover:text-white transition-colors cursor-pointer"
-            >
-              {item}
-            </a>
-          ))}
-        </div>
-
         {/* Right Nav Actions */}
         <div className="flex items-center space-x-3">
           {onToggleTheme && (
@@ -214,48 +192,8 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-white/80" />}
             </motion.button>
           )}
-
-          {/* Mobile Toggle */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-            className="md:hidden text-white p-2 rounded-md bg-white/10 backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.12)] cursor-pointer"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
         </div>
       </nav>
-
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-xl flex flex-col justify-center px-8 space-y-6 md:hidden">
-          {navItems.map((item) => (
-            <button
-              type="button"
-              key={item}
-              onClick={() => {
-                setActiveTab(item);
-                setMobileMenuOpen(false);
-                if (onStartDigging) onStartDigging();
-              }}
-              className="text-left text-2xl text-white font-playfair italic hover:text-[#e8702a] transition-colors"
-            >
-              {item}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              if (onStartDigging) onStartDigging();
-            }}
-            className="w-full bg-[#e8702a] hover:bg-[#d66320] text-white py-2.5 rounded-md font-medium text-center text-sm"
-          >
-            Explore Repo Workbench
-          </button>
-        </div>
-      )}
 
       {/* 3. Central Heading (z-50) */}
       <div className="absolute top-[12%] sm:top-[13%] left-0 right-0 flex flex-col items-center text-center px-5 pointer-events-none z-50">
