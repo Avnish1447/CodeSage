@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SPENDING_CAP_CONFIG } from '../config/limits.js';
+import { DB_PATH } from '../config/paths.js';
 
 export interface UsageRecordParams {
   service: 'gemini_insights' | 'gemini_chat' | 'gitreverse' | string;
@@ -84,7 +85,7 @@ export interface SpendingSummary {
 
 export class SpendingService {
   private static db: any = null;
-  private static DB_PATH = path.join('storage', 'codesage_cache.db');
+  private static DB_PATH = DB_PATH;
 
   // Precompiled reusable prepared statements for 0ms overhead
   private static stmtInsertUsage: any = null;
