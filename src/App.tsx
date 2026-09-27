@@ -107,16 +107,25 @@ export function App() {
     };
   }, []);
 
-  // Global Theme State: defaults to dark mode
+  // Global Theme State: defaults to light mode
   const [isDark, setIsDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem('codesage-theme');
-    return saved !== null ? saved === 'dark' : true;
+    const saved = localStorage.getItem('codesage_theme_v2');
+    if (saved !== null) {
+      return saved === 'dark';
+    }
+    // Clean legacy key that previously defaulted to dark
+    try {
+      localStorage.removeItem('codesage-theme');
+    } catch {
+      // ignore
+    }
+    return false;
   });
   const [themeTransitionKey, setThemeTransitionKey] = useState<number>(0);
   const hasViewTransition = typeof document !== 'undefined' && 'startViewTransition' in document;
 
   useEffect(() => {
-    localStorage.setItem('codesage-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('codesage_theme_v2', isDark ? 'dark' : 'light');
     if (isDark) {
       document.documentElement.classList.add('dark');
     } else {
@@ -134,7 +143,7 @@ export function App() {
       } else {
         document.documentElement.classList.remove('dark');
       }
-      localStorage.setItem('codesage-theme', nextDark ? 'dark' : 'light');
+      localStorage.setItem('codesage_theme_v2', nextDark ? 'dark' : 'light');
       setIsDark(nextDark);
     };
 

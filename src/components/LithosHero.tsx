@@ -32,7 +32,7 @@ interface LithosHeroProps {
   onToggleTheme?: () => void;
 }
 
-export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = true, onToggleTheme }) => {
+export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = false, onToggleTheme }) => {
 
   const revealRef = useRef<HTMLDivElement | null>(null);
   const mouseRef = useRef({ x: -999, y: -999 });
@@ -124,33 +124,61 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
   }, []);
 
   return (
-    <section className="relative w-full overflow-hidden h-screen bg-black" style={{ height: '100dvh' }}>
+    <section
+      className={`relative w-full overflow-hidden h-screen transition-colors duration-300 ${
+        isDark ? 'bg-black text-[#EDEDED]' : 'bg-[#FAFAFA] text-[#171717]'
+      }`}
+      style={{ height: '100dvh' }}
+    >
       {/* 1. Base Dimmed Silhouette Layer */}
       <div
-        className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom opacity-20 grayscale brightness-75 contrast-125 pointer-events-none"
+        className={`absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom pointer-events-none transition-all duration-500 ${
+          isDark
+            ? 'opacity-20 grayscale brightness-75 contrast-125'
+            : 'opacity-10 grayscale contrast-125 mix-blend-multiply'
+        }`}
         style={{ backgroundImage: `url("${BG_IMAGE_1}")` }}
       />
 
       {/* 1b. Subtle Architectural Blueprint Grid */}
       <div
-        className="absolute inset-0 z-20 pointer-events-none opacity-25"
+        className="absolute inset-0 z-20 pointer-events-none transition-all duration-300"
         style={{
-          backgroundImage: `
-            linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px)
-          `,
+          opacity: isDark ? 0.25 : 0.4,
+          backgroundImage: isDark
+            ? `
+                linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px)
+              `
+            : `
+                linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px)
+              `,
           backgroundSize: '48px 48px',
         }}
       />
 
-      {/* 1c. Radial vignette to blend into dark canvas */}
-      <div className="absolute inset-0 z-20 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.65)_100%)]" />
+      {/* 1c. Radial vignette to blend into dark / light canvas */}
+      <div
+        className="absolute inset-0 z-20 pointer-events-none transition-all duration-300"
+        style={{
+          background: isDark
+            ? 'radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.65) 100%)'
+            : 'radial-gradient(circle at center, transparent 40%, rgba(250,250,250,0.7) 100%)',
+        }}
+      />
 
       {/* 2. Spotlight Reveal Layer (Cuts through with vivid color and strata illumination) */}
       <RevealLayer ref={revealRef} image={BG_IMAGE_2} />
 
       {/* Navigation Header */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] h-16 flex items-center justify-between px-6 backdrop-blur-md bg-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
+      <nav
+        className={`fixed top-0 left-0 right-0 z-[100] h-16 flex items-center justify-between px-6 backdrop-blur-md transition-colors duration-200 ${
+          isDark
+            ? 'bg-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]'
+            : 'bg-[#FAFAFA]/85 shadow-[0_1px_0_0_rgba(0,0,0,0.08)]'
+        }`}
+      >
         {/* Left Brand - Official Text Mark */}
         <a
           href="#workbench"
@@ -167,7 +195,11 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             <img
               src="/logos/text-mark.svg"
               alt="CodeSage"
-              className="h-8 sm:h-9 w-auto max-w-[190px] sm:max-w-[240px] object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] brightness-125 hover:brightness-150 transition-all duration-200"
+              className={`h-8 sm:h-9 w-auto max-w-[190px] sm:max-w-[240px] object-contain transition-all duration-200 ${
+                isDark
+                  ? 'brightness-125 hover:brightness-150 drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]'
+                  : 'brightness-100 hover:opacity-85'
+              }`}
               onError={(e) => {
                 const target = e.currentTarget;
                 if (!target.src.includes('textmark.png')) {
@@ -185,11 +217,15 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               type="button"
               whileTap={{ scale: 0.94 }}
               onClick={onToggleTheme}
-              className="flex items-center justify-center w-8 h-8 rounded-md text-white/70 hover:text-white bg-white/10 hover:bg-white/15 transition-colors cursor-pointer"
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors cursor-pointer ${
+                isDark
+                  ? 'text-white/70 hover:text-white bg-white/10 hover:bg-white/15'
+                  : 'text-[#4D4D4D] hover:text-[#171717] bg-black/[0.04] hover:bg-black/[0.08] shadow-[0_0_0_1px_rgba(0,0,0,0.06)]'
+              }`}
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-white/80" />}
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[#4D4D4D]" />}
             </motion.button>
           )}
         </div>
@@ -198,7 +234,13 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
       {/* 3. Central Heading (z-50) */}
       <div className="absolute top-[12%] sm:top-[13%] left-0 right-0 flex flex-col items-center text-center px-5 pointer-events-none z-50">
         {/* Floating Brand Badge */}
-        <div className="mb-4 sm:mb-5 inline-flex items-center space-x-2.5 px-3.5 py-1.5 rounded-full bg-black/80 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.12)] pointer-events-auto">
+        <div
+          className={`mb-4 sm:mb-5 inline-flex items-center space-x-2.5 px-3.5 py-1.5 rounded-full backdrop-blur-xl pointer-events-auto transition-colors duration-200 ${
+            isDark
+              ? 'bg-black/80 shadow-[0_0_0_1px_rgba(255,255,255,0.12)] text-white/90'
+              : 'bg-white/90 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.06)] text-[#171717]'
+          }`}
+        >
           <picture>
             <source srcSet="/logos/app-icon.png" type="image/png" />
             <img
@@ -207,21 +249,25 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               className="w-4 h-4 object-contain rounded"
             />
           </picture>
-          <span className="text-[11px] font-mono tracking-wider uppercase text-white/90 font-medium">
+          <span className="text-[11px] font-mono tracking-wider uppercase font-medium">
             CodeSage Stratigraphy
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#45A557] animate-pulse" />
         </div>
 
-        <h1 className="text-white leading-[0.95] tracking-[-2.28px]">
+        <h1 className={`leading-[0.95] tracking-[-2.28px] transition-colors duration-200 ${isDark ? 'text-white' : 'text-[#171717]'}`}>
           <span
-            className="block font-playfair italic font-normal text-5xl sm:text-7xl md:text-8xl hero-anim hero-reveal drop-shadow-md"
+            className={`block font-playfair italic font-normal text-5xl sm:text-7xl md:text-8xl hero-anim hero-reveal ${
+              isDark ? 'drop-shadow-md' : 'drop-shadow-none'
+            }`}
             style={{ letterSpacing: '-0.05em', animationDelay: '0.25s' }}
           >
             Layers hold
           </span>
           <span
-            className="block font-normal text-5xl sm:text-7xl md:text-8xl -mt-1 hero-anim hero-reveal drop-shadow-md"
+            className={`block font-normal text-5xl sm:text-7xl md:text-8xl -mt-1 hero-anim hero-reveal ${
+              isDark ? 'drop-shadow-md' : 'drop-shadow-none'
+            }`}
             style={{ letterSpacing: '-0.06em', animationDelay: '0.42s' }}
           >
             tales of time
@@ -230,7 +276,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
 
         {/* Centered Primary Action Button (21st.dev Liquid Glass Button) */}
         <div className="mt-8 sm:mt-10 pointer-events-auto hero-anim hero-fade" style={{ animationDelay: '0.65s' }}>
-          <LiquidGlassButton onClick={onStartDigging} />
+          <LiquidGlassButton onClick={onStartDigging} isDark={isDark} />
         </div>
       </div>
 
@@ -239,7 +285,11 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
         className="hidden sm:block absolute bottom-12 left-10 md:left-14 max-w-[280px] z-50 hero-anim hero-fade pointer-events-auto"
         style={{ animationDelay: '0.7s' }}
       >
-        <p className="text-xs sm:text-[13px] text-white/75 leading-relaxed font-light drop-shadow-sm">
+        <p
+          className={`text-xs sm:text-[13px] leading-relaxed font-light transition-colors duration-200 ${
+            isDark ? 'text-white/75 drop-shadow-sm' : 'text-[#555555]'
+          }`}
+        >
           Every architectural commit records a chapter of software evolution, from core primitives to distributed services, decomposed through recursive AST stratigraphy.
         </p>
       </div>
@@ -249,13 +299,23 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
         className="hidden sm:block absolute bottom-12 right-10 md:right-14 max-w-[290px] z-50 hero-anim hero-fade pointer-events-auto text-left"
         style={{ animationDelay: '0.85s' }}
       >
-        <p className="text-xs sm:text-[13px] text-white/75 leading-relaxed font-light drop-shadow-sm">
+        <p
+          className={`text-xs sm:text-[13px] leading-relaxed font-light transition-colors duration-200 ${
+            isDark ? 'text-white/75 drop-shadow-sm' : 'text-[#555555]'
+          }`}
+        >
           Interactive codebase coring lets you excavate dependencies, identify architectural boundaries, and query system topology with grounded Gemini RAG.
         </p>
       </div>
 
       {/* 6. Smooth Bottom Gradient Blend to Studio */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent z-40 pointer-events-none" />
+      <div
+        className={`absolute bottom-0 left-0 right-0 h-32 pointer-events-none z-40 transition-colors duration-200 ${
+          isDark
+            ? 'bg-gradient-to-t from-black via-black/70 to-transparent'
+            : 'bg-gradient-to-t from-[#FAFAFA] via-[#FAFAFA]/70 to-transparent'
+        }`}
+      />
     </section>
   );
 };

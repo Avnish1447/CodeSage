@@ -28,7 +28,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  isDark = true,
+  isDark = false,
   onToggleTheme,
 }) => {
   const { showSuccess, showError, showInfo } = useToast();

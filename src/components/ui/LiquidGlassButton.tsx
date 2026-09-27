@@ -6,6 +6,7 @@ interface LiquidGlassButtonProps {
   onClick?: () => void;
   className?: string;
   label?: string;
+  isDark?: boolean;
 }
 
 /**
@@ -20,6 +21,7 @@ export const LiquidGlassButton: React.FC<LiquidGlassButtonProps> = ({
   onClick,
   className = '',
   label = 'Start Digging',
+  isDark = false,
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -65,7 +67,9 @@ export const LiquidGlassButton: React.FC<LiquidGlassButtonProps> = ({
 
       {/* 2. Ambient Under-Glass Amber Glow Halo */}
       <div
-        className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#e8702a]/30 via-[#fbbf24]/40 to-[#e8702a]/30 blur-xl opacity-50 group-hover:opacity-90 group-hover:blur-2xl transition-all duration-500 -z-10"
+        className={`absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#e8702a]/20 via-[#fbbf24]/30 to-[#e8702a]/20 blur-xl transition-all duration-500 -z-10 ${
+          isDark ? 'opacity-50 group-hover:opacity-90 group-hover:blur-2xl' : 'opacity-35 group-hover:opacity-75 group-hover:blur-xl'
+        }`}
       />
 
       {/* 3. The Liquid Glass Capsule Button */}
@@ -82,17 +86,27 @@ export const LiquidGlassButton: React.FC<LiquidGlassButtonProps> = ({
         className="relative overflow-hidden rounded-2xl px-7 py-3.5 sm:px-8 sm:py-4 transition-all duration-300 cursor-pointer flex items-center justify-center space-x-3 select-none"
         style={{
           // Liquid Glass Layering: Translucent frosted glass + refractive depth
-          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(20, 20, 24, 0.55) 50%, rgba(10, 10, 14, 0.75) 100%)',
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(20, 20, 24, 0.55) 50%, rgba(10, 10, 14, 0.75) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 248, 250, 0.90) 50%, rgba(238, 238, 242, 0.94) 100%)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          boxShadow: `
-            inset 0 1.5px 0 0 rgba(255, 255, 255, 0.45),
-            inset 0 -1.5px 0 0 rgba(0, 0, 0, 0.4),
-            inset 0 0 16px 0 rgba(255, 255, 255, 0.08),
-            0 10px 30px -5px rgba(0, 0, 0, 0.65),
-            0 0 25px -2px rgba(232, 112, 42, 0.35)
-          `,
-          border: '1px solid rgba(255, 255, 255, 0.18)',
+          boxShadow: isDark
+            ? `
+              inset 0 1.5px 0 0 rgba(255, 255, 255, 0.45),
+              inset 0 -1.5px 0 0 rgba(0, 0, 0, 0.4),
+              inset 0 0 16px 0 rgba(255, 255, 255, 0.08),
+              0 10px 30px -5px rgba(0, 0, 0, 0.65),
+              0 0 25px -2px rgba(232, 112, 42, 0.35)
+            `
+            : `
+              inset 0 1.5px 0 0 rgba(255, 255, 255, 1),
+              inset 0 -1.5px 0 0 rgba(0, 0, 0, 0.06),
+              inset 0 0 16px 0 rgba(255, 255, 255, 0.6),
+              0 10px 25px -5px rgba(0, 0, 0, 0.08),
+              0 0 20px -2px rgba(232, 112, 42, 0.2)
+            `,
+          border: isDark ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid rgba(0, 0, 0, 0.08)',
         }}
       >
         {/* 4. Fluid Molten Ripple on Hover (Simulating liquid displacement under glass) */}
@@ -101,23 +115,33 @@ export const LiquidGlassButton: React.FC<LiquidGlassButtonProps> = ({
           style={{
             opacity: isHovered ? 1 : 0,
             background: isHovered
-              ? `radial-gradient(140px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255, 255, 255, 0.35), rgba(245, 158, 11, 0.2) 40%, transparent 80%)`
+              ? isDark
+                ? `radial-gradient(140px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255, 255, 255, 0.35), rgba(245, 158, 11, 0.2) 40%, transparent 80%)`
+                : `radial-gradient(140px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255, 255, 255, 0.7), rgba(232, 112, 42, 0.15) 45%, transparent 80%)`
               : 'none',
           }}
         />
 
         {/* 5. Liquid Glass Specular Edge Highlights */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
-        <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent pointer-events-none" />
+        <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/60 via-transparent to-transparent pointer-events-none" />
 
         {/* 6. Isolated Z-Index Content (Guarantees zero ghosting) */}
-        <span className="relative z-20 text-white font-medium text-xs sm:text-sm tracking-wide drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)] group-hover:text-amber-100 transition-colors">
+        <span className={`relative z-20 font-medium text-xs sm:text-sm tracking-wide transition-colors ${
+          isDark
+            ? 'text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)] group-hover:text-amber-100'
+            : 'text-[#171717] group-hover:text-[#e8702a]'
+        }`}>
           {label}
         </span>
 
         {/* 7. Amber Compass Icon floating inside the glass lens */}
-        <div className="relative z-20 p-1 rounded-full bg-black/40 border border-amber-500/40 shadow-[0_0_10px_rgba(232,112,42,0.4)] group-hover:border-amber-400 group-hover:shadow-[0_0_16px_rgba(245,158,11,0.6)] transition-all duration-300">
-          <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 group-hover:text-amber-200 group-hover:rotate-45 transition-transform duration-300 ease-out" />
+        <div className={`relative z-20 p-1 rounded-full transition-all duration-300 ${
+          isDark
+            ? 'bg-black/40 border border-amber-500/40 shadow-[0_0_10px_rgba(232,112,42,0.4)] group-hover:border-amber-400 group-hover:shadow-[0_0_16px_rgba(245,158,11,0.6)]'
+            : 'bg-amber-500/10 border border-amber-500/30 shadow-[0_0_10px_rgba(232,112,42,0.2)] group-hover:border-amber-500/60'
+        }`}>
+          <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#e8702a] dark:text-amber-400 group-hover:text-amber-500 dark:group-hover:text-amber-200 group-hover:rotate-45 transition-transform duration-300 ease-out" />
         </div>
       </motion.button>
     </div>
