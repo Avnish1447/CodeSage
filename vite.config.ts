@@ -21,14 +21,11 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('firestore')) {
-              return 'vendor-firebase-firestore';
+            if (id.includes('@clerk')) {
+              return 'vendor-clerk';
             }
-            if (id.includes('auth')) {
-              return 'vendor-firebase-auth';
-            }
-            if (id.includes('firebase') || id.includes('@firebase')) {
-              return 'vendor-firebase-core';
+            if (id.includes('@supabase')) {
+              return 'vendor-supabase';
             }
             if (id.includes('pptxgenjs') || id.includes('jszip')) {
               return 'vendor-pptx';
