@@ -77,3 +77,13 @@ export class RepoCloneError extends AppError {
     super(message, 400, 'REPO_CLONE_FAILED', detail || message);
   }
 }
+
+/**
+ * Thrown when an internal or external operation times out.
+ */
+export class TimeoutError extends AppError {
+  constructor(message: string, detail?: string) {
+    super(message, 504, 'GATEWAY_TIMEOUT', detail || message);
+  }
+}
+
