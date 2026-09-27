@@ -36,6 +36,37 @@ const inflightBranches = new Map<string, Promise<any>>();
 const PROJECT_NAME = 'CodeSage';
 const VERSION = '0.1.0';
 
+/**
+ * Strict repository ID validation to prevent path traversal (CWE-22)
+ */
+export function isValidRepoId(repoId: string): boolean {
+  if (!repoId || typeof repoId !== 'string') return false;
+  if (!/^[a-zA-Z0-9_.-]+$/.test(repoId) || repoId.includes('..')) return false;
+  const resolved = path.resolve(REPOS_DIR, repoId);
+  return resolved.startsWith(REPOS_DIR + path.sep) || resolved === REPOS_DIR;
+}
+
+/**
+ * Administrator authorization guard for privileged system operations (CWE-862)
+ */
+export function adminGuard(req: Request, res: Response, next: () => void) {
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
+  const provided = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
+  if (!adminKey || provided !== adminKey) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      detail: 'Administrator authorization required for this operation.',
+      code: 'ADMIN_REQUIRED',
+    });
+  }
+  return next();
+}
+
+let isBackupInProgress = false;
+
 // Health check endpoint enriched with uptime and subsystem telemetry
 apiRouter.get('/health', healthLimiter, async (req: Request, res: Response) => {
   const gemini = await checkGeminiHealth(false);
@@ -166,7 +197,9 @@ apiRouter.get('/spending/records', async (req: Request, res: Response) => {
       service,
       repositoryId,
     });
-    return res.json(result);
+    // Sanitize records by removing raw idempotency keys from public response
+    const sanitizedData = result.data.map(({ idempotency_key, ...rest }: any) => rest);
+    return res.json({ ...result, data: sanitizedData });
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
   }
@@ -242,7 +275,7 @@ apiRouter.get('/cache/stats', async (_req: Request, res: Response) => {
 });
 
 // Clear server cache endpoint (Clears both SQLite persistent cache and in-memory repeat request cache)
-apiRouter.delete('/cache', async (_req: Request, res: Response) => {
+apiRouter.delete('/cache', adminGuard, async (_req: Request, res: Response) => {
   try {
     const cleared = SqliteCacheService.clear();
     const inMemCleared = RepeatRequestCacheService.invalidate();
@@ -285,7 +318,7 @@ apiRouter.get('/logs/stats', async (_req: Request, res: Response) => {
 });
 
 // Clear or prune error logs
-apiRouter.delete('/logs/errors', async (req: Request, res: Response) => {
+apiRouter.delete('/logs/errors', adminGuard, async (req: Request, res: Response) => {
   try {
     const retentionDays = req.query.retention_days ? Number(req.query.retention_days) : undefined;
     if (retentionDays !== undefined) {
@@ -314,13 +347,23 @@ apiRouter.get('/system/backups', async (_req: Request, res: Response) => {
 });
 
 // Create a new full system snapshot backup
-apiRouter.post('/system/backups', async (req: Request, res: Response) => {
+apiRouter.post('/system/backups', adminGuard, async (req: Request, res: Response) => {
+  if (isBackupInProgress) {
+    return res.status(429).json({
+      error: 'Too Many Requests',
+      detail: 'A backup snapshot is already in progress. Please wait for completion.',
+      code: 'BACKUP_IN_PROGRESS',
+    });
+  }
   try {
+    isBackupInProgress = true;
     const label = req.body?.label;
     const manifest = await BackupService.createBackup({ label });
     return res.status(201).json({ success: true, backup: manifest });
   } catch (err: any) {
     return res.status(500).json({ error: 'Backup Creation Failed', detail: err.message });
+  } finally {
+    isBackupInProgress = false;
   }
 });
 
@@ -335,7 +378,7 @@ apiRouter.get('/system/backups/:backup_id/verify', async (req: Request, res: Res
 });
 
 // Restore system state from backup archive
-apiRouter.post('/system/backups/:backup_id/restore', async (req: Request, res: Response) => {
+apiRouter.post('/system/backups/:backup_id/restore', adminGuard, async (req: Request, res: Response) => {
   try {
     const skipRollback = req.body?.skip_rollback === true;
     const result = await BackupService.restoreBackup(req.params.backup_id, { skipRollback });
@@ -346,7 +389,7 @@ apiRouter.post('/system/backups/:backup_id/restore', async (req: Request, res: R
 });
 
 // Delete a backup archive
-apiRouter.delete('/system/backups/:backup_id', async (req: Request, res: Response) => {
+apiRouter.delete('/system/backups/:backup_id', adminGuard, async (req: Request, res: Response) => {
   try {
     const deleted = BackupService.deleteBackup(req.params.backup_id);
     if (!deleted) {
@@ -418,6 +461,7 @@ apiRouter.get('/repositories', async (req: Request, res: Response) => {
 apiRouter.post('/repositories', cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS, 'Repository excavation'), async (req: Request, res: Response) => {
   try {
     const { url, branch, force_refresh } = req.body;
+    const isForceRefresh = force_refresh === true || force_refresh === 'true' || force_refresh === 1 || force_refresh === '1';
     if (!url || typeof url !== 'string' || !url.trim()) {
       return res.status(400).json({ detail: 'Field "url" is required in request body.' });
     }
@@ -446,7 +490,7 @@ apiRouter.post('/repositories', cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCA
     );
 
     // 1. Check SQLite fast cache first if fresh re-dig was not explicitly requested
-    if (!force_refresh) {
+    if (!isForceRefresh) {
       try {
         // Try SQLite cache
         const sqliteCached = SqliteCacheService.get(expectedRepoId);
@@ -689,6 +733,9 @@ apiRouter.get(
   async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
+    if (!isValidRepoId(repoId)) {
+      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
+    }
     const force = req.query.force === 'true';
 
     // 1. Check SQLite cache
@@ -753,6 +800,9 @@ apiRouter.get(
 apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
+    if (!isValidRepoId(repoId)) {
+      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
+    }
     const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
 
     if (!fs.existsSync(metadataFile)) {
@@ -775,6 +825,9 @@ apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
 apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
+    if (!isValidRepoId(repoId)) {
+      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
+    }
     const { message, style, stream = true } = req.body;
     const wantsStream = stream === true || req.headers.accept?.includes('text/event-stream');
 
@@ -909,6 +962,9 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
 apiRouter.post('/repositories/:repo_id/insights', async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
+    if (!isValidRepoId(repoId)) {
+      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
+    }
     const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
 
     if (!fs.existsSync(metadataFile)) {
@@ -991,6 +1047,9 @@ apiRouter.get(
   async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
+    if (!isValidRepoId(repoId)) {
+      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
+    }
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
     const search = ((req.query.search as string) || '').trim().toLowerCase();
@@ -1101,6 +1160,18 @@ async function handleGetFileContent(req: Request, res: Response) {
 
     if (!fs.existsSync(targetPath)) {
       return res.status(404).json({ detail: `File '${cleanPath}' not found in repository.` });
+    }
+
+    // Verify file is not a symlink escaping source root
+    const lstat = fs.lstatSync(targetPath);
+    if (lstat.isSymbolicLink()) {
+      return res.status(403).json({ detail: 'Access denied: Symbolic links cannot be previewed.' });
+    }
+
+    const realTargetPath = fs.realpathSync(targetPath);
+    const realSourceRoot = fs.realpathSync(sourceRoot);
+    if (!realTargetPath.startsWith(realSourceRoot + path.sep) && realTargetPath !== realSourceRoot) {
+      return res.status(403).json({ detail: 'Access denied: File resolves outside repository root.' });
     }
 
     const stat = fs.statSync(targetPath);

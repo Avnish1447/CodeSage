@@ -17,7 +17,6 @@ import { generalLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { uptimeTracker } from './middleware/uptimeTracker.js';
 import { ErrorLoggingService } from './services/errorLoggingService.js';
-import { STORAGE_ROOT } from './config/paths.js';
 
 // Centralized fatal exception logging
 process.on('uncaughtException', (err) => {
@@ -79,9 +78,6 @@ export function createApp() {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     },
   }));
-
-  // Dynamic storage serving
-  app.use('/storage', express.static(STORAGE_ROOT));
 
   return app;
 }
