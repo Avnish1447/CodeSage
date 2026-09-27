@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { ClerkProvider, useUser, useClerk } from '@clerk/clerk-react';
+import { ClerkProvider, useUser, useClerk } from '@clerk/react';
 
 export interface AppUser {
   uid: string;
