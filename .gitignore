@@ -73,6 +73,9 @@ codesage_cache.db
 storage/
 temp/
 tmp/
+temp_uploads/
+exports/
+backups/
 *.raw
 
 # Logs, PIDs & Debugging
