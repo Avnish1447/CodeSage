@@ -40,6 +40,8 @@ export const StratumShimmerButton: React.FC<StratumShimmerButtonProps> = ({
 
       {/* 2. Interactive Button Container */}
       <motion.button
+        type="button"
+        aria-label="Start Digging"
         ref={buttonRef}
         onClick={onClick}
         onMouseMove={handleMouseMove}
