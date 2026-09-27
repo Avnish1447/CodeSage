@@ -8,24 +8,6 @@ const BG_IMAGE_2 = "https://images.higgs.ai/?default=1&output=webp&url=https%3A%
 
 const SPOTLIGHT_R = 260;
 
-interface RevealLayerProps {
-  image: string;
-}
-
-const RevealLayer = React.forwardRef<HTMLDivElement, RevealLayerProps>(({ image }, ref) => {
-  return (
-    <div
-      ref={ref}
-      className="absolute inset-0 bg-center bg-cover bg-no-repeat z-30 pointer-events-none transition-opacity duration-300"
-      style={{
-        backgroundImage: `url("${image}")`,
-        WebkitMaskImage: 'none',
-        maskImage: 'none',
-      }}
-    />
-  );
-});
-
 interface LithosHeroProps {
   onStartDigging?: () => void;
   isDark?: boolean;
@@ -33,8 +15,7 @@ interface LithosHeroProps {
 }
 
 export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = false, onToggleTheme }) => {
-
-  const revealRef = useRef<HTMLDivElement | null>(null);
+  const coverRef = useRef<HTMLDivElement | null>(null);
   const mouseRef = useRef({ x: -999, y: -999 });
   const smoothRef = useRef({ x: -999, y: -999 });
   const userInteracted = useRef(false);
@@ -68,7 +49,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
     const sweepDuration = 3200;
 
     const loop = (timestamp: number) => {
-      if (revealRef.current) {
+      if (coverRef.current) {
         if (userInteracted.current) {
           // Direct user tracking
           if (mouseRef.current.x !== -999) {
@@ -78,9 +59,9 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
               smoothRef.current.x += dx * 0.15;
               smoothRef.current.y += dy * 0.15;
-              const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, black 0%, black 40%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0.12) 88%, transparent 100%)`;
-              revealRef.current.style.webkitMaskImage = maskStyle;
-              revealRef.current.style.maskImage = maskStyle;
+              const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, transparent 0%, transparent 35%, rgba(0, 0, 0, 0.2) 52%, rgba(0, 0, 0, 0.7) 72%, black 88%, black 100%)`;
+              coverRef.current.style.webkitMaskImage = maskStyle;
+              coverRef.current.style.maskImage = maskStyle;
             }
           }
         } else {
@@ -104,9 +85,9 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               smoothRef.current.y += (autoY - smoothRef.current.y) * 0.12;
             }
 
-            const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, black 0%, black 40%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0.12) 88%, transparent 100%)`;
-            revealRef.current.style.webkitMaskImage = maskStyle;
-            revealRef.current.style.maskImage = maskStyle;
+            const maskStyle = `radial-gradient(circle ${SPOTLIGHT_R}px at ${smoothRef.current.x}px ${smoothRef.current.y}px, transparent 0%, transparent 35%, rgba(0, 0, 0, 0.2) 52%, rgba(0, 0, 0, 0.7) 72%, black 88%, black 100%)`;
+            coverRef.current.style.webkitMaskImage = maskStyle;
+            coverRef.current.style.maskImage = maskStyle;
           }
         }
       }
@@ -130,21 +111,29 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
       }`}
       style={{ height: '100dvh' }}
     >
-      {/* 1. Base Dimmed Silhouette Layer */}
+      {/* 1. Underlying Geological Strata Image */}
       <div
-        className={`absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom pointer-events-none transition-all duration-500 ${
-          isDark
-            ? 'opacity-20 grayscale brightness-75 contrast-125'
-            : 'opacity-10 grayscale contrast-125 mix-blend-multiply'
-        }`}
-        style={{ backgroundImage: `url("${BG_IMAGE_1}")` }}
+        className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom pointer-events-none transition-all duration-500"
+        style={{ backgroundImage: `url("${BG_IMAGE_2}")` }}
       />
 
-      {/* 1b. Subtle Architectural Blueprint Grid */}
+      {/* 2. Theme-Adaptive Cover Layer (Black in dark mode, White in light mode) with Torch Cutout */}
       <div
-        className="absolute inset-0 z-20 pointer-events-none transition-all duration-300"
+        ref={coverRef}
+        className={`absolute inset-0 z-20 pointer-events-none transition-colors duration-300 ${
+          isDark ? 'bg-black' : 'bg-[#FAFAFA]'
+        }`}
         style={{
-          opacity: isDark ? 0.25 : 0.4,
+          WebkitMaskImage: `radial-gradient(circle ${SPOTLIGHT_R}px at 50% 45%, transparent 0%, transparent 35%, rgba(0, 0, 0, 0.2) 52%, rgba(0, 0, 0, 0.7) 72%, black 88%, black 100%)`,
+          maskImage: `radial-gradient(circle ${SPOTLIGHT_R}px at 50% 45%, transparent 0%, transparent 35%, rgba(0, 0, 0, 0.2) 52%, rgba(0, 0, 0, 0.7) 72%, black 88%, black 100%)`,
+        }}
+      />
+
+      {/* 3. Subtle Architectural Blueprint Grid */}
+      <div
+        className="absolute inset-0 z-25 pointer-events-none transition-all duration-300"
+        style={{
+          opacity: isDark ? 0.25 : 0.45,
           backgroundImage: isDark
             ? `
                 linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
@@ -157,19 +146,6 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
           backgroundSize: '48px 48px',
         }}
       />
-
-      {/* 1c. Radial vignette to blend into dark / light canvas */}
-      <div
-        className="absolute inset-0 z-20 pointer-events-none transition-all duration-300"
-        style={{
-          background: isDark
-            ? 'radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.65) 100%)'
-            : 'radial-gradient(circle at center, transparent 40%, rgba(250,250,250,0.7) 100%)',
-        }}
-      />
-
-      {/* 2. Spotlight Reveal Layer (Cuts through with vivid color and strata illumination) */}
-      <RevealLayer ref={revealRef} image={BG_IMAGE_2} />
 
       {/* Navigation Header */}
       <nav
