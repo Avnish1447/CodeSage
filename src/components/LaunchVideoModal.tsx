@@ -51,6 +51,7 @@ export const LaunchVideoModal: React.FC<LaunchVideoModalProps> = ({ isOpen, onCl
           >
             {/* Close Button */}
             <button
+              type="button"
               onClick={onClose}
               aria-label="Close launch video modal"
               className="absolute top-5 right-5 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer z-30"
