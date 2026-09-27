@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { RepoValidationService } from './repoValidationService.js';
+import { TIMEOUT_CONFIG } from '../config/limits.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -76,9 +77,9 @@ export class RepoCloneService {
         }
       }
 
-      // Query remote git repository via git ls-remote --heads
+      // Query remote git repository via git ls-remote --heads with configurable timeout
       const { stdout } = await execFileAsync('git', ['ls-remote', '--heads', normalizedUrl], {
-        timeout: 15000,
+        timeout: TIMEOUT_CONFIG.LS_REMOTE_TIMEOUT_MS,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
 
@@ -234,10 +235,10 @@ export class RepoCloneService {
     }
     cloneArgs.push(normalizedUrl, repoPath);
 
-    // 1. Try git clone first on the requested URL with 45s timeout
+    // 1. Try git clone first on the requested URL with configurable timeout
     try {
       await execFileAsync('git', cloneArgs, {
-        timeout: 45000,
+        timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
       cloneSuccess = true;
@@ -253,7 +254,7 @@ export class RepoCloneService {
           }
           altCloneArgs.push(altUrl, repoPath);
           await execFileAsync('git', altCloneArgs, {
-            timeout: 45000,
+            timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
             env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
           });
           cloneSuccess = true;
@@ -286,7 +287,10 @@ export class RepoCloneService {
 
           if (!cloneSuccess) {
             this.cleanupPartialClone(repoPath);
-            const errMsg = gitErr.stderr?.trim() || gitErr.message || apiErr.message || 'unknown error';
+            const isTimeout = gitErr.killed || gitErr.signal === 'SIGTERM' || gitErr.code === 'ETIMEDOUT';
+            const errMsg = isTimeout
+              ? `Git clone timed out after ${Math.round(TIMEOUT_CONFIG.CLONE_TIMEOUT_MS / 1000)} seconds. The repository might be exceptionally large or the connection is slow.`
+              : gitErr.stderr?.trim() || gitErr.message || apiErr.message || 'unknown error';
             throw new RepoCloneError(`Git clone and API fetch failed: ${errMsg}`);
           }
         }
@@ -344,6 +348,7 @@ export class RepoCloneService {
         'User-Agent': 'CodeSage-App',
         Accept: 'application/vnd.github.v3+json',
       },
+      signal: AbortSignal.timeout(TIMEOUT_CONFIG.GITHUB_API_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -355,6 +360,7 @@ export class RepoCloneService {
           'User-Agent': 'CodeSage-App',
           Accept: 'application/vnd.github.v3+json',
         },
+        signal: AbortSignal.timeout(TIMEOUT_CONFIG.GITHUB_API_TIMEOUT_MS),
       });
 
       if (!fallbackResp.ok) {
@@ -397,7 +403,9 @@ export class RepoCloneService {
 
       const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${relPath}`;
       try {
-        const fileResp = await fetch(rawUrl);
+        const fileResp = await fetch(rawUrl, {
+          signal: AbortSignal.timeout(8000),
+        });
         if (fileResp.ok) {
           const content = await fileResp.text();
           fs.writeFileSync(fullPath, content, 'utf-8');
