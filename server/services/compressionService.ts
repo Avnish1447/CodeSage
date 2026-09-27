@@ -4,6 +4,7 @@ import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { RESOURCE_LIMITS } from '../config/limits.js';
+import { REPOS_DIR, EXPORTS_DIR, TEMP_DIR } from '../config/paths.js';
 
 export interface ArchiveExportResult {
   archivePath: string;
@@ -77,12 +78,12 @@ export class CompressionService {
     repoId: string,
     format: 'tar.gz' | 'zip' = 'tar.gz'
   ): Promise<ArchiveExportResult> {
-    const sourceDir = path.resolve('storage', 'repos', repoId, 'source');
+    const sourceDir = path.resolve(REPOS_DIR, repoId, 'source');
     if (!fs.existsSync(sourceDir)) {
       throw new Error(`Repository "${repoId}" source files not found.`);
     }
 
-    const exportDir = path.resolve('storage', 'exports');
+    const exportDir = EXPORTS_DIR;
     if (!fs.existsSync(exportDir)) {
       fs.mkdirSync(exportDir, { recursive: true });
     }
@@ -282,7 +283,7 @@ export class CompressionService {
       compressedBuffer = Buffer.from(svgText, 'utf-8');
     } else {
       // Raster image optimization using macOS /usr/bin/sips
-      const tempDir = path.resolve('storage', 'temp');
+      const tempDir = TEMP_DIR;
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
