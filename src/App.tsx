@@ -984,7 +984,7 @@ export function App() {
       <footer className="shadow-[0_-1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_-1px_0_0_rgba(255,255,255,0.08)] bg-white dark:bg-black pt-12 pb-8 text-xs text-[#8F8F8F] dark:text-[#888888] font-mono transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           {/* Top Multi-Column Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-8 border-b border-black/[0.06] dark:border-white/[0.08]">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-8 border-b border-black/[0.06] dark:border-white/[0.08]">
             {/* Column 1: Brand & Stratigraphy Identity (2 cols on lg) */}
             <div className="lg:col-span-2 space-y-3 pr-4">
               <a
@@ -1070,68 +1070,7 @@ export function App() {
               </ul>
             </div>
 
-            {/* Column 3: Analysis Tools */}
-            <div className="space-y-2.5">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#171717] dark:text-[#EDEDED]">
-                Architecture
-              </div>
-              <ul className="space-y-2 text-xs">
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewMode('split');
-                      setLeftTab('prompt');
-                      scrollToWorkbench();
-                    }}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
-                  >
-                    GitReverse Prompt
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewMode('split');
-                      setLeftTab('stack');
-                      scrollToWorkbench();
-                    }}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
-                  >
-                    Tech Stack Strata
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewMode('split');
-                      setLeftTab('tree');
-                      scrollToWorkbench();
-                    }}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
-                  >
-                    File Tree Explorer
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewMode('split');
-                      setLeftTab('learning');
-                      scrollToWorkbench();
-                    }}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
-                  >
-                    Architecture Guide
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Column 4: Ecosystem & Status */}
+            {/* Column 3: Ecosystem & Status */}
             <div className="space-y-2.5">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-[#171717] dark:text-[#EDEDED]">
                 Ecosystem
