@@ -3,6 +3,7 @@ import path from 'node:path';
 import { SqliteCacheService } from './sqliteCacheService.js';
 import { checkGeminiHealth } from './geminiService.js';
 import { RepeatRequestCacheService } from './repeatRequestCache.js';
+import { STORAGE_ROOT } from '../config/paths.js';
 
 export type SystemHealthStatus = 'operational' | 'degraded' | 'outage';
 
@@ -198,7 +199,7 @@ export class UptimeMonitoringService {
     // 2. Disk Storage Subsystem Check
     const storageStart = performance.now();
     try {
-      const storageDir = path.resolve('storage');
+      const storageDir = STORAGE_ROOT;
       if (!fs.existsSync(storageDir)) {
         fs.mkdirSync(storageDir, { recursive: true });
       }
