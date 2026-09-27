@@ -12,12 +12,18 @@ import { SkeletonLoader } from './components/SkeletonLoader';
 import { LithosHero } from './components/LithosHero';
 import { ApiHealthBanner } from './components/ApiHealthBanner';
 import { GitReversePromptCard } from './components/GitReversePromptCard';
+import { FailedRequestCard } from './components/FailedRequestCard';
+import { EmptyWorkbenchState } from './components/EmptyWorkbenchState';
+import { LaunchVideoModal } from './components/LaunchVideoModal';
+import { BrandKitModal } from './components/BrandKitModal';
+import { NotFoundPage } from './components/NotFoundPage';
 const PresentationMode = React.lazy(() =>
   import('./components/PresentationMode').then((m) => ({ default: m.PresentationMode }))
 );
 import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
+import { useToast } from './context/ToastContext';
 import {
   saveRepositoryToUserHistory,
   getUserRepositoryHistory,
@@ -45,6 +51,9 @@ import {
   Zap,
   RefreshCw,
   Trash2,
+  Film,
+  Palette,
+  ExternalLink,
 } from 'lucide-react';
 
 const PRESET_HISTORIES = [
@@ -55,9 +64,54 @@ const PRESET_HISTORIES = [
 ];
 
 export function App() {
+  const { showSuccess, showError, showInfo } = useToast();
   const [repoData, setRepoData] = useState<RepoResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastAttemptedUrl, setLastAttemptedUrl] = useState<string>('https://github.com/Avnish1447/CodeSage');
+  
+  // 404 Route State
+  const [is404, setIs404] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname;
+    const hash = window.location.hash;
+    return (
+      path === '/404' ||
+      path === '/404.html' ||
+      hash === '#404' ||
+      (path !== '/' &&
+        path !== '/index.html' &&
+        !path.startsWith('/api') &&
+        !path.startsWith('/logos') &&
+        !path.startsWith('/storage') &&
+        !path.startsWith("/SVG's"))
+    );
+  });
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      setIs404(
+        path === '/404' ||
+        path === '/404.html' ||
+        hash === '#404' ||
+        (path !== '/' &&
+          path !== '/index.html' &&
+          !path.startsWith('/api') &&
+          !path.startsWith('/logos') &&
+          !path.startsWith('/storage') &&
+          !path.startsWith("/SVG's"))
+      );
+    };
+
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('hashchange', handleRouteChange);
+    };
+  }, []);
 
   // Global Theme State: defaults to dark mode
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -134,6 +188,10 @@ export function App() {
   const [cachedList, setCachedList] = useState<CachedAnalysisSummary[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Modal states for Launch Video and Brand Kit
+  const [showLaunchVideo, setShowLaunchVideo] = useState(false);
+  const [showBrandKit, setShowBrandKit] = useState(false);
+
   const loadCachedList = async () => {
     try {
       const items = await indexedDbService.listAllCachedAnalyses();
@@ -147,13 +205,24 @@ export function App() {
     loadCachedList();
   }, []);
 
+  // Inflight execution refs to prevent duplicate submissions & support cancellation
+  const activeAnalysisAbortRef = useRef<AbortController | null>(null);
+  const currentInflightRepoRef = useRef<string | null>(null);
+
   const handleReverseEngineer = async (force: boolean = false) => {
-    if (!repoData?.repository_id) return;
+    if (!repoData?.repository_id || isRefreshingPrompt) return;
     setIsRefreshingPrompt(true);
     setPromptError(null);
+
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => {
+      controller.abort(new Error('GitReverse prompt generation timed out after 25s.'));
+    }, 25000);
+
     try {
       const url = `/api/v1/repositories/${repoData.repository_id}/reverse-prompt${force ? '?force=true' : ''}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutTimer);
       if (res.ok) {
         const promptData: GitReversePromptData = await res.json();
         const updated: RepoResponse = {
@@ -162,6 +231,7 @@ export function App() {
         };
         setRepoData(updated);
         await indexedDbService.saveAnalysisToCache(updated);
+        showSuccess('Reverse prompt ready', 'GitReverse architecture prompt generated.');
       } else {
         let errMsg = `Failed to generate prompt (status ${res.status})`;
         try {
@@ -176,10 +246,13 @@ export function App() {
           // ignore
         }
         setPromptError(errMsg);
+        showError('Prompt generation failed', errMsg);
       }
     } catch (err: any) {
       console.error('Failed to fetch GitReverse prompt:', err);
-      setPromptError(err?.message || 'Network error fetching GitReverse prompt');
+      const msg = err?.message || 'Network error fetching GitReverse prompt';
+      setPromptError(msg);
+      showError('Prompt generation failed', msg);
     } finally {
       setIsRefreshingPrompt(false);
     }
@@ -215,16 +288,36 @@ export function App() {
   };
 
   const analyzeRepository = async (url: string, branch?: string, forceRefresh = false) => {
-    setError(null);
+    const trimmed = url.trim();
+    const requestKey = `${trimmed}#${branch || ''}`;
 
-    // 1. Instant Cache-First Load from Client IndexedDB (< 5ms)
+    // 1. Prevent duplicate submissions: If an identical analysis is already in-flight, ignore redundant click
+    if (loading && currentInflightRepoRef.current === requestKey && !forceRefresh) {
+      console.log('[App] Analysis already in-flight for this repository, ignoring duplicate request.');
+      return;
+    }
+
+    // 2. Abort previous active excavation if user requested a different repository
+    if (activeAnalysisAbortRef.current) {
+      activeAnalysisAbortRef.current.abort();
+    }
+    const abortController = new AbortController();
+    activeAnalysisAbortRef.current = abortController;
+    currentInflightRepoRef.current = requestKey;
+
+    setError(null);
+    setLastAttemptedUrl(trimmed);
+
+    // 3. Instant Cache-First Load from Client IndexedDB (< 5ms)
     if (!forceRefresh) {
       try {
-        const localCached = await indexedDbService.getCachedAnalysis(url, branch);
+        const localCached = await indexedDbService.getCachedAnalysis(trimmed, branch);
         if (localCached) {
           setRepoData(localCached);
           setLoading(false);
+          currentInflightRepoRef.current = null;
           loadCachedList();
+          showInfo('Loaded from cache', `${localCached.overview.owner}/${localCached.overview.repo} (0ms instant access)`);
           return;
         }
       } catch (err) {
@@ -235,12 +328,22 @@ export function App() {
     setLoading(true);
     setIsRefreshing(forceRefresh);
 
+    // 4. Set 90s client excavation timeout
+    const timeoutId = setTimeout(() => {
+      abortController.abort(
+        new Error('Repository excavation timed out after 90 seconds. Deep AST analysis or remote git clone took longer than expected. Please retry.')
+      );
+    }, 90000);
+
     try {
       const res = await fetch('/api/v1/repositories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, branch, force_refresh: forceRefresh }),
+        body: JSON.stringify({ url: trimmed, branch, force_refresh: forceRefresh }),
+        signal: abortController.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await res.json();
       if (!res.ok) {
@@ -259,6 +362,10 @@ export function App() {
       // Automatically store in client-side IndexedDB for instant 0ms future reloads
       await indexedDbService.saveAnalysisToCache(data);
       loadCachedList();
+      showSuccess(
+        forceRefresh ? 'Repository refreshed' : 'Repository excavated',
+        `${data.overview.owner}/${data.overview.repo} (${data.facts?.stats?.file_count || 0} files) analyzed.`
+      );
 
       // Automatically sync analyzed repository to user's personal Firestore history
       if (user?.uid) {
@@ -269,21 +376,151 @@ export function App() {
         });
       }
     } catch (err: any) {
-      setError(err.message || 'An unknown error occurred');
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        if (abortController.signal.reason instanceof Error) {
+          setError(abortController.signal.reason.message);
+          showError('Excavation timeout', abortController.signal.reason.message);
+        } else {
+          // Request was superseded by another repo request, ignore silently
+          return;
+        }
+      } else {
+        const msg = err.message || 'An unknown error occurred';
+        setError(msg);
+        showError('Excavation failed', msg);
+      }
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      if (currentInflightRepoRef.current === requestKey) {
+        currentInflightRepoRef.current = null;
+        setLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 
+  const uploadRepositoryArchive = async (file: File) => {
+    // 1. Client-side Upload Limit Guard (50MB)
+    const MAX_MB = 50;
+    const MAX_BYTES = MAX_MB * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      const msg = `Archive size (${sizeMb} MB) exceeds maximum allowed limit of ${MAX_MB} MB. Please upload a smaller repository archive.`;
+      setError(msg);
+      showError('Archive too large', msg);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setLastAttemptedUrl(`upload://${file.name}`);
+
+    try {
+      const formData = new FormData();
+      formData.append('archive', file);
+      formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
+
+      const res = await fetch('/api/v1/repositories/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || 'Failed to excavate uploaded repository archive.');
+      }
+
+      setRepoData(data);
+      if (data.gemini_status) {
+        setGeminiStatus(data.gemini_status);
+      }
+
+      await indexedDbService.saveAnalysisToCache(data);
+      loadCachedList();
+      showSuccess('Archive excavated', `${data.overview.owner}/${data.overview.repo} extracted and analyzed.`);
+
+      if (user?.uid) {
+        saveRepositoryToUserHistory(user.uid, data).then(() => {
+          getUserRepositoryHistory(user.uid).then((items) => {
+            setFirestoreHistory(items);
+          });
+        });
+      }
+    } catch (err: any) {
+      console.error('[App] Upload archive error:', err);
+      const msg = err?.message || 'Error uploading repository archive.';
+      setError(msg);
+      showError('Archive upload failed', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Dynamic Page Title & SEO Meta Description Sync
+  useEffect(() => {
+    let title = 'CodeSage – Intelligent Codebase Stratigraphy & Grounded RAG Architecture Engine';
+    let metaDescription = 'Deep codebase stratigraphy and grounded AST architecture engine. Parse Git trees, unearth layered dependencies, detect tech stacks, and query repository structures with grounded Google Gemini RAG.';
+
+    if (showLaunchVideo) {
+      title = 'CodeSage Launch Film & Cinematic Showcase | CodeSage';
+      metaDescription = 'Experience the 3D cinematic film and teaser showcasing CodeSage codebase stratigraphy, speed-ramped AST coring, and grounded technical RAG.';
+    } else if (showBrandKit) {
+      title = 'Official Brand Assets & Identity Kit | CodeSage';
+      metaDescription = 'Download official vector logos, monochrome marks, typography assets, and application icons for CodeSage.';
+    } else if (loading) {
+      const targetName = lastAttemptedUrl.replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '') || 'Repository';
+      title = `Analyzing ${targetName}… | CodeSage`;
+      metaDescription = `Excavating and analyzing ${targetName} codebase structure, stratigraphy layers, and dependency topology.`;
+    } else if (error) {
+      title = `Analysis Error | CodeSage Studio`;
+      metaDescription = `Encountered an issue analyzing the requested repository. Review diagnostics and retry options.`;
+    } else if (viewMode === 'presentation' && repoData) {
+      title = `Architecture Deck: ${repoData.overview.owner}/${repoData.overview.repo} | CodeSage`;
+      metaDescription = `Interactive executive pitch deck and architectural blueprint for ${repoData.overview.owner}/${repoData.overview.repo}.`;
+    } else if (repoData) {
+      const sectionName =
+        leftTab === 'prompt' ? 'GitReverse Prompt' :
+        leftTab === 'stack' ? 'Tech Stack' :
+        leftTab === 'tree' ? 'File Tree' :
+        leftTab === 'learning' ? 'Architecture Guide' :
+        'Stratigraphy & Architecture';
+      const primaryLang = Object.keys(repoData.facts?.languages || {})[0] || 'Codebase';
+      title = `${repoData.overview.owner}/${repoData.overview.repo} – ${sectionName} | CodeSage`;
+      metaDescription = `Architectural stratigraphy of ${repoData.overview.owner}/${repoData.overview.repo} (${primaryLang}). Explore dependencies, structural files, and ask grounded questions.`;
+    }
+
+    document.title = title;
+
+    // Dynamically update standard meta description and Open Graph description tags
+    const descTag = document.querySelector('meta[name="description"]');
+    if (descTag) descTag.setAttribute('content', metaDescription);
+
+    const ogTitleTag = document.querySelector('meta[property="og:title"]');
+    if (ogTitleTag) ogTitleTag.setAttribute('content', title);
+
+    const ogDescTag = document.querySelector('meta[property="og:description"]');
+    if (ogDescTag) ogDescTag.setAttribute('content', metaDescription);
+
+    const twitterTitleTag = document.querySelector('meta[name="twitter:title"]');
+    if (twitterTitleTag) twitterTitleTag.setAttribute('content', title);
+
+    const twitterDescTag = document.querySelector('meta[name="twitter:description"]');
+    if (twitterDescTag) twitterDescTag.setAttribute('content', metaDescription);
+  }, [loading, error, viewMode, repoData, leftTab, lastAttemptedUrl, showLaunchVideo, showBrandKit]);
+
   // Check health and analyze the default repo on mount
   useEffect(() => {
+    if (is404) return;
     checkGeminiHealth(false);
     analyzeRepository('https://github.com/Avnish1447/CodeSage');
     if (window.location.hash === '#workbench' || window.location.hash === '#studio') {
       setTimeout(scrollToWorkbench, 300);
     }
-  }, []);
+  }, [is404]);
+
+  if (is404) {
+    return <NotFoundPage />;
+  }
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${isDark ? 'dark bg-black text-[#EDEDED]' : 'bg-[#FAFAFA] text-[#171717]'}`}>
@@ -350,6 +587,7 @@ export function App() {
                 </div>
               )}
               <button
+                type="button"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className={`p-1.5 rounded-md transition-colors cursor-pointer ${
                   isDark
@@ -382,6 +620,7 @@ export function App() {
                       const isActive = leftTab === item.id;
                       return (
                         <button
+                          type="button"
                           key={item.id}
                           onClick={() => { setViewMode('split'); setLeftTab(item.id as any); }}
                           className={`w-full flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
@@ -416,6 +655,7 @@ export function App() {
                     {user && firestoreHistory.length > 0 ? (
                       firestoreHistory.map((item) => (
                         <motion.button
+                          type="button"
                           whileTap={{ scale: 0.98 }}
                           key={item.repositoryId}
                           onClick={() => {
@@ -434,6 +674,7 @@ export function App() {
                     ) : (
                       PRESET_HISTORIES.map((preset) => (
                         <motion.button
+                          type="button"
                           whileTap={{ scale: 0.98 }}
                           key={preset.url}
                           onClick={() => {
@@ -452,7 +693,7 @@ export function App() {
                 </div>
 
                 {/* Local IndexedDB Cache Section */}
-                {cachedList.length > 0 && (
+                {cachedList.length > 0 ? (
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8F8F8F] dark:text-[#888888]">
@@ -463,9 +704,11 @@ export function App() {
                         </span>
                       </div>
                       <button
+                        type="button"
                         onClick={async () => {
                           await indexedDbService.clearAllCache();
                           loadCachedList();
+                          showSuccess('Cache cleared', 'Local repository cache purged from IndexedDB.');
                         }}
                         className="text-[10px] text-[#8F8F8F] hover:text-rose-500 font-mono transition-colors cursor-pointer"
                         title="Purge local IndexedDB cache"
@@ -477,6 +720,7 @@ export function App() {
                     <div className="space-y-1">
                       {cachedList.slice(0, 5).map((item) => (
                         <motion.button
+                          type="button"
                           whileTap={{ scale: 0.98 }}
                           key={item.repository_id}
                           onClick={() => {
@@ -501,6 +745,21 @@ export function App() {
                           </span>
                         </motion.button>
                       ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center space-x-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8F8F8F] dark:text-[#888888] mb-2">
+                      <Zap className="w-3.5 h-3.5 text-amber-500/60" />
+                      <span>Local Cache</span>
+                    </div>
+                    <div className="p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg text-xs bg-[#FAFAFA] dark:bg-[#161618] text-center space-y-1">
+                      <p className="text-[11px] font-medium text-[#8F8F8F] dark:text-[#888888]">
+                        No Cached Repositories
+                      </p>
+                      <p className="text-[10px] text-[#8F8F8F]/80 dark:text-[#777777] leading-relaxed">
+                        Excavated codebases are cached in IndexedDB for 0ms offline access.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -529,6 +788,7 @@ export function App() {
                   const isActive = leftTab === item.id;
                   return (
                     <button
+                      type="button"
                       key={item.id}
                       onClick={() => { setViewMode('split'); setLeftTab(item.id as any); }}
                       title={item.title}
@@ -549,7 +809,17 @@ export function App() {
           {/* MAIN STUDIO CANVAS */}
           <main className="flex-1 space-y-6 min-w-0">
             {/* Repo Input Box */}
-            <RepoInput onAnalyze={analyzeRepository} loading={loading} error={error} />
+            <RepoInput onAnalyze={analyzeRepository} onUploadArchive={uploadRepositoryArchive} loading={loading} error={error} />
+
+            {/* Error / Failed Request Recovery Card */}
+            {error && !loading && (
+              <FailedRequestCard
+                error={error}
+                onRetry={() => analyzeRepository(lastAttemptedUrl, undefined, true)}
+                onLoadSample={() => analyzeRepository('https://github.com/Avnish1447/CodeSage')}
+                onDismiss={() => setError(null)}
+              />
+            )}
 
             {/* Loading Skeleton State */}
             {loading && <SkeletonLoader />}
@@ -577,6 +847,7 @@ export function App() {
                       const isActive = viewMode === mode.id;
                       return (
                         <button
+                          type="button"
                           key={mode.id}
                           onClick={() => setViewMode(mode.id as any)}
                           className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
@@ -766,68 +1037,271 @@ export function App() {
               </div>
             )}
 
-            {/* Empty State Welcome Hub featuring Updated Brand Emblem */}
-            {!loading && !repoData && (
-              <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-8 sm:p-12 text-center relative overflow-hidden">
-                <div className="relative z-10 max-w-lg mx-auto flex flex-col items-center space-y-4">
-                  <div className="relative p-2 rounded-xl bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(232,112,42,0.3)]">
-                    <picture>
-                      <source srcSet="/logos/app-icon.png" type="image/png" />
-                      <img
-                        src="/logos/app-icon.svg"
-                        alt="CodeSage Official Emblem"
-                        className="w-14 h-14 sm:w-16 sm:h-16 object-contain rounded-lg"
-                      />
-                    </picture>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xl sm:text-2xl font-semibold text-[#171717] dark:text-[#EDEDED] tracking-[-0.03em]">
-                      Ready to Excavate Your Codebase
-                    </h3>
-                    <p className="text-sm text-[#4D4D4D] dark:text-[#A1A1A1] mt-1 leading-relaxed">
-                      Enter any public repository link above, or launch one of our curated archetypes to explore file structures and RAG intelligence:
-                    </p>
-                  </div>
-
-                  {/* Quick Pick Sample Repos */}
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                    {[
-                      { label: 'Fastify Web Framework', repo: 'https://github.com/fastify/fastify' },
-                      { label: 'Express.js Core', repo: 'https://github.com/expressjs/express' },
-                      { label: 'Lucide Icons', repo: 'https://github.com/lucide-icons/lucide' },
-                    ].map((sample) => (
-                      <button
-                        key={sample.repo}
-                        onClick={() => analyzeRepository(sample.repo)}
-                        className="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-[#FAFAFA] hover:bg-[#F2F2F2] dark:bg-[#161618] dark:hover:bg-[#1f1f23] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-xs font-mono text-[#171717] dark:text-[#EDEDED] transition-colors cursor-pointer whitespace-nowrap"
-                      >
-                        <Github className="w-3.5 h-3.5 text-[#e8702a]" />
-                        <span>{sample.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+            {/* Empty State Welcome Hub when no repository is loaded and no error */}
+            {!loading && !repoData && !error && (
+              <EmptyWorkbenchState onSelectSample={(sampleUrl) => analyzeRepository(sampleUrl)} />
             )}
           </main>
         </div>
       </div>
 
-      <footer className="shadow-[0_-1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_-1px_0_0_rgba(255,255,255,0.08)] bg-white dark:bg-black py-7 text-center text-xs text-[#8F8F8F] dark:text-[#888888] font-mono transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-2.5">
-            <img src="/logos/primary-logo.svg" alt="CodeSage" className="w-4 h-4 object-contain" />
-            <span className="font-playfair italic text-[#171717] dark:text-[#EDEDED] text-sm">CodeSage</span>
-            <span>&bull;</span>
-            <span className="text-[#4D4D4D] dark:text-[#A1A1A1]">Code Stratigraphy & Gemini RAG Studio</span>
+      <footer className="shadow-[0_-1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_-1px_0_0_rgba(255,255,255,0.08)] bg-white dark:bg-black pt-12 pb-8 text-xs text-[#8F8F8F] dark:text-[#888888] font-mono transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          {/* Top Multi-Column Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-8 border-b border-black/[0.06] dark:border-white/[0.08]">
+            {/* Column 1: Brand & Stratigraphy Identity (2 cols on lg) */}
+            <div className="lg:col-span-2 space-y-3 pr-4">
+              <a
+                href="#workbench"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center space-x-2.5 hover:opacity-85 transition-opacity"
+                title="CodeSage Studio – Back to Top"
+              >
+                <img src="/logos/primary-logo.svg" alt="CodeSage Logo" className="w-5 h-5 object-contain" />
+                <span className="font-playfair italic text-[#171717] dark:text-[#EDEDED] text-base font-semibold">
+                  CodeSage
+                </span>
+                <span className="px-1.5 py-0.5 text-[10px] font-mono text-[#e8702a] bg-[#e8702a]/10 border border-[#e8702a]/20 rounded">
+                  v0.1.0
+                </span>
+              </a>
+
+              <p className="text-xs text-[#666666] dark:text-[#888888] leading-relaxed max-w-sm font-sans">
+                Deep codebase stratigraphy and grounded AST architecture engine. Excavate Git trees, unearth layered dependencies, and converse with code in real-time.
+              </p>
+
+              <div className="pt-1 flex items-center space-x-2 text-[11px]">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[#171717] dark:text-[#EDEDED] font-medium">All Systems Operational</span>
+                <span className="text-black/20 dark:text-white/20">&bull;</span>
+                <span className="text-[#8F8F8F]">99.98% SLA</span>
+              </div>
+            </div>
+
+            {/* Column 2: Studio & Product */}
+            <div className="space-y-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#171717] dark:text-[#EDEDED]">
+                Platform
+              </div>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <a
+                    href="#workbench"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      scrollToWorkbench();
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors"
+                  >
+                    Studio Workbench
+                  </a>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('presentation');
+                      scrollToWorkbench();
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
+                  >
+                    Presentation Deck
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setShowLaunchVideo(true)}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer flex items-center space-x-1.5 text-left"
+                  >
+                    <Film className="w-3 h-3 text-[#e8702a]" />
+                    <span>Launch Film (3D)</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setShowBrandKit(true)}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer flex items-center space-x-1.5 text-left"
+                  >
+                    <Palette className="w-3 h-3 text-[#0072F5]" />
+                    <span>Brand Identity Kit</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 3: Analysis Tools */}
+            <div className="space-y-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#171717] dark:text-[#EDEDED]">
+                Architecture
+              </div>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('split');
+                      setLeftTab('prompt');
+                      scrollToWorkbench();
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
+                  >
+                    GitReverse Prompt
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('split');
+                      setLeftTab('stack');
+                      scrollToWorkbench();
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
+                  >
+                    Tech Stack Strata
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('split');
+                      setLeftTab('tree');
+                      scrollToWorkbench();
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
+                  >
+                    File Tree Explorer
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('split');
+                      setLeftTab('learning');
+                      scrollToWorkbench();
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
+                  >
+                    Architecture Guide
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 4: Ecosystem & Status */}
+            <div className="space-y-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#171717] dark:text-[#EDEDED]">
+                Ecosystem
+              </div>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <a
+                    href="https://github.com/Avnish1447/CodeSage"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors flex items-center space-x-1.5"
+                  >
+                    <Github className="w-3 h-3" />
+                    <span>GitHub Repo</span>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://www.githubstatus.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors flex items-center space-x-1.5"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>GitHub Status</span>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors flex items-center space-x-1.5"
+                  >
+                    <ExternalLink className="w-3 h-3 text-[#e8702a]" />
+                    <span>Gemini 2.5 API</span>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="/api/v1/health"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors flex items-center space-x-1.5"
+                  >
+                    <span>Health Endpoint</span>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="/404"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.history.pushState(null, '', '/404');
+                      setIs404(true);
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <span>Custom 404 Screen</span>
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
 
-          <div className="text-xs text-[#8F8F8F] dark:text-[#666666] font-mono">
-            Powered by Gemini RAG & AST Stratigraphy
+          {/* Bottom Copyright & Legal Strip */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[#666666] dark:text-[#888888]">
+              <span>&copy; {new Date().getFullYear()} CodeSage Contributors. All rights reserved.</span>
+              <span className="text-black/20 dark:text-white/20 hidden sm:inline">&bull;</span>
+              <a
+                href="https://github.com/Avnish1447/CodeSage/blob/main/LICENSE"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#171717] dark:hover:text-[#EDEDED] underline decoration-dotted transition-colors"
+              >
+                MIT License
+              </a>
+              <span className="text-black/20 dark:text-white/20 hidden sm:inline">&bull;</span>
+              <span>Grounded AST &amp; Gemini RAG</span>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <button
+                type="button"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer flex items-center space-x-1 text-xs"
+                title="Scroll back to top"
+              >
+                <span>Back to Top</span>
+                <span>&uarr;</span>
+              </button>
+            </div>
           </div>
         </div>
       </footer>
+
+      {/* Interactive Modals */}
+      <LaunchVideoModal
+        isOpen={showLaunchVideo}
+        onClose={() => setShowLaunchVideo(false)}
+      />
+      <BrandKitModal
+        isOpen={showBrandKit}
+        onClose={() => setShowBrandKit(false)}
+      />
     </div>
   );
 }
