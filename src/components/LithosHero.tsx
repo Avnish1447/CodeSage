@@ -125,7 +125,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
     };
   }, []);
 
-  const navItems = ['Course', 'Field Guides', 'Geology', 'Plans', 'Live Tour', 'Repo RAG'];
+  const navItems = ['Workbench', 'Grounded RAG', 'Tech Stack', 'Architecture Guide', 'GitReverse'];
 
   return (
     <section className="relative w-full overflow-hidden h-screen bg-black" style={{ height: '100dvh' }}>
@@ -156,12 +156,20 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
       {/* Navigation Header */}
       <nav className="fixed top-0 left-0 right-0 z-[100] h-16 flex items-center justify-between px-6 backdrop-blur-md bg-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         {/* Left Brand - Official Text Mark */}
-        <div className="flex items-center cursor-pointer group" onClick={onStartDigging} title="CodeSage - Unearth Architecture">
+        <a
+          href="#workbench"
+          onClick={(e) => {
+            e.preventDefault();
+            if (onStartDigging) onStartDigging();
+          }}
+          className="flex items-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0072F5] rounded-md"
+          title="CodeSage – Unearth Architecture"
+        >
           <picture>
-            <source srcSet="/logos/text mark.svg" type="image/svg+xml" />
-            <source srcSet="/logos/text mark.png" type="image/png" />
+            <source srcSet="/logos/text-mark.svg" type="image/svg+xml" />
+            <source srcSet="/logos/text-mark.png" type="image/png" />
             <img
-              src="/logos/text mark.svg"
+              src="/logos/text-mark.svg"
               alt="CodeSage"
               className="h-8 sm:h-9 w-auto max-w-[190px] sm:max-w-[240px] object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] brightness-125 hover:brightness-150 transition-all duration-200"
               onError={(e) => {
@@ -172,12 +180,31 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               }}
             />
           </picture>
+        </a>
+
+        {/* Center Desktop Navigation Links */}
+        <div className="hidden md:flex items-center space-x-6">
+          {navItems.map((item) => (
+            <a
+              key={item}
+              href="#workbench"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab(item);
+                if (onStartDigging) onStartDigging();
+              }}
+              className="text-xs font-mono text-white/70 hover:text-white transition-colors cursor-pointer"
+            >
+              {item}
+            </a>
+          ))}
         </div>
 
         {/* Right Nav Actions */}
         <div className="flex items-center space-x-3">
           {onToggleTheme && (
             <motion.button
+              type="button"
               whileTap={{ scale: 0.94 }}
               onClick={onToggleTheme}
               className="flex items-center justify-center w-8 h-8 rounded-md text-white/70 hover:text-white bg-white/10 hover:bg-white/15 transition-colors cursor-pointer"
@@ -190,6 +217,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
 
           {/* Mobile Toggle */}
           <button
+            type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             className="md:hidden text-white p-2 rounded-md bg-white/10 backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.12)] cursor-pointer"
@@ -204,13 +232,12 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
         <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-xl flex flex-col justify-center px-8 space-y-6 md:hidden">
           {navItems.map((item) => (
             <button
+              type="button"
               key={item}
               onClick={() => {
                 setActiveTab(item);
                 setMobileMenuOpen(false);
-                if ((item === 'Repo RAG' || item === 'Course') && onStartDigging) {
-                  onStartDigging();
-                }
+                if (onStartDigging) onStartDigging();
               }}
               className="text-left text-2xl text-white font-playfair italic hover:text-[#e8702a] transition-colors"
             >
@@ -218,6 +245,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             </button>
           ))}
           <button
+            type="button"
             onClick={() => {
               setMobileMenuOpen(false);
               if (onStartDigging) onStartDigging();
@@ -270,21 +298,21 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
 
       {/* 4. Bottom-Left Paragraph (z-50) */}
       <div
-        className="hidden sm:block absolute bottom-12 left-10 md:left-14 max-w-[260px] z-50 hero-anim hero-fade pointer-events-auto"
+        className="hidden sm:block absolute bottom-12 left-10 md:left-14 max-w-[280px] z-50 hero-anim hero-fade pointer-events-auto"
         style={{ animationDelay: '0.7s' }}
       >
         <p className="text-xs sm:text-[13px] text-white/75 leading-relaxed font-light drop-shadow-sm">
-          Every layer of sediment records a chapter of our planet, from ancient seabeds to drifting ash, layered across millions of years beneath us.
+          Every architectural commit records a chapter of software evolution, from core primitives to distributed services, decomposed through recursive AST stratigraphy.
         </p>
       </div>
 
       {/* 5. Bottom-Right Paragraph (z-50) */}
       <div
-        className="hidden sm:block absolute bottom-12 right-10 md:right-14 max-w-[280px] z-50 hero-anim hero-fade pointer-events-auto text-left"
+        className="hidden sm:block absolute bottom-12 right-10 md:right-14 max-w-[290px] z-50 hero-anim hero-fade pointer-events-auto text-left"
         style={{ animationDelay: '0.85s' }}
       >
         <p className="text-xs sm:text-[13px] text-white/75 leading-relaxed font-light drop-shadow-sm">
-          Our interactive maps let you peel back the crust to trace how stones, fossils, and deep code time combine to shape the ground beneath your feet.
+          Interactive codebase coring lets you excavate dependencies, identify architectural boundaries, and query system topology with grounded Gemini RAG.
         </p>
       </div>
 
