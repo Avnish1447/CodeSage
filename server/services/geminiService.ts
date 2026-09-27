@@ -1,6 +1,23 @@
 import { GoogleGenAI } from '@google/genai';
 import { SpendingService } from './spendingService.js';
-import { SPENDING_CAP_CONFIG } from '../config/limits.js';
+import { SPENDING_CAP_CONFIG, TIMEOUT_CONFIG } from '../config/limits.js';
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationName: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => {
+        const err: any = new Error(`${operationName} timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+        err.code = 'ETIMEDOUT';
+        err.status = 504;
+        reject(err);
+      }, timeoutMs);
+      if (typeof (timer as any)?.unref === 'function') {
+        (timer as any).unref();
+      }
+    }),
+  ]);
+}
 
 function ensureEnvLoaded() {
   if (!process.env.GEMINI_API_KEY && typeof process.loadEnvFile === 'function') {
@@ -109,26 +126,32 @@ Respond ONLY with valid JSON.`;
 
   for (const modelName of FREE_FLASH_MODELS) {
     try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        }
-      });
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+          }
+        }),
+        TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
+        `Gemini Insights (${modelName})`
+      );
 
       const text = response.text || '{}';
       const parsed = JSON.parse(text);
       if (parsed.learning_path && parsed.architecture_summary) {
-        // Record token usage in persistent spending ledger
+        // Record token usage in persistent spending ledger with idempotency key
         const promptTokens = Math.ceil(prompt.length / 4);
         const completionTokens = Math.ceil(text.length / 4);
+        const idempotencyKey = `insights:${repoData.repository_id}:${modelName}:${promptTokens}_${completionTokens}`;
         SpendingService.recordUsage({
           service: 'gemini_insights',
           model: modelName,
           promptTokens,
           completionTokens,
           repositoryId: repoData.repository_id,
+          idempotencyKey,
         });
 
         return {
@@ -236,10 +259,14 @@ User Question: ${userQuery}`;
 
   for (const modelName of FREE_FLASH_MODELS) {
     try {
-      const responseStream = await ai.models.generateContentStream({
-        model: modelName,
-        contents: contextPrompt,
-      });
+      const responseStream = await withTimeout(
+        ai.models.generateContentStream({
+          model: modelName,
+          contents: contextPrompt,
+        }),
+        TIMEOUT_CONFIG.GEMINI_CHAT_TIMEOUT_MS,
+        `Gemini Chat Stream (${modelName})`
+      );
 
       onStatus?.('live', modelName);
       let accumulated = '';
@@ -251,15 +278,17 @@ User Question: ${userQuery}`;
       }
 
       if (accumulated.trim().length > 0) {
-        // Record token usage in persistent spending ledger
+        // Record token usage in persistent spending ledger with idempotency key
         const promptTokens = Math.ceil(contextPrompt.length / 4);
         const completionTokens = Math.ceil(accumulated.length / 4);
+        const idempotencyKey = `chat:${repoData.repository_id}:${userQuery.trim().substring(0, 32)}:${promptTokens}_${completionTokens}`;
         SpendingService.recordUsage({
           service: 'gemini_chat',
           model: modelName,
           promptTokens,
           completionTokens,
           repositoryId: repoData.repository_id,
+          idempotencyKey,
         });
 
         return {
@@ -352,10 +381,14 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
     const ai = getAiClient();
     for (const model of FREE_FLASH_MODELS) {
       try {
-        await ai.models.generateContent({
-          model,
-          contents: 'Say OK',
-        });
+        await withTimeout(
+          ai.models.generateContent({
+            model,
+            contents: 'Say OK',
+          }),
+          TIMEOUT_CONFIG.GEMINI_PROBE_TIMEOUT_MS,
+          `Gemini Probe (${model})`
+        );
         return {
           configured: true,
           status: 'live',
@@ -426,10 +459,14 @@ Guidelines for the prompt:
   for (const model of FREE_FLASH_MODELS) {
     try {
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      });
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        }),
+        TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
+        `GitReverse Fallback (${model})`
+      );
       const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (text && text.length > 50) return text;
     } catch {
