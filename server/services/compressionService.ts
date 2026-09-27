@@ -96,8 +96,8 @@ export class CompressionService {
 
     try {
       if (isZip) {
-        // Use zip command on mac/linux
-        execFileSync('/usr/bin/zip', ['-r', '-q', archivePath, '.'], {
+        // Use zip command on mac/linux with -y to store symlinks as links without following
+        execFileSync('/usr/bin/zip', ['-r', '-q', '-y', archivePath, '.'], {
           cwd: sourceDir,
           timeout: 45000,
         });
@@ -250,17 +250,50 @@ export class CompressionService {
       mimeType = 'image/webp';
     }
 
+    if (inputBuffer.length > 10 * 1024 * 1024) {
+      throw new Error('Image payload exceeds maximum limit of 10MB.');
+    }
+
+    // Strict MIME whitelist mapping directly to safe extension
+    const ALLOWED_MIME_TYPES: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg',
+    };
+
+    if (!ALLOWED_MIME_TYPES[mimeType]) {
+      throw new Error(`Unsupported image MIME type: ${mimeType}`);
+    }
+
+    const safeExt = ALLOWED_MIME_TYPES[mimeType];
     let compressedBuffer = inputBuffer;
-    const format = mimeType.replace('image/', '').replace('+xml', '');
+    const format = safeExt === 'jpg' ? 'jpeg' : safeExt;
 
     if (mimeType === 'image/svg+xml') {
       let svgText = inputBuffer.toString('utf-8');
-      // Strip XML comments
-      svgText = svgText.replace(/<!--[\s\S]*?-->/g, '');
-      // Strip XML declaration
-      svgText = svgText.replace(/<\?xml[\s\S]*?\?>/g, '');
-      // Strip doctype
-      svgText = svgText.replace(/<!DOCTYPE[\s\S]*?>/gi, '');
+      
+      // Linear safe comment stripper (O(N) time, zero backtracking vulnerability)
+      let cleanSvg = '';
+      let cursor = 0;
+      while (cursor < svgText.length) {
+        const commentStart = svgText.indexOf('<!--', cursor);
+        if (commentStart === -1) {
+          cleanSvg += svgText.slice(cursor);
+          break;
+        }
+        cleanSvg += svgText.slice(cursor, commentStart);
+        const commentEnd = svgText.indexOf('-->', commentStart + 4);
+        if (commentEnd === -1) {
+          break;
+        }
+        cursor = commentEnd + 3;
+      }
+      svgText = cleanSvg;
+
+      // Strip XML declaration and doctype safely
+      svgText = svgText.replace(/<\?xml[^>]*\?>/g, '');
+      svgText = svgText.replace(/<!DOCTYPE[^>]*>/gi, '');
       // Collapse redundant inter-tag whitespace
       svgText = svgText.replace(/>\s+</g, '><').trim();
 
@@ -289,9 +322,13 @@ export class CompressionService {
       }
 
       const tempId = crypto.randomBytes(8).toString('hex');
-      const ext = format === 'jpeg' ? 'jpg' : format;
-      const tempInput = path.resolve(tempDir, `img_in_${tempId}.${ext}`);
-      const tempOutput = path.resolve(tempDir, `img_out_${tempId}.${ext}`);
+      const tempInput = path.resolve(tempDir, `img_in_${tempId}.${safeExt}`);
+      const tempOutput = path.resolve(tempDir, `img_out_${tempId}.${safeExt}`);
+
+      // Verify strict containment within tempDir
+      if (!tempInput.startsWith(tempDir + path.sep) || !tempOutput.startsWith(tempDir + path.sep)) {
+        throw new Error('Invalid temporary image path traversal detected.');
+      }
 
       try {
         fs.writeFileSync(tempInput, inputBuffer);
