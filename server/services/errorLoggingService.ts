@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Request } from 'express';
+import { DB_PATH, LOGS_DIR, ERROR_LOG_PATH } from '../config/paths.js';
 
 export type LogLevel = 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
 
@@ -60,9 +61,9 @@ export interface PaginatedResult<T> {
  */
 export class ErrorLoggingService {
   private static db: any = null;
-  private static DB_PATH = path.join('storage', 'codesage_cache.db');
-  private static LOG_DIR = path.join('storage', 'logs');
-  private static LOG_FILE = path.join('storage', 'logs', 'codesage_error.log');
+  private static DB_PATH = DB_PATH;
+  private static LOG_DIR = LOGS_DIR;
+  private static LOG_FILE = ERROR_LOG_PATH;
 
   private static stmtInsert: any = null;
   private static isInitialized = false;
