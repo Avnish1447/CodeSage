@@ -12,13 +12,42 @@ import cors from 'cors';
 import path from 'node:path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes/api.js';
+import compression from 'compression';
 import { RESOURCE_LIMITS } from './server/config/limits.js';
 import { generalLimiter } from './server/middleware/rateLimiter.js';
 import { errorHandler } from './server/middleware/errorHandler.js';
+import { uptimeTracker } from './server/middleware/uptimeTracker.js';
+import { ErrorLoggingService } from './server/services/errorLoggingService.js';
+
+// Centralized fatal exception logging
+process.on('uncaughtException', (err) => {
+  ErrorLoggingService.logError(err, undefined, { fatal: true, type: 'uncaughtException' });
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  ErrorLoggingService.logError(err, undefined, { fatal: false, type: 'unhandledRejection' });
+});
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Real-time request telemetry and uptime monitoring
+  app.use(uptimeTracker());
+
+  // High-performance response compression (Gzip / Deflate) with SSE streaming bypass
+  app.use(
+    compression({
+      threshold: 1024,
+      filter: (req, res) => {
+        if (req.headers.accept === 'text/event-stream') {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    })
+  );
 
   app.use(cors());
   app.use(express.json({ limit: RESOURCE_LIMITS.MAX_BODY_SIZE }));
