@@ -57,7 +57,8 @@ export const cloneLimiter = rateLimit({
   skip: (req: Request) => {
     try {
       const { url, branch, force_refresh } = req.body || {};
-      if (!url || force_refresh === true) {
+      const isForceRefresh = force_refresh === true || force_refresh === 'true' || force_refresh === 1 || force_refresh === '1';
+      if (!url || isForceRefresh) {
         return false;
       }
 

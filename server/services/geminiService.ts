@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { GoogleGenAI } from '@google/genai';
 import { SpendingService } from './spendingService.js';
 import { SPENDING_CAP_CONFIG, TIMEOUT_CONFIG } from '../config/limits.js';
@@ -263,6 +264,9 @@ User Question: ${userQuery}`;
         ai.models.generateContentStream({
           model: modelName,
           contents: contextPrompt,
+          config: {
+            maxOutputTokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
+          },
         }),
         TIMEOUT_CONFIG.GEMINI_CHAT_TIMEOUT_MS,
         `Gemini Chat Stream (${modelName})`
@@ -278,10 +282,11 @@ User Question: ${userQuery}`;
       }
 
       if (accumulated.trim().length > 0) {
-        // Record token usage in persistent spending ledger with idempotency key
+        // Record token usage in persistent spending ledger with unique non-colliding key (without leaking query text)
         const promptTokens = Math.ceil(contextPrompt.length / 4);
         const completionTokens = Math.ceil(accumulated.length / 4);
-        const idempotencyKey = `chat:${repoData.repository_id}:${userQuery.trim().substring(0, 32)}:${promptTokens}_${completionTokens}`;
+        const callId = crypto.randomBytes(8).toString('hex');
+        const idempotencyKey = `chat_${repoData.repository_id}_${Date.now()}_${callId}`;
         SpendingService.recordUsage({
           service: 'gemini_chat',
           model: modelName,
@@ -377,6 +382,16 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
     };
   }
 
+  // Pre-flight check: skip live probe if spending cap exceeded
+  const capCheck = SpendingService.checkSpendingCap();
+  if (!capCheck.allowed) {
+    return {
+      configured: true,
+      status: 'quota_exhausted',
+      message: `Spending cap reached: ${capCheck.reason}`,
+    };
+  }
+
   try {
     const ai = getAiClient();
     for (const model of FREE_FLASH_MODELS) {
@@ -389,6 +404,14 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
           TIMEOUT_CONFIG.GEMINI_PROBE_TIMEOUT_MS,
           `Gemini Probe (${model})`
         );
+        const probeId = crypto.randomBytes(6).toString('hex');
+        SpendingService.recordUsage({
+          service: 'health_probe',
+          model,
+          promptTokens: 2,
+          completionTokens: 2,
+          idempotencyKey: `probe_${Date.now()}_${probeId}`,
+        });
         return {
           configured: true,
           status: 'live',
@@ -468,7 +491,18 @@ Guidelines for the prompt:
         `GitReverse Fallback (${model})`
       );
       const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (text && text.length > 50) return text;
+      if (text && text.length > 50) {
+        const fallbackId = crypto.randomBytes(6).toString('hex');
+        SpendingService.recordUsage({
+          service: 'gitreverse_fallback',
+          model,
+          promptTokens: Math.ceil(prompt.length / 4),
+          completionTokens: Math.ceil(text.length / 4),
+          repositoryId: repoData.repository_id,
+          idempotencyKey: `gitreverse_${repoData.repository_id || 'unknown'}_${Date.now()}_${fallbackId}`,
+        });
+        return text;
+      }
     } catch {
       continue;
     }

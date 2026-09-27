@@ -34,8 +34,8 @@ export class PaymentService {
       throw new Error('idempotencyKey is required for payment operations.');
     }
 
-    if (typeof amountUsd !== 'number' || amountUsd <= 0 || isNaN(amountUsd)) {
-      throw new Error('amountUsd must be a positive number.');
+    if (typeof amountUsd !== 'number' || amountUsd <= 0 || isNaN(amountUsd) || amountUsd > 250) {
+      throw new Error('amountUsd must be a positive number up to $250.00.');
     }
 
     // Call SpendingService with idempotency enforcement
