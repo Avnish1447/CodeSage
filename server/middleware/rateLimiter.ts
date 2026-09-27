@@ -6,6 +6,7 @@ import { RATE_LIMIT_CONFIG } from '../config/limits.js';
 import { RepoValidationService } from '../services/repoValidationService.js';
 import { RepoCloneService } from '../services/repoCloneService.js';
 import { SqliteCacheService } from '../services/sqliteCacheService.js';
+import { REPOS_DIR } from '../config/paths.js';
 
 /**
  * Helper to construct standardized 429 Rate Limit responses.
@@ -75,7 +76,7 @@ export const cloneLimiter = rateLimit({
         return true;
       }
 
-      const metadataFile = path.join('storage', 'repos', expectedRepoId, 'metadata.json');
+      const metadataFile = path.join(REPOS_DIR, expectedRepoId, 'metadata.json');
       return fs.existsSync(metadataFile);
     } catch {
       return false;
@@ -127,7 +128,7 @@ export const reversePromptLimiter = rateLimit({
         return true;
       }
 
-      const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
+      const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
       if (fs.existsSync(metadataFile)) {
         const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
         if (repoData?.gitreverse_prompt?.prompt) {
