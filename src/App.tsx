@@ -51,8 +51,6 @@ import {
   Zap,
   RefreshCw,
   Trash2,
-  Film,
-  Palette,
   ExternalLink,
 } from 'lucide-react';
 
@@ -1047,26 +1045,7 @@ export function App() {
                     Presentation Deck
                   </button>
                 </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => setShowLaunchVideo(true)}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer flex items-center space-x-1.5 text-left"
-                  >
-                    <Film className="w-3 h-3 text-[#e8702a]" />
-                    <span>Launch Film (3D)</span>
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => setShowBrandKit(true)}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer flex items-center space-x-1.5 text-left"
-                  >
-                    <Palette className="w-3 h-3 text-[#0072F5]" />
-                    <span>Brand Identity Kit</span>
-                  </button>
-                </li>
+
               </ul>
             </div>
 
