@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { DB_PATH } from '../config/paths.js';
 
 export interface SQLiteCacheStats {
   count: number;
@@ -53,7 +54,7 @@ export interface CachedRepoMetadata {
  */
 export class SqliteCacheService {
   private static db: any = null;
-  private static DB_PATH = path.join('storage', 'codesage_cache.db');
+  private static DB_PATH = DB_PATH;
 
   // Precompiled reusable prepared statements
   private static stmtGetById: any = null;
