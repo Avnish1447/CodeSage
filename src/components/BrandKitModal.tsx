@@ -28,7 +28,7 @@ const BRAND_ASSETS: BrandAsset[] = [
     path: '/logos/primary-logo.svg',
     dimensions: '1024 × 1024 (Tight ViewBox)',
     description: 'The master brand mark featuring the layered geological gemstone strata in signature ember amber.',
-    usage: 'Header navigation, hero branding, pitch presentations, and main UI emblems.',
+    usage: 'Header navigation, hero branding, and main UI emblems.',
     bgPreference: 'dark',
   },
   {
@@ -254,7 +254,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
                   <Check className="w-3.5 h-3.5 text-emerald-400" /> Active in HTML & React SPA
                 </p>
                 <p className="text-[11px] leading-relaxed">
-                  Browser tab favicon, Apple touch icons, navigation headers, presentation mode, chat assistant avatars, and footer branding are all active.
+                  Browser tab favicon, Apple touch icons, navigation headers, chat assistant avatars, and footer branding are all active.
                 </p>
               </div>
               <div className="space-y-1">

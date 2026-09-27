@@ -31,9 +31,6 @@ export default defineConfig({
             if (id.includes('@supabase')) {
               return 'vendor-supabase';
             }
-            if (id.includes('pptxgenjs') || id.includes('jszip')) {
-              return 'vendor-pptx';
-            }
             if (
               id.includes('react-markdown') ||
               id.includes('remark') ||

@@ -177,7 +177,6 @@ async function runSeoAndLinksTests() {
   console.log('\n[Test 6] Testing Footer Links & Navigation:');
   const appTsx = fs.readFileSync(path.resolve('src', 'App.tsx'), 'utf-8');
   console.assert(appTsx.includes('Studio Workbench'), 'Footer missing Studio Workbench link');
-  console.assert(appTsx.includes('Presentation Deck'), 'Footer missing Presentation Deck link');
   console.assert(appTsx.includes('https://github.com/Avnish1447/CodeSage'), 'Footer missing GitHub link');
   console.assert(appTsx.includes('https://www.githubstatus.com'), 'Footer missing GitHub status link');
   console.assert(appTsx.includes('https://aistudio.google.com/apikey'), 'Footer missing Gemini API link');

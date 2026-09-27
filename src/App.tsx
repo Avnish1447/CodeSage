@@ -17,9 +17,6 @@ import { EmptyWorkbenchState } from './components/EmptyWorkbenchState';
 import { LaunchVideoModal } from './components/LaunchVideoModal';
 import { BrandKitModal } from './components/BrandKitModal';
 import { NotFoundPage } from './components/NotFoundPage';
-const PresentationMode = React.lazy(() =>
-  import('./components/PresentationMode').then((m) => ({ default: m.PresentationMode }))
-);
 import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
@@ -46,7 +43,6 @@ import {
   FolderGit2,
   CheckCircle2,
   ChevronRight,
-  Presentation,
   Cloud,
   Zap,
   RefreshCw,
@@ -166,8 +162,8 @@ export function App() {
   // Sidebar Collapse State
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Workbench View Modes: 'split' | 'chat' | 'explorer' | 'presentation'
-  const [viewMode, setViewMode] = useState<'split' | 'chat' | 'explorer' | 'presentation'>('split');
+  // Workbench View Modes: 'split' | 'chat' | 'explorer'
+  const [viewMode, setViewMode] = useState<'split' | 'chat' | 'explorer'>('split');
   // Left Panel Sub-tab inside split view or explorer: 'all' | 'prompt' | 'stack' | 'tree' | 'learning'
   const [leftTab, setLeftTab] = useState<'all' | 'prompt' | 'stack' | 'tree' | 'learning'>('all');
 
@@ -417,9 +413,6 @@ export function App() {
     } else if (error) {
       title = `Analysis Error | CodeSage Studio`;
       metaDescription = `Encountered an issue analyzing the requested repository. Review diagnostics and retry options.`;
-    } else if (viewMode === 'presentation' && repoData) {
-      title = `Architecture Deck: ${repoData.overview.owner}/${repoData.overview.repo} | CodeSage`;
-      metaDescription = `Interactive executive pitch deck and architectural blueprint for ${repoData.overview.owner}/${repoData.overview.repo}.`;
     } else if (repoData) {
       const sectionName =
         leftTab === 'prompt' ? 'GitReverse Prompt' :
@@ -784,7 +777,6 @@ export function App() {
                       { id: 'split', label: 'Dual Workbench', icon: LayoutGrid },
                       { id: 'chat', label: 'Chat Assistant', icon: MessageSquare },
                       { id: 'explorer', label: 'Code Explorer', icon: Code2 },
-                      { id: 'presentation', label: 'Pitch Deck', icon: Presentation },
                     ].map((mode) => {
                       const Icon = mode.icon;
                       const isActive = viewMode === mode.id;
@@ -945,28 +937,6 @@ export function App() {
                       />
                     </motion.div>
                   )}
-
-                  {viewMode === 'presentation' && (
-                    <motion.div
-                      key="presentation"
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -12 }}
-                      transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-                      className="w-full"
-                    >
-                      <React.Suspense
-                        fallback={
-                          <div className="flex flex-col items-center justify-center p-16 space-y-3 rounded-xl bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
-                            <div className="w-5 h-5 border-2 border-[#e8702a] border-t-transparent rounded-full animate-spin" />
-                            <span className="text-xs font-mono text-[#8F8F8F]">Loading presentation deck...</span>
-                          </div>
-                        }
-                      >
-                        <PresentationMode isDark={isDark} onToggleTheme={handleToggleTheme} />
-                      </React.Suspense>
-                    </motion.div>
-                  )}
                 </AnimatePresence>
               </div>
             )}
@@ -1033,19 +1003,6 @@ export function App() {
                     Studio Workbench
                   </a>
                 </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewMode('presentation');
-                      scrollToWorkbench();
-                    }}
-                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer text-left"
-                  >
-                    Presentation Deck
-                  </button>
-                </li>
-
               </ul>
             </div>
 
