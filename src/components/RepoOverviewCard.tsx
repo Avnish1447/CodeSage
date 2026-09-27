@@ -1,7 +1,8 @@
 import React from 'react';
 import { RepoOverview, RepoStats } from '../types';
-import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw, Terminal, Sparkles } from 'lucide-react';
+import { FolderGit2, HardDrive, FileText, Check, X, ExternalLink, Hash, GitBranch, Zap, RefreshCw, Terminal, Sparkles, Download } from 'lucide-react';
 import { FloatingDotsButton } from './ui/FloatingDotsButton';
+import { useToast } from '../context/ToastContext';
 
 interface RepoOverviewCardProps {
   overview: RepoOverview;
@@ -26,6 +27,7 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
   hasPrompt,
   isGeneratingPrompt,
 }) => {
+  const { showSuccess, showInfo } = useToast();
   return (
     <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-6 space-y-6 transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-black/[0.06] dark:border-white/[0.08]">
@@ -39,7 +41,7 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
               <a
                 href={overview.normalized_url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors"
                 title="Open on GitHub"
               >
@@ -73,6 +75,7 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
           {onJumpToPrompt && (
             hasPrompt ? (
               <button
+                type="button"
                 onClick={onJumpToPrompt}
                 className="flex items-center space-x-1.5 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] px-2.5 py-1 rounded-full text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium transition-colors cursor-pointer"
                 title="Jump to GitReverse AI Builder Prompt"
@@ -97,9 +100,24 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
             <span>Stratified & Ready</span>
           </div>
 
+          <a
+            href={`/api/v1/repositories/${encodeURIComponent(overview.repository_id)}/archive?format=tar.gz`}
+            download
+            onClick={() => showSuccess('Downloading compressed repository archive (.tar.gz)...', 'Archive Export')}
+            className="flex items-center space-x-1.5 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.09] border border-black/[0.06] dark:border-white/[0.08] px-2.5 py-1 rounded-full text-[#171717] dark:text-[#EDEDED] text-xs font-mono font-medium transition-colors cursor-pointer"
+            title="Download compressed repository archive (.tar.gz)"
+          >
+            <Download className="w-3 h-3 text-[#e8702a]" />
+            <span>Export Archive</span>
+          </a>
+
           {onRefresh && (
             <button
-              onClick={onRefresh}
+              type="button"
+              onClick={() => {
+                showInfo('Forcing fresh repository re-clone and AST analysis...', 'Refreshing Strata');
+                onRefresh();
+              }}
               disabled={isRefreshing}
               className="p-1.5 rounded-md text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] transition-colors cursor-pointer"
               title="Force re-clone and refresh analysis"
