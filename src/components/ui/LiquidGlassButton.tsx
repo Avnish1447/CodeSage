@@ -70,6 +70,8 @@ export const LiquidGlassButton: React.FC<LiquidGlassButtonProps> = ({
 
       {/* 3. The Liquid Glass Capsule Button */}
       <motion.button
+        type="button"
+        aria-label={label}
         ref={buttonRef}
         onClick={onClick}
         onMouseMove={handleMouseMove}
