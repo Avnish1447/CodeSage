@@ -842,15 +842,6 @@ export function App() {
                   cacheSource={repoData.cache_source}
                   onRefresh={() => analyzeRepository(repoData.overview.normalized_url, repoData.overview.branch, true)}
                   isRefreshing={isRefreshing}
-                  hasPrompt={Boolean(repoData.gitreverse_prompt?.prompt)}
-                  isGeneratingPrompt={isRefreshingPrompt}
-                  onJumpToPrompt={() => {
-                    setViewMode('split');
-                    setLeftTab('prompt');
-                    if (!repoData.gitreverse_prompt?.prompt) {
-                      handleReverseEngineer(false);
-                    }
-                  }}
                 />
 
                 {/* WORKBENCH BODY WITH SPRING MOTION */}
