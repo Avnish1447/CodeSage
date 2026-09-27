@@ -10,6 +10,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 export interface ApiHealthBannerProps {
   status?: 'live' | 'missing_key' | 'quota_exhausted' | 'model_error';
@@ -26,6 +27,7 @@ export const ApiHealthBanner: React.FC<ApiHealthBannerProps> = ({
   className = '',
   compact = false,
 }) => {
+  const { showSuccess } = useToast();
   const [retrying, setRetrying] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -47,6 +49,7 @@ export const ApiHealthBanner: React.FC<ApiHealthBannerProps> = ({
   const handleCopyEnv = () => {
     navigator.clipboard.writeText('GEMINI_API_KEY=your_key_here');
     setCopied(true);
+    showSuccess('Copied to clipboard', 'GEMINI_API_KEY snippet copied.');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -142,7 +145,9 @@ export const ApiHealthBanner: React.FC<ApiHealthBannerProps> = ({
                       <ExternalLink className="w-3 h-3" />
                     </a>
                     <button
+                      type="button"
                       onClick={handleCopyEnv}
+                      aria-label="Copy .env snippet"
                       className="inline-flex items-center space-x-1 px-2 py-1 rounded-md text-[11px] font-mono text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                     >
                       {copied ? (
@@ -159,8 +164,10 @@ export const ApiHealthBanner: React.FC<ApiHealthBannerProps> = ({
                     </button>
                     {onRetry && (
                       <button
+                        type="button"
                         onClick={handleRetry}
                         disabled={retrying}
+                        aria-label="Check key status"
                         className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                       >
                         <RefreshCw
@@ -174,8 +181,10 @@ export const ApiHealthBanner: React.FC<ApiHealthBannerProps> = ({
                   <>
                     {onRetry && (
                       <button
+                        type="button"
                         onClick={handleRetry}
                         disabled={retrying}
+                        aria-label="Retry connection"
                         className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-md text-[11px] font-medium bg-orange-600 dark:bg-[#e8702a] hover:bg-orange-700 text-white transition-colors cursor-pointer shadow-sm"
                       >
                         <RefreshCw
@@ -195,6 +204,7 @@ export const ApiHealthBanner: React.FC<ApiHealthBannerProps> = ({
 
           {/* Dismiss Button */}
           <button
+            type="button"
             onClick={handleDismiss}
             className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
             title="Dismiss banner"
