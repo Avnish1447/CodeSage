@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { RepoValidationService } from './repoValidationService.js';
 import { TIMEOUT_CONFIG } from '../config/limits.js';
+import { REPOS_DIR } from '../config/paths.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -23,7 +24,7 @@ export class RepositoryLimitError extends RepoCloneError {
 }
 
 export class RepoCloneService {
-  static DEFAULT_STORAGE_ROOT = path.join('storage', 'repos');
+  static DEFAULT_STORAGE_ROOT = REPOS_DIR;
 
   static generateRepositoryId(owner: string, repo: string, normalizedUrl: string, branch?: string): string {
     const cleanBranch = branch && branch !== 'main' ? branch.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().substring(0, 16) : '';
