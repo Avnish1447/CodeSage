@@ -399,62 +399,7 @@ export function App() {
     }
   };
 
-  const uploadRepositoryArchive = async (file: File) => {
-    // 1. Client-side Upload Limit Guard (50MB)
-    const MAX_MB = 50;
-    const MAX_BYTES = MAX_MB * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-      const msg = `Archive size (${sizeMb} MB) exceeds maximum allowed limit of ${MAX_MB} MB. Please upload a smaller repository archive.`;
-      setError(msg);
-      showError('Archive too large', msg);
-      return;
-    }
 
-    setLoading(true);
-    setError(null);
-    setLastAttemptedUrl(`upload://${file.name}`);
-
-    try {
-      const formData = new FormData();
-      formData.append('archive', file);
-      formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
-
-      const res = await fetch('/api/v1/repositories/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || data.error || 'Failed to excavate uploaded repository archive.');
-      }
-
-      setRepoData(data);
-      if (data.gemini_status) {
-        setGeminiStatus(data.gemini_status);
-      }
-
-      await indexedDbService.saveAnalysisToCache(data);
-      loadCachedList();
-      showSuccess('Archive excavated', `${data.overview.owner}/${data.overview.repo} extracted and analyzed.`);
-
-      if (user?.uid) {
-        saveRepositoryToUserHistory(user.uid, data).then(() => {
-          getUserRepositoryHistory(user.uid).then((items) => {
-            setFirestoreHistory(items);
-          });
-        });
-      }
-    } catch (err: any) {
-      console.error('[App] Upload archive error:', err);
-      const msg = err?.message || 'Error uploading repository archive.';
-      setError(msg);
-      showError('Archive upload failed', msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Dynamic Page Title & SEO Meta Description Sync
   useEffect(() => {
@@ -809,7 +754,7 @@ export function App() {
           {/* MAIN STUDIO CANVAS */}
           <main className="flex-1 space-y-6 min-w-0">
             {/* Repo Input Box */}
-            <RepoInput onAnalyze={analyzeRepository} onUploadArchive={uploadRepositoryArchive} loading={loading} error={error} />
+            <RepoInput onAnalyze={analyzeRepository} loading={loading} error={error} />
 
             {/* Error / Failed Request Recovery Card */}
             {error && !loading && (
