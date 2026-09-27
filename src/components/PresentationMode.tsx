@@ -28,6 +28,7 @@ import {
   Check,
   Presentation
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 import { exportPitchDeckPDF, exportPitchDeckPPTX } from '../utils/pitchDeckExport';
 import { PitchDeckPrintView } from './PitchDeckPrintView';
 
@@ -93,6 +94,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
   isDark: propIsDark,
   onToggleTheme: propToggleTheme,
 }) => {
+  const { showSuccess, showError, showInfo } = useToast();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeArchStep, setActiveArchStep] = useState(0);
@@ -119,6 +121,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
 
   const handleExportPDF = () => {
     setExportMenuOpen(false);
+    showInfo('Preparing printable presentation deck for PDF saving...', 'PDF Export');
     exportPitchDeckPDF();
   };
 
@@ -127,9 +130,11 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
       setIsExportingPPTX(true);
       await exportPitchDeckPPTX();
       setExportSuccess('PPTX');
+      showSuccess('PowerPoint presentation (.pptx) downloaded successfully.', 'PPTX Exported');
       setTimeout(() => setExportSuccess(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to export PPTX:', err);
+      showError(err?.message || 'Failed to export presentation deck.', 'Export Error');
     } finally {
       setIsExportingPPTX(false);
       setExportMenuOpen(false);
