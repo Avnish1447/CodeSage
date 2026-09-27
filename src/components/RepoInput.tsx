@@ -10,15 +10,11 @@ import {
   Check,
   Search,
   X,
-  FileArchive,
-  UploadCloud,
-  AlertCircle,
 } from 'lucide-react';
 import { RepoBranchesResponse } from '../types';
 
 interface RepoInputProps {
   onAnalyze: (url: string, branch?: string) => Promise<void>;
-  onUploadArchive?: (file: File) => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -31,8 +27,7 @@ const SAMPLE_REPOS = [
   { label: 'Flask Web', url: 'https://github.com/pallets/flask' },
 ];
 
-export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, onUploadArchive, loading, error }) => {
-  const [inputMode, setInputMode] = useState<'git' | 'upload'>('git');
+export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error }) => {
   const [url, setUrl] = useState('https://github.com/Avnish1447/CodeSage');
   const [branches, setBranches] = useState<string[]>([]);
   const [defaultBranch, setDefaultBranch] = useState<string>('main');
@@ -41,44 +36,6 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, onUploadArchive
   const [isCheckingBranches, setIsCheckingBranches] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // Upload state & limits
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const MAX_UPLOAD_MB = 50;
-  const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-
-  const handleFileValidation = (file: File): boolean => {
-    setUploadError(null);
-    const validExtensions = ['.zip', '.tar.gz', '.tgz', '.tar'];
-    const fileName = file.name.toLowerCase();
-    const isValidFormat = validExtensions.some((ext) => fileName.endsWith(ext));
-
-    if (!isValidFormat) {
-      setUploadError('Unsupported file format. Please upload a .zip, .tar.gz, .tgz, or .tar archive.');
-      setUploadFile(null);
-      return false;
-    }
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
-      setUploadError(`Selected file is ${sizeMb} MB, which exceeds the strict ${MAX_UPLOAD_MB} MB upload limit.`);
-      setUploadFile(null);
-      return false;
-    }
-
-    setUploadFile(file);
-    return true;
-  };
-
-  const handleUploadSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadFile || loading || !onUploadArchive) return;
-    onUploadArchive(uploadFile);
-  };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -213,168 +170,9 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, onUploadArchive
         Excavate & Inspect Any <span className="font-playfair italic font-normal text-[#e8702a]">GitHub Repository</span>
       </h2>
       <p className="text-[#4D4D4D] dark:text-[#A1A1A1] text-sm mb-5 max-w-2xl leading-relaxed">
-        Enter a public GitHub repository URL or upload a local compressed archive (.zip, .tar.gz) to unearth file trees, detect tech stacks, and conduct context-grounded queries with Gemini AI.
+        Enter a public GitHub repository URL to unearth file trees, detect tech stacks, and conduct context-grounded queries with Gemini AI.
       </p>
 
-      {/* Input Mode Selector: Git Remote vs. Upload Archive */}
-      <div className="flex items-center space-x-1.5 p-1 bg-black/[0.04] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] rounded-lg w-fit mb-4">
-        <button
-          type="button"
-          onClick={() => {
-            setInputMode('git');
-            setUploadError(null);
-          }}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center space-x-1.5 ${
-            inputMode === 'git'
-              ? 'bg-white dark:bg-[#1a1a1d] text-[#171717] dark:text-[#EDEDED] shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
-              : 'text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-          }`}
-        >
-          <Github className="w-3.5 h-3.5" />
-          <span>GitHub Remote</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setInputMode('upload')}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center space-x-1.5 ${
-            inputMode === 'upload'
-              ? 'bg-white dark:bg-[#1a1a1d] text-[#171717] dark:text-[#EDEDED] shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
-              : 'text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-          }`}
-        >
-          <FileArchive className="w-3.5 h-3.5 text-[#e8702a]" />
-          <span>Upload Archive</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#e8702a]/10 text-[#e8702a] font-semibold ml-0.5">
-            &le; 50MB
-          </span>
-        </button>
-      </div>
-
-      {inputMode === 'upload' ? (
-        <form onSubmit={handleUploadSubmit} className="space-y-4">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileValidation(file);
-            }}
-            accept=".zip,.tar.gz,.tgz,.tar,application/zip,application/gzip,application/x-tar"
-            className="hidden"
-          />
-
-          {/* Drag & Drop Zone */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleFileValidation(file);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-5 sm:p-6 text-center cursor-pointer transition-all duration-200 ${
-              isDragging
-                ? 'border-[#e8702a] bg-[#e8702a]/5'
-                : uploadFile
-                ? 'border-emerald-500/40 bg-emerald-500/5'
-                : 'border-black/[0.12] dark:border-white/[0.12] bg-[#FAFAFA] dark:bg-[#161618] hover:border-[#e8702a]/60'
-            }`}
-          >
-            {uploadFile ? (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <FileArchive className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center space-x-2">
-                      <span className="truncate max-w-xs">{uploadFile.name}</span>
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    </div>
-                    <div className="flex items-center space-x-2 text-xs font-mono text-[#8F8F8F] mt-0.5">
-                      <span>{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</span>
-                      <span>&bull;</span>
-                      <span className="text-emerald-600 dark:text-emerald-400">Within 50 MB limit</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUploadFile(null);
-                      setUploadError(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="p-1.5 rounded-md hover:bg-black/[0.05] dark:hover:bg-white/[0.08] text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
-                    title="Remove file"
-                    aria-label="Remove uploaded file"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 bg-[#e8702a] hover:bg-[#d66320] text-white text-xs font-medium rounded-lg shadow-sm flex items-center space-x-1.5 disabled:opacity-50 transition-colors cursor-pointer"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Extracting & Stratifying...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Excavate Archive</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </>
-                    )}
-                  </motion.button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center space-y-2 py-2">
-                <div className="p-3 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-[#e8702a]">
-                  <UploadCloud className="w-6 h-6" />
-                </div>
-                <div className="text-sm font-medium text-[#171717] dark:text-[#EDEDED]">
-                  Drop repository archive here, or <span className="text-[#e8702a] underline underline-offset-2">browse files</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs font-mono text-[#8F8F8F]">
-                  <span>Supports .zip, .tar.gz, .tgz, .tar</span>
-                  <span>&bull;</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-semibold">Strict 50 MB limit</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {uploadError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400 text-xs font-mono flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span><strong>Upload Limit Notice:</strong> {uploadError}</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400 text-xs font-mono">
-              <strong>Error:</strong> {error}
-            </div>
-          )}
-
-          <div className="text-[11px] font-mono text-[#8F8F8F] dark:text-[#777777] flex items-center space-x-1.5 pt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Safely extracted with Zip-Slip path containment and analyzed locally with deep AST stratigraphy.</span>
-          </div>
-        </form>
-      ) : (
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* URL Input Bar */}
         <div className="relative flex items-center">
@@ -583,7 +381,6 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, onUploadArchive
           ))}
         </div>
       </form>
-      )}
     </div>
   );
 };
