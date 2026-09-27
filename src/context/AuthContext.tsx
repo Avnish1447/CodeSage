@@ -1,12 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import {
-  auth,
-  signInWithGoogle,
-  signOutUser,
-  onAuthStateChanged,
-  getRedirectResult,
-  type User,
-} from '../lib/firebase';
+import React, { createContext, useContext, useState } from 'react';
+import { ClerkProvider, useUser, useClerk } from '@clerk/clerk-react';
 
 export interface AppUser {
   uid: string;
@@ -16,9 +9,9 @@ export interface AppUser {
   isDev?: boolean;
 }
 
-export type AuthUser = (User & { isDev?: boolean }) | AppUser;
+export type AuthUser = AppUser;
 
-interface AuthContextType {
+export interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   isSigningIn: boolean;
@@ -27,111 +20,75 @@ interface AuthContextType {
   loginAsDev: () => void;
   logout: () => Promise<void>;
   clearAuthError: () => void;
+  isClerkConfigured: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: true,
+  loading: false,
   isSigningIn: false,
   authError: null,
   loginWithGoogle: async () => {},
   loginAsDev: () => {},
   logout: async () => {},
   clearAuthError: () => {},
+  isClerkConfigured: false,
 });
 
-function getFriendlyAuthErrorMessage(error: any): string {
-  if (!error) return 'An unexpected authentication error occurred.';
-  const code = error.code || '';
-  switch (code) {
-    case 'auth/operation-not-allowed':
-      return 'Google Sign-In is not enabled yet in your Firebase Console. Go to Firebase Console > Authentication > Sign-in method, click Google, and toggle "Enable".';
-    case 'auth/unauthorized-domain':
-      return 'Google AI Studio manages authorized domains in Google Cloud Console. Click "Dev Login" below to test locally immediately, or add localhost in Google Cloud Console > Identity Platform.';
-    case 'auth/popup-blocked':
-      return 'The sign-in popup was blocked by your browser. Please allow popups for localhost:3000, or try the redirect flow.';
-    case 'auth/popup-closed-by-user':
-      return 'The sign-in popup window was closed before completion.';
-    case 'auth/network-request-failed':
-      return 'Network connection failed. Please check your internet connection.';
-    case 'auth/cancelled-popup-request':
-      return 'Sign-in was interrupted by another action.';
-    default:
-      return error.message || `Authentication error: ${code}`;
-  }
-}
+export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isSigningIn, setIsSigningIn] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+/**
+ * Bridge component rendered inside ClerkProvider when VITE_CLERK_PUBLISHABLE_KEY is present
+ */
+const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user: clerkUser, isLoaded, isSignedIn } = useUser();
+  const clerk = useClerk();
 
-  useEffect(() => {
-    // 1. Check for saved local dev session first
-    const savedDevUser = localStorage.getItem('codesage_dev_user');
-    if (savedDevUser) {
-      try {
-        const parsed = JSON.parse(savedDevUser);
-        setUser(parsed);
-        setLoading(false);
-      } catch {
-        // ignore JSON parse error
-      }
+  const [devUser, setDevUser] = useState<AppUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('codesage_dev_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
+  });
 
-    // 2. Listen for Firebase auth state changes
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        localStorage.removeItem('codesage_dev_user');
-      } else if (!localStorage.getItem('codesage_dev_user')) {
-        setUser(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Prioritize active Clerk user; fallback to dev user if active
+  const user: AuthUser | null = devUser
+    ? devUser
+    : isSignedIn && clerkUser
+    ? {
+        uid: clerkUser.id,
+        displayName:
+          clerkUser.fullName ||
+          clerkUser.firstName ||
+          clerkUser.username ||
+          clerkUser.primaryEmailAddress?.emailAddress ||
+          'Clerk User',
+        email: clerkUser.primaryEmailAddress?.emailAddress || null,
+        photoURL: clerkUser.imageUrl || null,
+        isDev: false,
       }
-      setLoading(false);
-    });
+    : null;
 
-    // 3. Check for redirect results (if redirect flow was triggered)
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          setUser(result.user);
-          localStorage.removeItem('codesage_dev_user');
-          setAuthError(null);
-        }
-      })
-      .catch((error: any) => {
-        if (error.code !== 'auth/popup-closed-by-user') {
-          console.error('[Auth] Redirect sign-in error:', error);
-          setAuthError(getFriendlyAuthErrorMessage(error));
-        }
-      });
-
-    return () => unsubscribe();
-  }, []);
-
-  const loginWithGoogle = async (preferRedirect = false) => {
+  const loginWithGoogle = async () => {
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      const loggedUser = await signInWithGoogle(preferRedirect);
-      if (loggedUser) {
-        setUser(loggedUser);
-        localStorage.removeItem('codesage_dev_user');
-      }
-    } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        const friendlyMsg = getFriendlyAuthErrorMessage(error);
-        console.error('[Auth] Google Sign-In error:', error);
-        setAuthError(friendlyMsg);
-      }
+      clerk.openSignIn();
+    } catch (err: any) {
+      console.error('[Clerk] Sign in error:', err);
+      setAuthError(err?.message || 'Could not open Clerk sign-in modal.');
     } finally {
       setIsSigningIn(false);
     }
   };
 
   const loginAsDev = () => {
-    const devUser: AppUser = {
+    const mockDev: AppUser = {
       uid: 'dev-user-avnish',
       displayName: 'Avnish (Dev)',
       email: 'avnish@codesage.local',
@@ -139,22 +96,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isDev: true,
     };
     try {
-      localStorage.setItem('codesage_dev_user', JSON.stringify(devUser));
+      localStorage.setItem('codesage_dev_user', JSON.stringify(mockDev));
     } catch {
       // ignore
     }
-    setUser(devUser);
+    setDevUser(mockDev);
     setAuthError(null);
   };
 
   const logout = async () => {
     try {
       localStorage.removeItem('codesage_dev_user');
-      await signOutUser();
-    } catch (error) {
-      console.error('[Auth] Sign-out error:', error);
+      setDevUser(null);
+      if (isSignedIn) {
+        await clerk.signOut();
+      }
+    } catch (err) {
+      console.error('[Clerk] Sign out error:', err);
     } finally {
-      setUser(null);
       setAuthError(null);
     }
   };
@@ -165,13 +124,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        loading,
+        loading: !isLoaded,
         isSigningIn,
         authError,
         loginWithGoogle,
         loginAsDev,
         logout,
         clearAuthError,
+        isClerkConfigured: true,
       }}
     >
       {children}
@@ -179,5 +139,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+/**
+ * Local auth provider used when VITE_CLERK_PUBLISHABLE_KEY is not configured yet.
+ * Prevents Clerk crashes while providing local dev session capabilities.
+ */
+const LocalAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<AppUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('codesage_dev_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const loginWithGoogle = async () => {
+    setAuthError(
+      'Clerk authentication is not configured yet. Add VITE_CLERK_PUBLISHABLE_KEY in your .env file to enable Clerk cloud sign-in, or click "Dev Login" to continue locally.'
+    );
+  };
+
+  const loginAsDev = () => {
+    const mockDev: AppUser = {
+      uid: 'dev-user-avnish',
+      displayName: 'Avnish (Dev)',
+      email: 'avnish@codesage.local',
+      photoURL: 'https://api.dicebear.com/7.x/bottts/svg?seed=Avnish',
+      isDev: true,
+    };
+    try {
+      localStorage.setItem('codesage_dev_user', JSON.stringify(mockDev));
+    } catch {
+      // ignore
+    }
+    setUser(mockDev);
+    setAuthError(null);
+  };
+
+  const logout = async () => {
+    try {
+      localStorage.removeItem('codesage_dev_user');
+    } catch {
+      // ignore
+    }
+    setUser(null);
+    setAuthError(null);
+  };
+
+  const clearAuthError = () => setAuthError(null);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading: false,
+        isSigningIn: false,
+        authError,
+        loginWithGoogle,
+        loginAsDev,
+        logout,
+        clearAuthError,
+        isClerkConfigured: false,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim() || '';
+  const isClerkAvailable = Boolean(clerkPubKey && clerkPubKey.startsWith('pk_'));
+
+  if (isClerkAvailable) {
+    return (
+      <ClerkProvider publishableKey={clerkPubKey}>
+        <ClerkAuthBridge>{children}</ClerkAuthBridge>
+      </ClerkProvider>
+    );
+  }
+
+  return <LocalAuthProvider>{children}</LocalAuthProvider>;
+};
