@@ -66,14 +66,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <button
+                type="button"
                 onClick={this.handleReset}
+                aria-label="Try again and recover interface"
                 className="w-full sm:w-auto px-4 py-2 bg-[#171717] hover:bg-[#2c2c2c] dark:bg-[#EDEDED] dark:hover:bg-white text-white dark:text-[#171717] rounded-lg text-xs font-medium shadow-sm transition-colors cursor-pointer flex items-center justify-center space-x-2"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Try Again</span>
               </button>
               <button
+                type="button"
                 onClick={this.handleReload}
+                aria-label="Reload entire application"
                 className="w-full sm:w-auto px-4 py-2 bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-[#171717] dark:text-[#EDEDED] border border-black/[0.06] dark:border-white/[0.08] rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center justify-center space-x-2"
               >
                 <Home className="w-3.5 h-3.5" />
