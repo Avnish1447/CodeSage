@@ -7,6 +7,7 @@ node_modules/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnpm-store/
+.npm
 
 # Build Outputs & Bundles
 dist/
@@ -18,6 +19,10 @@ out/
 .cache/
 .parcel-cache/
 .turbo/
+.swc/
+.rollup.cache/
+.eslintcache
+.stylelintcache
 
 # Local Environment Variables & Secrets (Keep .env files out of Git)
 .env
@@ -34,10 +39,17 @@ out/
 # Service Account Keys & Secrets
 *-service-account*.json
 *credentials*.json
+client_secret*.json
 *.pem
 *.key
 *.cert
 *.crt
+
+# Firebase & Cloud Platforms
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
 
 # SQLite & Local Analysis Cache
 *.db
@@ -51,7 +63,7 @@ out/
 *.sqlite-shm
 codesage_cache.db
 
-# Repository Clones & Analysis Storage (RepoCloneService)
+# Repository Clones & Analysis Storage (RepoCloneService / BackupService)
 storage/
 temp/
 tmp/
@@ -64,30 +76,43 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-firebase-debug.log*
-firestore-debug.log*
-ui-debug.log*
 pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Test Coverage & Scratch Artifacts
+# Test Coverage, Reports & Artifacts (Test source files in server/tests/ remain tracked)
 coverage/
 .coverage
 htmlcov/
 .nyc_output/
 .pytest_cache/
 .mypy_cache/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+lcov.info
+lcov-report/
+
+# Temporary, Scratch & Backup Artifacts
 scratch/
 *.scratch.*
 *.tmp
 *.bak
+*.swp
+*.swo
+*.patch
+*.diff
 
-# Archives & Temporary Artifacts
+# Archives
 *.zip
+*.tar
 *.tar.gz
 *.tgz
+*.gz
+*.7z
+*.rar
 __MACOSX/
 
 # Agent Scratchpads & Tool Metadata
@@ -95,6 +120,8 @@ __MACOSX/
 .gemini/
 .claude/
 .claude-plugin/
+.cursor/
+.antigravity/
 brag-output/
 
 # IDE & Editor Settings
@@ -117,6 +144,9 @@ brag-output/
 ._*
 .Spotlight-V100
 .Trashes
+.AppleDouble
+.LSOverride
+Icon\r\r
 ehthumbs.db
 Thumbs.db
 desktop.ini
@@ -125,3 +155,6 @@ desktop.ini
 __pycache__/
 *.py[cod]
 *$py.class
+.venv/
+venv/
+ENV/
