@@ -3,8 +3,8 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { RESOURCE_LIMITS } from '../config/limits.js';
+import { UPLOAD_TEMP_DIR } from '../config/paths.js';
 
-const UPLOAD_TEMP_DIR = path.resolve('storage', 'temp_uploads');
 if (!fs.existsSync(UPLOAD_TEMP_DIR)) {
   fs.mkdirSync(UPLOAD_TEMP_DIR, { recursive: true });
 }
