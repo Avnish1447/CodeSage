@@ -66,7 +66,9 @@ export const LearningPathCard: React.FC<LearningPathCardProps> = ({
             ))}
           </div>
         ) : (
-          <p className="text-xs text-[#8F8F8F] dark:text-[#888888] italic">No learning steps generated yet.</p>
+          <div className="p-4 rounded-lg bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-xs text-[#8F8F8F] font-mono text-center">
+            No guided learning steps generated for this codebase.
+          </div>
         )}
       </div>
     </div>
