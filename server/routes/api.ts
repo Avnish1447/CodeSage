@@ -25,6 +25,7 @@ import {
   healthLimiter,
 } from '../middleware/rateLimiter.js';
 import { requestTimeout } from '../middleware/requestTimeout.js';
+import { REPOS_DIR, STORAGE_ROOT } from '../config/paths.js';
 
 export const apiRouter = Router();
 
@@ -459,7 +460,7 @@ apiRouter.post('/repositories', cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCA
         }
 
         // Try filesystem metadata.json fallback
-        const metadataFile = path.join('storage', 'repos', expectedRepoId, 'metadata.json');
+        const metadataFile = path.join(REPOS_DIR, expectedRepoId, 'metadata.json');
         if (fs.existsSync(metadataFile)) {
           const content = fs.readFileSync(metadataFile, 'utf-8');
           const fileCached = JSON.parse(content);
@@ -587,7 +588,7 @@ apiRouter.post(
       const uniqueSuffix = Date.now().toString(36);
       const repoId = `upload_${cleanRepoName}_${uniqueSuffix}`;
 
-      const targetDir = path.resolve('storage', 'repos', repoId, 'source');
+      const targetDir = path.resolve(REPOS_DIR, repoId, 'source');
       fs.mkdirSync(targetDir, { recursive: true });
 
       // Safely extract archive with Zip-Slip path containment and size checks
@@ -631,7 +632,7 @@ apiRouter.post(
       initialData.gemini_status = insights.gemini_status;
 
       // Persist response metadata to disk
-      const metadataFile = path.resolve('storage', 'repos', repoId, 'metadata.json');
+      const metadataFile = path.resolve(REPOS_DIR, repoId, 'metadata.json');
       fs.mkdirSync(path.dirname(metadataFile), { recursive: true });
       fs.writeFileSync(metadataFile, JSON.stringify(initialData, null, 2), 'utf-8');
 
@@ -779,7 +780,7 @@ apiRouter.get(
     }
 
     // 2. Check metadata.json
-    const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
+    const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
     let repoData = sqliteCached;
     if (!repoData && fs.existsSync(metadataFile)) {
       repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
@@ -834,7 +835,7 @@ apiRouter.get(
 apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
+    const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
 
     if (!fs.existsSync(metadataFile)) {
       return res.status(404).json({
@@ -870,7 +871,7 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
       });
     }
 
-    const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
+    const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
     if (!fs.existsSync(metadataFile)) {
       return res.status(404).json({
         detail: `Repository with ID '${repoId}' not found.`,
@@ -990,7 +991,7 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
 apiRouter.post('/repositories/:repo_id/insights', async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    const metadataFile = path.join('storage', 'repos', repoId, 'metadata.json');
+    const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
 
     if (!fs.existsSync(metadataFile)) {
       return res.status(404).json({ detail: `Repository with ID '${repoId}' not found.` });
@@ -1077,7 +1078,7 @@ apiRouter.get(
     const search = ((req.query.search as string) || '').trim().toLowerCase();
     const extension = ((req.query.extension as string) || '').trim().toLowerCase();
 
-    const repoDir = path.resolve('storage', 'repos', repoId, 'source');
+    const repoDir = path.resolve(REPOS_DIR, repoId, 'source');
     if (!fs.existsSync(repoDir)) {
       return res.status(404).json({
         detail: `Repository with ID '${repoId}' source files not found. Please submit it first.`,
@@ -1157,7 +1158,7 @@ async function handleGetFileContent(req: Request, res: Response) {
       return res.status(400).json({ detail: 'File path parameter is required.' });
     }
 
-    const repoDir = path.resolve('storage', 'repos', repoId);
+    const repoDir = path.resolve(REPOS_DIR, repoId);
     if (!fs.existsSync(repoDir)) {
       return res.status(404).json({
         detail: `Repository with ID '${repoId}' not found. Please submit it first.`,
