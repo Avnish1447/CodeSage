@@ -465,14 +465,44 @@ export class RepoCloneService {
       '.git',
       'node_modules',
       'dist',
+      'dist-ssr',
       'build',
+      'out',
       'storage',
+      '.vercel',
+      '.firebase',
+      '.agents',
+      '.gemini',
+      '.claude',
+      '.claude-plugin',
+      '.cursor',
+      '.antigravity',
+      'coverage',
+      'scratch',
+      'logs',
+      'temp',
+      'tmp',
+      'temp_uploads',
+      'exports',
+      'backups',
       '.venv',
       'venv',
+      'ENV',
       '__pycache__',
       '.pytest_cache',
       '.mypy_cache',
     ]);
+
+    function shouldIgnoreFile(fileName: string): boolean {
+      if (fileName === '.clone_complete') return true;
+      if (fileName === '.env' || fileName.startsWith('.env.') || fileName.endsWith('.local')) return true;
+      if (fileName.endsWith('.db') || fileName.endsWith('.sqlite') || fileName.endsWith('.sqlite3')) return true;
+      if (fileName.endsWith('.db-wal') || fileName.endsWith('.db-shm') || fileName.endsWith('.db-journal')) return true;
+      if (fileName.endsWith('.log') || fileName === '.DS_Store') return true;
+      if (fileName.endsWith('.pem') || fileName.endsWith('.key') || fileName.endsWith('.cert') || fileName.endsWith('.crt')) return true;
+      if (fileName.endsWith('.tar.gz') || fileName.endsWith('.zip') || fileName.endsWith('.tar')) return true;
+      return false;
+    }
 
     function copyRecursive(src: string, dest: string) {
       if (!fs.existsSync(src)) return;
@@ -480,14 +510,14 @@ export class RepoCloneService {
       const entries = fs.readdirSync(src, { withFileTypes: true });
 
       for (const entry of entries) {
-        if (ignoreDirs.has(entry.name) || entry.name === '.clone_complete') continue;
-
         const srcPath = path.join(src, entry.name);
         const destPath = path.join(dest, entry.name);
 
         if (entry.isDirectory()) {
+          if (ignoreDirs.has(entry.name)) continue;
           copyRecursive(srcPath, destPath);
         } else if (entry.isFile()) {
+          if (shouldIgnoreFile(entry.name)) continue;
           try {
             fs.copyFileSync(srcPath, destPath);
           } catch {
