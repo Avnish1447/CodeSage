@@ -36,6 +36,11 @@ out/
 # Keep environment example template tracked
 !.env.example
 
+# Public SEO, Crawling & Web App Manifest (Always Tracked)
+!public/sitemap.xml
+!public/robots.txt
+!public/manifest.json
+
 # Service Account Keys & Secrets
 *-service-account*.json
 *credentials*.json
