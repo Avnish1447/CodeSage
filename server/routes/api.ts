@@ -11,7 +11,6 @@ import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuer
 import { PaymentService } from '../services/paymentService.js';
 import { CompressionService } from '../services/compressionService.js';
 import { idempotency } from '../middleware/idempotency.js';
-import { repositoryArchiveUpload } from '../middleware/uploadLimiter.js';
 import { cacheRepeatRequests } from '../middleware/cacheMiddleware.js';
 import { RepeatRequestCacheService } from '../services/repeatRequestCache.js';
 import { UptimeMonitoringService } from '../services/uptimeService.js';
@@ -565,95 +564,14 @@ apiRouter.post('/repositories', cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCA
   }
 });
 
-// Upload and excavate compressed repository archive (.zip, .tar.gz, .tgz)
-// Enforces 50MB limit with upfront Content-Length and streaming multipart validation
-apiRouter.post(
-  '/repositories/upload',
-  cloneLimiter,
-  repositoryArchiveUpload('archive'),
-  requestTimeout(TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS, 'Archive extraction and analysis'),
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          error: 'Bad Request',
-          detail: 'Archive file is required under form field "archive". Supported formats: .zip, .tar.gz, .tgz, .tar',
-          code: 'ARCHIVE_REQUIRED',
-        });
-      }
-
-      const originalName = req.file.originalname;
-      const baseName = (req.body.name as string) || path.basename(originalName, path.extname(originalName)).replace(/\.tar$/i, '');
-      const cleanRepoName = (baseName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase() || 'local_repo').substring(0, 50);
-      const uniqueSuffix = Date.now().toString(36);
-      const repoId = `upload_${cleanRepoName}_${uniqueSuffix}`;
-
-      const targetDir = path.resolve(REPOS_DIR, repoId, 'source');
-      fs.mkdirSync(targetDir, { recursive: true });
-
-      // Safely extract archive with Zip-Slip path containment and size checks
-      const extractResult = await CompressionService.extractArchive(req.file.path, targetDir);
-
-      // Analyze extracted source code
-      const analysis = RepoAnalysisService.analyzeRepository(targetDir);
-
-      const initialData: any = {
-        repository_id: repoId,
-        status: 'ready',
-        overview: {
-          repository_id: repoId,
-          owner: 'upload',
-          repo: cleanRepoName,
-          branch: 'main',
-          files: extractResult.fileCount,
-          size_mb: parseFloat((extractResult.totalSizeBytes / (1024 * 1024)).toFixed(2)),
-          normalized_url: `upload://${originalName}`,
-        },
-        facts: {
-          repository_id: repoId,
-          url: `upload://${originalName}`,
-          branch: 'main',
-          languages: analysis.languages,
-          frameworks: analysis.frameworks,
-          important_files: analysis.important_files,
-          tree_summary: analysis.tree_summary,
-          stats: analysis.stats,
-        },
-        learning_path: [] as string[],
-        architecture_summary: '',
-        storage_path: targetDir,
-      };
-
-      // Generate Gemini insights
-      const insights = await generateRepositoryInsights(initialData);
-      initialData.learning_path = insights.learning_path;
-      initialData.architecture_summary = insights.architecture_summary;
-      initialData.gemini_available = insights.gemini_available;
-      initialData.gemini_status = insights.gemini_status;
-
-      // Persist response metadata to disk
-      const metadataFile = path.resolve(REPOS_DIR, repoId, 'metadata.json');
-      fs.mkdirSync(path.dirname(metadataFile), { recursive: true });
-      fs.writeFileSync(metadataFile, JSON.stringify(initialData, null, 2), 'utf-8');
-
-      // Index into SQLite cache for instant subsequent retrieval
-      SqliteCacheService.set(initialData);
-
-      return res.json({
-        ...initialData,
-        from_cache: false,
-        cache_source: 'upload',
-      });
-    } catch (err: any) {
-      console.error('[UploadArchive] Error processing uploaded archive:', err);
-      return res.status(400).json({
-        error: 'Archive Processing Failed',
-        detail: err.message || 'Error processing uploaded repository archive.',
-        code: 'ARCHIVE_PROCESSING_ERROR',
-      });
-    }
-  }
-);
+// Deprecated: Local compressed archive upload has been retired in favor of remote GitHub URLs
+apiRouter.post('/repositories/upload', (_req: Request, res: Response) => {
+  return res.status(410).json({
+    error: 'Gone',
+    detail: 'Local compressed archive upload (.zip/.tar) has been retired. Please provide a public GitHub repository URL.',
+    code: 'UPLOAD_RETIRED',
+  });
+});
 
 // Export and download compressed repository archive (.tar.gz or .zip)
 apiRouter.get(
