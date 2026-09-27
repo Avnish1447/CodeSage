@@ -28,7 +28,7 @@ import {
   saveRepositoryToUserHistory,
   getUserRepositoryHistory,
   type UserRepoHistoryItem,
-} from './lib/firebase';
+} from './lib/supabase';
 import {
   Sparkles,
   Terminal,
@@ -180,7 +180,7 @@ export function App() {
   const [isRefreshingPrompt, setIsRefreshingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
-  // Firebase Auth & Firestore State
+  // Clerk Auth & Supabase Cloud State
   const { user } = useAuth();
   const [firestoreHistory, setFirestoreHistory] = useState<UserRepoHistoryItem[]>([]);
 
