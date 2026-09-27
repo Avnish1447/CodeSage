@@ -215,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   if (isClerkAvailable) {
     return (
-      <ClerkProvider publishableKey={clerkPubKey}>
+      <ClerkProvider publishableKey={clerkPubKey} afterSignOutUrl="/">
         <ClerkAuthBridge>{children}</ClerkAuthBridge>
       </ClerkProvider>
     );
