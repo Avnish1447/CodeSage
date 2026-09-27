@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TreeNode } from '../types';
 import {
@@ -6,6 +6,9 @@ import {
   FolderOpen,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   FileCode,
   X,
   Copy,
@@ -13,7 +16,30 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  Search,
+  FolderX,
+  FileSearch,
+  RefreshCw,
+  Layers,
+  List,
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+
+function extractAllFiles(nodes: TreeNode[]): TreeNode[] {
+  const files: TreeNode[] = [];
+  function traverse(list: TreeNode[]) {
+    for (const node of list) {
+      if (node.type === 'file') {
+        files.push(node);
+      }
+      if (node.children) {
+        traverse(node.children);
+      }
+    }
+  }
+  traverse(nodes);
+  return files;
+}
 
 interface FileContentResponse {
   path: string;
@@ -38,6 +64,30 @@ interface TreeItemProps {
   depth?: number;
   onFileClick?: (path: string) => void;
   selectedPath?: string | null;
+}
+
+function filterTreeNodes(nodes: TreeNode[], query: string): TreeNode[] {
+  if (!query.trim()) return nodes;
+  const q = query.toLowerCase().trim();
+  const result: TreeNode[] = [];
+
+  for (const node of nodes) {
+    if (node.type === 'file') {
+      if (node.name.toLowerCase().includes(q) || node.path.toLowerCase().includes(q)) {
+        result.push(node);
+      }
+    } else if (node.type === 'directory') {
+      const filteredChildren = node.children ? filterTreeNodes(node.children, query) : [];
+      if (node.name.toLowerCase().includes(q) || filteredChildren.length > 0) {
+        result.push({
+          ...node,
+          children: filteredChildren,
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
@@ -101,21 +151,13 @@ const TreeItem: React.FC<TreeItemProps> = ({
       }`}
     >
       <div className="flex items-center space-x-2 truncate">
-        <FileCode
-          className={`w-3.5 h-3.5 shrink-0 ${
-            node.important || isSelected
-              ? 'text-[#e8702a]'
-              : 'text-[#8F8F8F] dark:text-[#888888] group-hover:text-[#171717] dark:group-hover:text-[#EDEDED]'
-          }`}
-        />
-        <span className={`truncate ${node.important || isSelected ? 'font-medium text-[#171717] dark:text-[#EDEDED]' : ''}`}>
-          {node.name}
-        </span>
+        <FileCode className="w-3.5 h-3.5 text-[#8F8F8F] dark:text-[#888888] shrink-0" />
+        <span className="truncate">{node.name}</span>
       </div>
-      <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+      <div className="flex items-center space-x-1.5 shrink-0 pl-2">
         {node.important && (
-          <span className="text-[10px] px-1.5 py-0.5 bg-[#FAFAFA] dark:bg-[#1d1d21] text-[#e8702a] shadow-[0_0_0_1px_rgba(232,112,42,0.3)] font-mono font-medium rounded">
-            Key
+          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/20">
+            key
           </span>
         )}
         <span className="text-[10px] text-[#8F8F8F] dark:text-[#888888] opacity-0 group-hover:opacity-100 transition-opacity">
@@ -130,11 +172,40 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
   tree,
   repositoryId,
 }) => {
+  const { showSuccess } = useToast();
   const [selectedFile, setSelectedFile] = useState<FileContentResponse | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'tree' | 'paginated'>('tree');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const allFlatFiles = useMemo(() => {
+    return extractAllFiles(tree || []);
+  }, [tree]);
+
+  const filteredFlatFiles = useMemo(() => {
+    if (!searchQuery.trim()) return allFlatFiles;
+    const q = searchQuery.toLowerCase().trim();
+    return allFlatFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
+  }, [allFlatFiles, searchQuery]);
+
+  const totalPages = Math.ceil(filteredFlatFiles.length / pageSize) || 1;
+  const paginatedFiles = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredFlatFiles.slice(start, start + pageSize);
+  }, [filteredFlatFiles, currentPage, pageSize]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const filteredTree = useMemo(() => {
+    return filterTreeNodes(tree || [], searchQuery);
+  }, [tree, searchQuery]);
 
   const handleSelectFile = async (path: string) => {
     setActivePath(path);
@@ -164,6 +235,7 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
     if (selectedFile?.content) {
       navigator.clipboard.writeText(selectedFile.content);
       setCopied(true);
+      showSuccess(`Copied ${activePath || 'file'} to clipboard!`, 'Code Copied');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -177,7 +249,7 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
   return (
     <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         <div className="flex items-center space-x-2.5">
           <div className="p-1 rounded-md bg-[#FAFAFA] dark:bg-[#1a1a1e] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             <Folder className="w-4 h-4 text-[#e8702a]" />
@@ -188,26 +260,209 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
             </h3>
           </div>
         </div>
-        <span className="text-xs font-mono text-[#8F8F8F] dark:text-[#888888]">
-          Click file to inspect
-        </span>
+
+        {/* View Switcher & Search Bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Mode Switcher */}
+          <div className="flex items-center p-0.5 bg-[#FAFAFA] dark:bg-[#161618] rounded-md shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[11px] font-mono">
+            <button
+              onClick={() => setViewMode('tree')}
+              className={`px-2 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
+                viewMode === 'tree'
+                  ? 'bg-white dark:bg-[#222226] text-[#171717] dark:text-white font-medium shadow-sm'
+                  : 'text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+              }`}
+              title="Nested Directory Tree View"
+            >
+              <Layers className="w-3 h-3" />
+              <span>Tree</span>
+            </button>
+            <button
+              onClick={() => setViewMode('paginated')}
+              className={`px-2 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
+                viewMode === 'paginated'
+                  ? 'bg-white dark:bg-[#222226] text-[#171717] dark:text-white font-medium shadow-sm'
+                  : 'text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+              }`}
+              title="Paginated Flat File Index"
+            >
+              <List className="w-3 h-3" />
+              <span>Index ({allFlatFiles.length})</span>
+            </button>
+          </div>
+
+          {/* Tree Search Bar */}
+          <div className="relative flex items-center">
+            <Search className="w-3.5 h-3.5 text-[#8F8F8F] absolute left-2.5 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter files..."
+              aria-label="Filter files in repository"
+              className="pl-8 pr-7 py-1 text-xs bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] focus:shadow-[0_0_0_2px_#0072F5] outline-none rounded-md w-full sm:w-44 font-mono transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 text-[#8F8F8F] hover:text-[#171717] dark:hover:text-white"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Recessed Tree Canvas */}
-      <div className="bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg p-3 max-h-80 overflow-y-auto space-y-0.5 font-mono">
-        {tree && tree.length > 0 ? (
-          tree.map((node) => (
-            <TreeItem
-              key={node.path}
-              node={node}
-              onFileClick={handleSelectFile}
-              selectedPath={activePath}
-            />
-          ))
-        ) : (
-          <p className="text-xs text-[#8F8F8F] dark:text-[#888888] italic p-2">No tree items found.</p>
-        )}
-      </div>
+      {/* Main Content Area: Paginated vs Nested Tree */}
+      {viewMode === 'paginated' ? (
+        <div className="space-y-2">
+          <div className="bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg max-h-80 overflow-y-auto font-mono">
+            {filteredFlatFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                <FileSearch className="w-5 h-5 text-[#8F8F8F]" />
+                <p className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">No matching files</p>
+                <p className="text-[11px] text-[#8F8F8F]">No files matched "{searchQuery}".</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
+                {paginatedFiles.map((file) => {
+                  const isSelected = activePath === file.path;
+                  return (
+                    <div
+                      key={file.path}
+                      onClick={() => handleSelectFile(file.path)}
+                      className={`flex items-center justify-between p-2.5 text-xs transition-colors cursor-pointer group hover:bg-black/[0.03] dark:hover:bg-white/[0.04] ${
+                        isSelected
+                          ? 'bg-[#e8702a]/10 text-[#e8702a] font-medium shadow-[0_0_0_1px_rgba(232,112,42,0.3)]'
+                          : 'text-[#4D4D4D] dark:text-[#A1A1A1]'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0 pr-2">
+                        <FileCode className="w-3.5 h-3.5 text-[#8F8F8F] shrink-0" />
+                        <span className="font-medium text-[#171717] dark:text-[#EDEDED] shrink-0">{file.name}</span>
+                        <span className="text-[11px] text-[#8F8F8F] dark:text-[#666666] truncate">{file.path}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 shrink-0">
+                        {file.important && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/20">
+                            key
+                          </span>
+                        )}
+                        <span className="text-[10px] text-[#8F8F8F] opacity-0 group-hover:opacity-100 hover:text-[#171717] dark:hover:text-white transition-opacity">
+                          View
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Pagination Controls */}
+          {filteredFlatFiles.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs font-mono text-[#8F8F8F]">
+              <div className="flex items-center space-x-2">
+                <span className="text-[11px]">
+                  Showing {Math.min(filteredFlatFiles.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredFlatFiles.length, currentPage * pageSize)} of {filteredFlatFiles.length} files
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="text-[10px] bg-transparent border border-black/10 dark:border-white/10 rounded px-1 py-0.5 text-[#171717] dark:text-[#EDEDED]"
+                >
+                  <option value={15}>15 / page</option>
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    title="First Page"
+                    aria-label="First page"
+                  >
+                    <ChevronsLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    title="Previous Page"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="px-2 py-0.5 text-[11px] bg-black/[0.04] dark:bg-white/[0.06] rounded font-semibold text-[#171717] dark:text-[#EDEDED]">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    title="Next Page"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    title="Last Page"
+                    aria-label="Last page"
+                  >
+                    <ChevronsRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Recessed Tree Canvas */
+        <div className="bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg p-3 max-h-80 overflow-y-auto space-y-0.5 font-mono">
+          {!tree || tree.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+              <div className="p-2.5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] text-[#8F8F8F]">
+                <FolderX className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">Empty Repository</p>
+              <p className="text-[11px] text-[#8F8F8F]">No files or directories were found in this codebase.</p>
+            </div>
+          ) : filteredTree.length > 0 ? (
+            filteredTree.map((node) => (
+              <TreeItem
+                key={node.path}
+                node={node}
+                onFileClick={handleSelectFile}
+                selectedPath={activePath}
+              />
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+              <div className="p-2.5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] text-[#8F8F8F]">
+                <FileSearch className="w-5 h-5 text-[#8F8F8F]" />
+              </div>
+              <p className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">No matching files</p>
+              <p className="text-[11px] text-[#8F8F8F]">No files or directories matched "{searchQuery}".</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inline Code Snippet Preview Drawer / Modal */}
       <AnimatePresence>
@@ -237,14 +492,17 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
               <div className="flex items-center space-x-2 shrink-0">
                 {selectedFile?.content && (
                   <button
+                    type="button"
                     onClick={handleCopyCode}
                     className="p-1.5 rounded-md hover:bg-black/[0.05] dark:hover:bg-white/[0.08] text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
                     title="Copy code"
+                    aria-label={copied ? 'Copied code to clipboard' : 'Copy code to clipboard'}
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedFile(null);
                     setFileError(null);
@@ -252,6 +510,7 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
                   }}
                   className="p-1.5 rounded-md hover:bg-black/[0.05] dark:hover:bg-white/[0.08] text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
                   title="Close preview"
+                  aria-label="Close file preview"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -267,10 +526,23 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
                 </div>
               )}
 
+              {/* Failed Request handling with direct retry button */}
               {fileError && (
-                <div className="flex items-center space-x-2 text-rose-500 py-4">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{fileError}</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                    <span>{fileError}</span>
+                  </div>
+                  {activePath && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFile(activePath)}
+                      className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 font-sans font-medium flex items-center space-x-1 cursor-pointer transition-colors shrink-0"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Retry</span>
+                    </button>
+                  )}
                 </div>
               )}
 
