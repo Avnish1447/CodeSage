@@ -8,12 +8,6 @@ import {
   Loader2,
   AlertCircle,
   X,
-  CreditCard,
-  ShieldCheck,
-  Database,
-  ChevronLeft,
-  ChevronRight,
-  History,
   Activity,
   Server,
   Cpu,
@@ -39,13 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { showSuccess, showError, showInfo } = useToast();
   const [health, setHealth] = useState<{ status: string; version: string } | null>(null);
-  const [spending, setSpending] = useState<any>(null);
-  const [showBudgetModal, setShowBudgetModal] = useState(false);
-  const [isTopUpLoading, setIsTopUpLoading] = useState(false);
-  const [topUpFeedback, setTopUpFeedback] = useState<string | null>(null);
-  const [budgetTab, setBudgetTab] = useState<'overview' | 'history'>('overview');
-  const [ledgerPage, setLedgerPage] = useState(1);
-  const [ledgerData, setLedgerData] = useState<any>(null);
 
   // Uptime & Telemetry State
   const [showUptimeModal, setShowUptimeModal] = useState(false);
@@ -70,23 +57,6 @@ export const Header: React.FC<HeaderProps> = ({
     loginAsDev,
     logout,
   } = useAuth();
-
-  const loadSpending = () => {
-    fetch('/api/v1/spending')
-      .then((res) => res.json())
-      .then((data) => setSpending(data))
-      .catch(() => {});
-  };
-
-  const loadLedger = (page: number = 1) => {
-    fetch(`/api/v1/spending/records?page=${page}&limit=5`)
-      .then((res) => res.json())
-      .then((data) => {
-        setLedgerData(data);
-        setLedgerPage(page);
-      })
-      .catch(() => {});
-  };
 
   const loadErrorStats = async () => {
     try {
@@ -170,7 +140,6 @@ export const Header: React.FC<HeaderProps> = ({
       if (res.ok) {
         showSuccess(`System state restored from snapshot ${backupId.slice(-12)}.`, 'Restoration Complete');
         loadUptime();
-        loadSpending();
         loadBackups();
       } else {
         showError(data.detail || 'Restoration failed.', 'Restoration Failed');
@@ -204,47 +173,8 @@ export const Header: React.FC<HeaderProps> = ({
       .then((res) => res.json())
       .then((data) => setHealth(data))
       .catch(() => setHealth({ status: 'offline', version: '0.1.0' }));
-    loadSpending();
-    loadLedger(1);
     loadUptime();
   }, []);
-
-  const handleTopUpBudget = async (amount: number) => {
-    if (isTopUpLoading) return;
-    setIsTopUpLoading(true);
-    setTopUpFeedback(null);
-    try {
-      // Deterministic / unique idempotency key to prevent double charging
-      const idempotencyKey = `topup_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      const res = await fetch('/api/v1/payments/topup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify({
-          idempotencyKey,
-          amountUsd: amount,
-          description: `Budget Top-Up ($${amount})`,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setTopUpFeedback(`+$${amount.toFixed(2)} Added! ${data.isDuplicate ? '(Idempotent Replay)' : 'Duplicate-Protected'}`);
-        showSuccess(`+$${amount.toFixed(2)} added to AI budget!`, 'Budget Top-Up');
-        loadSpending();
-        setTimeout(() => setTopUpFeedback(null), 3500);
-      } else {
-        setTopUpFeedback(data.detail || 'Top-up failed');
-        showError(data.detail || 'Top-up failed.', 'Top-Up Error');
-      }
-    } catch {
-      setTopUpFeedback('Network error');
-      showError('Network error topping up budget.', 'Network Error');
-    } finally {
-      setIsTopUpLoading(false);
-    }
-  };
 
   return (
     <header className="border-b border-black/[0.08] dark:border-white/[0.08] bg-[#FAFAFA]/90 dark:bg-black/90 backdrop-blur-md sticky top-0 z-50 text-[#171717] dark:text-[#EDEDED] transition-colors duration-200">
@@ -535,192 +465,7 @@ export const Header: React.FC<HeaderProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* AI Spending & Budget Popover */}
-          {spending && (
-            <div className="relative">
-              <button
-                onClick={() => setShowBudgetModal(!showBudgetModal)}
-                className="hidden sm:flex items-center space-x-1.5 text-xs font-mono px-2.5 py-1 rounded-md text-[#4D4D4D] dark:text-[#A1A1A1] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-[#e8702a]/50 transition-colors cursor-pointer"
-                title="AI Budget & Database Status"
-              >
-                <CreditCard className="w-3.5 h-3.5 text-[#e8702a]" />
-                <span>Budget: ${spending.daily?.spent_usd?.toFixed(2) ?? '0.00'} / ${spending.daily?.cap_usd?.toFixed(2) ?? '5.00'}</span>
-              </button>
 
-              <AnimatePresence>
-                {showBudgetModal && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-10 w-80 bg-white dark:bg-[#111113] border border-black/[0.08] dark:border-white/[0.08] rounded-xl shadow-2xl p-4 z-50 text-xs space-y-3"
-                  >
-                    <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] dark:border-white/[0.08]">
-                      <div className="flex items-center space-x-1.5 p-0.5 bg-black/[0.03] dark:bg-white/[0.05] rounded-md text-[11px] font-mono">
-                        <button
-                          onClick={() => setBudgetTab('overview')}
-                          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
-                            budgetTab === 'overview'
-                              ? 'bg-white dark:bg-[#222226] text-[#171717] dark:text-white font-medium shadow-sm'
-                              : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          Overview
-                        </button>
-                        <button
-                          onClick={() => {
-                            setBudgetTab('history');
-                            loadLedger(ledgerPage);
-                          }}
-                          className={`px-2 py-0.5 rounded transition-colors cursor-pointer flex items-center space-x-1 ${
-                            budgetTab === 'history'
-                              ? 'bg-white dark:bg-[#222226] text-[#171717] dark:text-white font-medium shadow-sm'
-                              : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          <History className="w-3 h-3" />
-                          <span>Ledger</span>
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => setShowBudgetModal(false)}
-                        className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {budgetTab === 'overview' ? (
-                      <>
-                        {/* Spending Progress */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                            <span>Daily Spending</span>
-                            <span className="font-medium text-slate-900 dark:text-white">
-                              ${spending.daily?.spent_usd?.toFixed(4)} / ${spending.daily?.cap_usd?.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="w-full h-1.5 bg-black/[0.06] dark:bg-white/[0.08] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#e8702a] rounded-full transition-all duration-300"
-                              style={{ width: `${Math.min(100, spending.daily?.percent_used || 0)}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-[10px] font-mono text-slate-500">
-                            <span>{spending.daily?.calls_count || 0} API calls today</span>
-                            <span>{spending.daily?.tokens_used || 0} tokens</span>
-                          </div>
-                        </div>
-
-                        {/* DB Optimizations Badge */}
-                        <div className="p-2 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06] space-y-1">
-                          <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                            <Database className="w-3.5 h-3.5" />
-                            <span>DB Query Engine: Optimized</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                            SQLite WAL mode active • Precompiled prepared statements • Covering indices for 0ms ledger summaries.
-                          </p>
-                        </div>
-
-                        {/* Duplicate-Protected Top-Up */}
-                        <div className="space-y-1.5 pt-1">
-                          <div className="flex items-center justify-between text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                            <span>Top-Up Budget</span>
-                            <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 flex items-center space-x-1">
-                              <ShieldCheck className="w-3 h-3" />
-                              <span>Dupe-Protected</span>
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleTopUpBudget(5.0)}
-                              disabled={isTopUpLoading}
-                              className="px-2.5 py-1.5 bg-[#e8702a] hover:bg-[#d66320] text-white rounded-lg font-medium text-xs shadow-sm transition-colors cursor-pointer flex items-center justify-center space-x-1"
-                            >
-                              <span>+$5.00</span>
-                            </button>
-                            <button
-                              onClick={() => handleTopUpBudget(10.0)}
-                              disabled={isTopUpLoading}
-                              className="px-2.5 py-1.5 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-slate-800 dark:text-slate-200 border border-black/[0.06] dark:border-white/[0.08] rounded-lg font-medium text-xs transition-colors cursor-pointer flex items-center justify-center space-x-1"
-                            >
-                              <span>+$10.00</span>
-                            </button>
-                          </div>
-                          {topUpFeedback && (
-                            <div className="text-[11px] font-mono text-center text-emerald-600 dark:text-emerald-400 animate-fadeIn pt-1">
-                              {topUpFeedback}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      /* Paginated Ledger History */
-                      <div className="space-y-2">
-                        <div className="space-y-1 max-h-48 overflow-y-auto font-mono text-[11px]">
-                          {!ledgerData?.data || ledgerData.data.length === 0 ? (
-                            <div className="text-center py-4 text-slate-400">No ledger records yet.</div>
-                          ) : (
-                            ledgerData.data.map((rec: any) => (
-                              <div
-                                key={rec.id}
-                                className="flex items-center justify-between p-1.5 rounded bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]"
-                              >
-                                <div className="min-w-0 pr-2">
-                                  <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                                    {rec.service}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400">
-                                    {new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <div className="font-medium text-[#e8702a]">
-                                    ${Number(rec.estimated_cost_usd).toFixed(4)}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400">
-                                    {rec.total_tokens} tokens
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-
-                        {/* Pagination Bar */}
-                        {ledgerData?.pagination && (
-                          <div className="flex items-center justify-between pt-1 border-t border-black/[0.06] dark:border-white/[0.08] font-mono text-[10px] text-slate-400">
-                            <span>Total: {ledgerData.pagination.total} records</span>
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => loadLedger(ledgerPage - 1)}
-                                disabled={!ledgerData.pagination.hasPrev}
-                                className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
-                              >
-                                <ChevronLeft className="w-3 h-3" />
-                              </button>
-                              <span>
-                                {ledgerData.pagination.page} / {ledgerData.pagination.totalPages || 1}
-                              </span>
-                              <button
-                                onClick={() => loadLedger(ledgerPage + 1)}
-                                disabled={!ledgerData.pagination.hasNext}
-                                className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
-                              >
-                                <ChevronRight className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
 
           {onToggleTheme && (
             <motion.button
