@@ -52,6 +52,7 @@ client_secret*.json
 
 # Firebase & Cloud Platforms
 .firebase/
+.vercel/
 firebase-debug.log*
 firestore-debug.log*
 ui-debug.log*
