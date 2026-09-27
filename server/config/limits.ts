@@ -29,6 +29,12 @@ export const RESOURCE_LIMITS = {
   // Maximum request JSON / urlencoded payload size
   MAX_BODY_SIZE: process.env.API_MAX_BODY_SIZE || '1mb',
 
+  // Maximum file upload size in megabytes (50 MB)
+  MAX_UPLOAD_SIZE_MB: parseInt(process.env.API_MAX_UPLOAD_SIZE_MB || '50', 10),
+
+  // Maximum file upload size in bytes (50 MB)
+  MAX_UPLOAD_SIZE_BYTES: parseInt(process.env.API_MAX_UPLOAD_SIZE_BYTES || `${50 * 1024 * 1024}`, 10),
+
   // Maximum files allowed in a single repository clone
   MAX_REPO_FILES: parseInt(process.env.API_MAX_REPO_FILES || '1200', 10),
 
@@ -65,4 +71,34 @@ export const SPENDING_CAP_CONFIG = {
   // Cost estimates for Gemini Flash tiers ($ per 1,000 tokens)
   COST_PER_1K_INPUT_TOKENS: 0.0001,  // $0.10 per 1M tokens
   COST_PER_1K_OUTPUT_TOKENS: 0.0004, // $0.40 per 1M tokens
+};
+
+// API & External Service Timeouts (in milliseconds)
+export const TIMEOUT_CONFIG = {
+  // Git repository clone timeout (default: 45s)
+  CLONE_TIMEOUT_MS: parseInt(process.env.TIMEOUT_CLONE_MS || '45000', 10),
+
+  // Remote branch listing timeout via git ls-remote (default: 12s)
+  LS_REMOTE_TIMEOUT_MS: parseInt(process.env.TIMEOUT_LS_REMOTE_MS || '12000', 10),
+
+  // Fallback GitHub Tree API fetch timeout (default: 15s)
+  GITHUB_API_TIMEOUT_MS: parseInt(process.env.TIMEOUT_GITHUB_API_MS || '15000', 10),
+
+  // Gemini insights generation timeout (default: 25s)
+  GEMINI_INSIGHTS_TIMEOUT_MS: parseInt(process.env.TIMEOUT_GEMINI_INSIGHTS_MS || '25000', 10),
+
+  // Gemini chat query stream initial chunk timeout (default: 35s)
+  GEMINI_CHAT_TIMEOUT_MS: parseInt(process.env.TIMEOUT_GEMINI_CHAT_MS || '35000', 10),
+
+  // Gemini health probe timeout (default: 8s)
+  GEMINI_PROBE_TIMEOUT_MS: parseInt(process.env.TIMEOUT_GEMINI_PROBE_MS || '8000', 10),
+
+  // GitReverse API request timeout (default: 8s)
+  GITREVERSE_TIMEOUT_MS: parseInt(process.env.TIMEOUT_GITREVERSE_MS || '8000', 10),
+
+  // Global repository excavation HTTP request timeout (default: 90s)
+  EXCAVATION_HTTP_TIMEOUT_MS: parseInt(process.env.TIMEOUT_EXCAVATION_HTTP_MS || '90000', 10),
+
+  // General HTTP request timeout for standard REST queries (default: 30s)
+  GENERAL_REQUEST_TIMEOUT_MS: parseInt(process.env.TIMEOUT_GENERAL_REQUEST_MS || '30000', 10),
 };
