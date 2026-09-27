@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, Copy, Check, Sparkles, ExternalLink, Sun, Moon } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 interface BrandKitModalProps {
   isOpen: boolean;
@@ -43,8 +44,8 @@ const BRAND_ASSETS: BrandAsset[] = [
   {
     id: 'textmark',
     name: 'Official Text Mark / Wordmark',
-    filename: 'text mark.svg',
-    path: '/logos/text mark.svg',
+    filename: 'text-mark.svg',
+    path: '/logos/text-mark.svg',
     dimensions: '1464 × 544 (Cropped Vector)',
     description: 'Official typographic wordmark used at the top left corner of the platform navigation and horizontal banners.',
     usage: 'Top-left navigation, header branding, sponsor strips, docs headers, and press kit titles.',
@@ -53,8 +54,8 @@ const BRAND_ASSETS: BrandAsset[] = [
   {
     id: 'primary-light',
     name: 'Primary Logo Mark (Light Edition)',
-    filename: 'Primary Logo Mark light.svg',
-    path: '/logos/Primary Logo Mark light.svg',
+    filename: 'primary-logo-light.svg',
+    path: '/logos/primary-logo-light.svg',
     dimensions: '2048 × 2048 (High-Res Vector)',
     description: 'Light-tinted edition of the primary mark crafted specifically for dark backgrounds and high contrast overlays.',
     usage: 'Dark navigation bars, high-contrast modal headers, dark mode app icons, and luminous hero elements.',
@@ -84,12 +85,14 @@ const BRAND_ASSETS: BrandAsset[] = [
 ];
 
 export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose }) => {
+  const { showSuccess } = useToast();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewBg, setPreviewBg] = useState<'dark' | 'light'>('dark');
 
   const copyPath = (asset: BrandAsset) => {
     navigator.clipboard.writeText(window.location.origin + asset.path);
     setCopiedId(asset.id);
+    showSuccess(`Copied URL for ${asset.name} to clipboard!`, 'Asset URL Copied');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -133,6 +136,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
 
             <div className="flex items-center space-x-2">
               <button
+                type="button"
                 onClick={() => setPreviewBg(previewBg === 'dark' ? 'light' : 'dark')}
                 aria-label="Toggle preview background"
                 className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs flex items-center gap-1.5"
@@ -142,6 +146,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
                 <span className="hidden sm:inline">{previewBg === 'dark' ? 'Light Grid' : 'Dark Grid'}</span>
               </button>
               <button
+                type="button"
                 onClick={onClose}
                 aria-label="Close brand kit modal"
                 className="p-2 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
@@ -214,7 +219,9 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
                     <span>Download SVG</span>
                   </a>
                   <button
+                    type="button"
                     onClick={() => copyPath(asset)}
+                    aria-label={`Copy URL path for ${asset.name}`}
                     className="py-2 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
                     title="Copy URL path"
                   >
