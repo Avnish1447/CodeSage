@@ -1,0 +1,8 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /storage/
+
+# Search Engine Sitemap
+Sitemap: https://codesage.dev/sitemap.xml
