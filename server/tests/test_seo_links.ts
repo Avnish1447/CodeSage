@@ -89,6 +89,8 @@ async function runSeoAndLinksTests() {
     '/brag.mp4',
     '/brag-extended.jpg',
     '/brag-extended.mp4',
+    '/sitemap.xml',
+    '/robots.txt',
   ];
 
   for (const asset of internalAssetsToCheck) {
@@ -98,7 +100,16 @@ async function runSeoAndLinksTests() {
     console.assert(stat.size > 0, `Asset file is empty (0 bytes): ${asset}`);
     console.log(`  ✓ Asset verified: ${asset} (${(stat.size / 1024).toFixed(1)} KB)`);
   }
-  console.log('✅ All internal assets and referenced static files exist and are valid.\n');
+
+  // Verify Sitemap & Robots specifications
+  const sitemapContent = fs.readFileSync(path.resolve('public/sitemap.xml'), 'utf-8');
+  console.assert(sitemapContent.includes('https://codesage.dev/'), 'sitemap.xml missing canonical domain');
+  console.assert(sitemapContent.includes('<urlset'), 'sitemap.xml missing <urlset> root tag');
+  console.assert(sitemapContent.includes('https://codesage.dev/404'), 'sitemap.xml missing 404 URL');
+
+  const robotsContent = fs.readFileSync(path.resolve('public/robots.txt'), 'utf-8');
+  console.assert(robotsContent.includes('Sitemap: https://codesage.dev/sitemap.xml'), 'robots.txt missing Sitemap reference');
+  console.log('✅ All internal assets, sitemap.xml, and robots.txt verified.\n');
 
   // -----------------------------------------------------------------------------------
   // TEST 4: Codebase Space Delimiter / Broken Syntax Check
