@@ -1,4 +1,5 @@
 import { generateGitReverseFallbackPrompt } from './geminiService.js';
+import { TIMEOUT_CONFIG } from '../config/limits.js';
 
 export interface GitReverseResult {
   prompt: string;
@@ -27,7 +28,7 @@ export class GitReverseService {
     // 1. Attempt live query to gitreverse.com
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6500);
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_CONFIG.GITREVERSE_TIMEOUT_MS);
 
       const res = await fetch(this.GITREVERSE_API, {
         method: 'POST',
