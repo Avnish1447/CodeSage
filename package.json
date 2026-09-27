@@ -17,7 +17,9 @@
     "test:all": "tsx server/tests/test_compression_upload.ts && tsx server/tests/test_error_logging.ts && tsx server/tests/test_concurrency.ts && tsx server/tests/test_backup_restoration.ts && tsx server/tests/test_seo_links.ts && tsx server/tests/test_404_page.ts"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.10",
     "@google/genai": "^0.2.0",
+    "@supabase/supabase-js": "^2.117.2",
     "@types/compression": "^1.8.1",
     "@types/multer": "^2.2.0",
     "clsx": "^2.1.1",
@@ -25,7 +27,6 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.0",
-    "firebase": "^12.19.0",
     "lucide-react": "^0.475.0",
     "motion": "^12.4.7",
     "multer": "^2.4.0",
