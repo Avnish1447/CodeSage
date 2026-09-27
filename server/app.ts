@@ -31,6 +31,9 @@ process.on('unhandledRejection', (reason: any) => {
 export function createApp() {
   const app = express();
 
+  // Trust reverse proxy hops (Vercel edge CDN / load balancer)
+  app.set('trust proxy', 1);
+
   // Real-time request telemetry and uptime monitoring
   app.use(uptimeTracker());
 

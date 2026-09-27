@@ -11,6 +11,15 @@ import { REPOS_DIR } from '../config/paths.js';
 /**
  * Helper to construct standardized 429 Rate Limit responses.
  */
+const COMMON_LIMITER_OPTIONS = {
+  standardHeaders: 'draft-7' as const,
+  legacyHeaders: false,
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+  },
+};
+
 function createRateLimitHandler(title: string, message: string, code: string) {
   return (req: Request, res: Response, _next: any, options: any) => {
     const retryAfter = res.getHeader('Retry-After') || Math.ceil(RATE_LIMIT_CONFIG.WINDOW_MS / 1000);
@@ -29,10 +38,9 @@ function createRateLimitHandler(title: string, message: string, code: string) {
  * Protects server from indiscriminate scraping and high-frequency flood.
  */
 export const generalLimiter = rateLimit({
+  ...COMMON_LIMITER_OPTIONS,
   windowMs: RATE_LIMIT_CONFIG.WINDOW_MS,
   limit: RATE_LIMIT_CONFIG.GENERAL_MAX,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
   message: {
     error: 'Too Many Requests',
     detail: `Global API rate limit exceeded. Maximum ${RATE_LIMIT_CONFIG.GENERAL_MAX} requests per 15 minutes.`,
@@ -50,10 +58,9 @@ export const generalLimiter = rateLimit({
  * Smart Skip: Does NOT consume quota if the repository is already cached and force_refresh is false.
  */
 export const cloneLimiter = rateLimit({
+  ...COMMON_LIMITER_OPTIONS,
   windowMs: RATE_LIMIT_CONFIG.WINDOW_MS,
   limit: RATE_LIMIT_CONFIG.CLONE_MAX,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
   skip: (req: Request) => {
     try {
       const { url, branch, force_refresh } = req.body || {};
@@ -95,10 +102,9 @@ export const cloneLimiter = rateLimit({
  * Protects Gemini LLM token and API quotas from spam or looped queries.
  */
 export const chatLimiter = rateLimit({
+  ...COMMON_LIMITER_OPTIONS,
   windowMs: RATE_LIMIT_CONFIG.WINDOW_MS,
   limit: RATE_LIMIT_CONFIG.CHAT_MAX,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
   handler: createRateLimitHandler(
     'Chat Rate Limit Exceeded',
     `AI Chat rate limit reached (${RATE_LIMIT_CONFIG.CHAT_MAX} messages per 15 minutes). Please wait before asking more questions.`,
@@ -112,10 +118,9 @@ export const chatLimiter = rateLimit({
  * Smart Skip: Does NOT consume quota if the prompt is already generated and cached.
  */
 export const reversePromptLimiter = rateLimit({
+  ...COMMON_LIMITER_OPTIONS,
   windowMs: RATE_LIMIT_CONFIG.WINDOW_MS,
   limit: RATE_LIMIT_CONFIG.REVERSE_PROMPT_MAX,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
   skip: (req: Request) => {
     try {
       if (req.query?.force === 'true') {
@@ -153,10 +158,9 @@ export const reversePromptLimiter = rateLimit({
  * Allows reasonable polling (120 reqs/min) while preventing abusive probes.
  */
 export const healthLimiter = rateLimit({
+  ...COMMON_LIMITER_OPTIONS,
   windowMs: 60 * 1000,
   limit: RATE_LIMIT_CONFIG.HEALTH_MAX,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
   handler: createRateLimitHandler(
     'Health Check Rate Limit Exceeded',
     'Too many health check requests. Maximum 120 per minute.',
