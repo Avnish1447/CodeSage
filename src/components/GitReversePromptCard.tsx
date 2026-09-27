@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GitReversePromptData, RepoOverview } from '../types';
 import { Sparkles, Copy, Check, RefreshCw, Terminal } from 'lucide-react';
 import { FloatingDotsButton } from './ui/FloatingDotsButton';
+import { useToast } from '../context/ToastContext';
 
 interface GitReversePromptCardProps {
   promptData?: GitReversePromptData;
@@ -22,6 +23,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const { showSuccess } = useToast();
 
   const handleAction = onReverseEngineer || onRefreshPrompt;
 
@@ -32,6 +34,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
     try {
       await navigator.clipboard.writeText(promptText);
       setCopied(true);
+      showSuccess('Specification prompt copied to clipboard!', 'Prompt Copied');
       setTimeout(() => setCopied(false), 2500);
     } catch {
       // Fallback copy
@@ -42,6 +45,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
       document.execCommand('copy');
       document.body.removeChild(textArea);
       setCopied(true);
+      showSuccess('Specification prompt copied to clipboard!', 'Prompt Copied');
       setTimeout(() => setCopied(false), 2500);
     }
   };
@@ -71,6 +75,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {promptText && handleAction && (
             <button
+              type="button"
               onClick={() => handleAction(true)}
               disabled={isRefreshing}
               className="p-1.5 rounded-lg text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] transition-colors cursor-pointer"
@@ -139,7 +144,9 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
             </span>
 
             <button
+              type="button"
               onClick={handleCopy}
+              aria-label={copied ? 'Copied prompt to clipboard' : 'Copy prompt to clipboard'}
               className={`flex items-center space-x-1.5 text-xs font-medium px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${copied
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'bg-[#e8702a] text-white hover:bg-[#d6601c] shadow-sm'
@@ -153,7 +160,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  
+                  <span>Copy Prompt</span>
                 </>
               )}
             </button>
@@ -184,7 +191,9 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
           {promptText.length > 350 && (
             <div className="flex justify-center pt-1">
               <button
+                type="button"
                 onClick={() => setExpanded(!expanded)}
+                aria-expanded={expanded}
                 className="text-xs font-medium text-[#e8702a] hover:text-[#d6601c] transition-colors cursor-pointer"
               >
                 {expanded ? '▲ Collapse Prompt' : '▼ Read Full Prompt'}
