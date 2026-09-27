@@ -52,6 +52,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const prevRepoIdRef = useRef(repoData.repository_id);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastSentRef = useRef<{ text: string; time: number } | null>(null);
 
   // Clean up any ongoing fetch if component unmounts
   useEffect(() => {
@@ -95,6 +96,13 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
     const query = (textToSend || input).trim();
     if (!query || loading) return;
 
+    // Prevent duplicate query submissions within 2 seconds
+    if (lastSentRef.current && lastSentRef.current.text === query && Date.now() - lastSentRef.current.time < 2000) {
+      console.log('[RagChat] Duplicate message submission detected within 2s, skipping.');
+      return;
+    }
+    lastSentRef.current = { text: query, time: Date.now() };
+
     // Check offline connection
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       const offlineMsgId = `err-${Date.now()}`;
@@ -124,6 +132,13 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
     }
     const controller = new AbortController();
     abortControllerRef.current = controller;
+
+    // Enforce 45s AI stream response timeout
+    const chatTimeoutId = setTimeout(() => {
+      controller.abort(
+        new Error('AI assistant response timed out after 45 seconds. The model may be under high demand. Please retry.')
+      );
+    }, 45000);
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -157,6 +172,8 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
         body: JSON.stringify({ message: query, style: responseStyle, stream: true }),
         signal: controller.signal,
       });
+
+      clearTimeout(chatTimeoutId);
 
       if (!res.ok) {
         let errMessage = `Server returned status ${res.status}`;
@@ -265,8 +282,23 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
         );
       }
     } catch (err: any) {
+      clearTimeout(chatTimeoutId);
       if (err.name === 'AbortError') {
-        // Request cancelled cleanly, ignore
+        if (controller.signal.reason instanceof Error) {
+          const timeoutErrMsg = controller.signal.reason.message;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === botMsgId
+                ? {
+                    ...m,
+                    text: `⚠️ **Request Timed Out**\n\n${timeoutErrMsg}`,
+                    isError: true,
+                    retryQuery: query,
+                  }
+                : m
+            )
+          );
+        }
         return;
       }
       setMessages((prev) =>
@@ -284,6 +316,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
         )
       );
     } finally {
+      clearTimeout(chatTimeoutId);
       setStreamingId(null);
       setLoading(false);
       abortControllerRef.current = null;
