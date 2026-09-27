@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { SqliteCacheService } from './sqliteCacheService.js';
 import { SpendingService } from './spendingService.js';
 import { ErrorLoggingService } from './errorLoggingService.js';
+import { BACKUPS_DIR, DB_PATH, REPOS_DIR } from '../config/paths.js';
 
 export interface DatabaseBackupManifest {
   fileName: string;
@@ -66,9 +67,9 @@ export interface VerificationResult {
  *  - Tamper detection and SQLite PRAGMA integrity_check validation
  */
 export class BackupService {
-  private static BACKUPS_DIR = path.resolve('storage', 'backups');
-  private static DB_PATH = path.resolve('storage', 'codesage_cache.db');
-  private static REPOS_DIR = path.resolve('storage', 'repos');
+  private static BACKUPS_DIR = BACKUPS_DIR;
+  private static DB_PATH = DB_PATH;
+  private static REPOS_DIR = REPOS_DIR;
 
   private static ensureDirs(): void {
     if (!fs.existsSync(this.BACKUPS_DIR)) {
