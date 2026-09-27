@@ -8,27 +8,76 @@ import { SqliteCacheService } from '../services/sqliteCacheService.js';
 import { SpendingService } from '../services/spendingService.js';
 import { GitReverseService } from '../services/gitReverseService.js';
 import { generateRepositoryInsights, answerRepositoryQuery, streamRepositoryQuery, checkGeminiHealth } from '../services/geminiService.js';
-import { RATE_LIMIT_CONFIG, RESOURCE_LIMITS, SPENDING_CAP_CONFIG } from '../config/limits.js';
+import { PaymentService } from '../services/paymentService.js';
+import { CompressionService } from '../services/compressionService.js';
+import { idempotency } from '../middleware/idempotency.js';
+import { repositoryArchiveUpload } from '../middleware/uploadLimiter.js';
+import { cacheRepeatRequests } from '../middleware/cacheMiddleware.js';
+import { RepeatRequestCacheService } from '../services/repeatRequestCache.js';
+import { UptimeMonitoringService } from '../services/uptimeService.js';
+import { ErrorLoggingService } from '../services/errorLoggingService.js';
+import { BackupService } from '../services/backupService.js';
+import { RATE_LIMIT_CONFIG, RESOURCE_LIMITS, SPENDING_CAP_CONFIG, TIMEOUT_CONFIG } from '../config/limits.js';
 import {
   cloneLimiter,
   chatLimiter,
   reversePromptLimiter,
   healthLimiter,
 } from '../middleware/rateLimiter.js';
+import { requestTimeout } from '../middleware/requestTimeout.js';
 
 export const apiRouter = Router();
+
+// Inflight request coalescing registry (Single-Flight pattern) to prevent duplicate simultaneous executions
+const inflightExcavations = new Map<string, Promise<any>>();
+const inflightPrompts = new Map<string, Promise<any>>();
+const inflightBranches = new Map<string, Promise<any>>();
 
 const PROJECT_NAME = 'CodeSage';
 const VERSION = '0.1.0';
 
-// Health check endpoint
+// Health check endpoint enriched with uptime and subsystem telemetry
 apiRouter.get('/health', healthLimiter, async (req: Request, res: Response) => {
   const gemini = await checkGeminiHealth(false);
+  const uptimeReport = await UptimeMonitoringService.getReport();
+  const errorStats = ErrorLoggingService.getStats();
   res.json({
     project: PROJECT_NAME,
     version: VERSION,
-    status: 'healthy',
+    status: uptimeReport.status,
+    uptime_seconds: uptimeReport.uptime_seconds,
+    uptime_formatted: uptimeReport.uptime_formatted,
+    uptime_sla_percentage: uptimeReport.uptime_sla_percentage,
     gemini,
+    subsystems: uptimeReport.subsystems,
+    cache_stats: uptimeReport.cache_performance,
+    error_stats: errorStats,
+  });
+});
+
+// Comprehensive Uptime and System Telemetry endpoint
+apiRouter.get('/uptime', healthLimiter, async (_req: Request, res: Response) => {
+  const report = await UptimeMonitoringService.getReport();
+  return res.json(report);
+});
+
+// Container Liveness Probe (RFC standard)
+apiRouter.get('/health/liveness', (_req: Request, res: Response) => {
+  return res.json({
+    status: 'ok',
+    uptime_seconds: Math.floor(process.uptime()),
+    timestamp: Date.now(),
+  });
+});
+
+// Container Readiness Probe (Verifies DB, Disk, and Memory before accepting traffic)
+apiRouter.get('/health/readiness', async (_req: Request, res: Response) => {
+  const report = await UptimeMonitoringService.getReport();
+  const isReady = report.status !== 'outage';
+  return res.status(isReady ? 200 : 503).json({
+    ready: isReady,
+    status: report.status,
+    subsystems: report.subsystems,
   });
 });
 
@@ -39,8 +88,8 @@ apiRouter.get('/gemini/health', healthLimiter, async (req: Request, res: Respons
   return res.json(health);
 });
 
-// Expose configured API rate & resource limits and spending caps
-apiRouter.get('/limits', (_req: Request, res: Response) => {
+// Expose configured API rate & resource limits and spending caps (Cached for 60s)
+apiRouter.get('/limits', cacheRepeatRequests({ ttlMs: 60_000 }), (_req: Request, res: Response) => {
   res.json({
     rate_limits: {
       window_ms: RATE_LIMIT_CONFIG.WINDOW_MS,
@@ -59,12 +108,40 @@ apiRouter.get('/limits', (_req: Request, res: Response) => {
       max_chat_message_length: RESOURCE_LIMITS.MAX_CHAT_MESSAGE_LENGTH,
       max_url_length: RESOURCE_LIMITS.MAX_URL_LENGTH,
       max_branch_name_length: RESOURCE_LIMITS.MAX_BRANCH_NAME_LENGTH,
+      max_upload_size_mb: RESOURCE_LIMITS.MAX_UPLOAD_SIZE_MB,
+      max_upload_size_bytes: RESOURCE_LIMITS.MAX_UPLOAD_SIZE_BYTES,
+    },
+    compression: {
+      enabled: true,
+      threshold_bytes: 1024,
+      supported_archive_formats: ['tar.gz', 'zip'],
+      max_upload_size_mb: RESOURCE_LIMITS.MAX_UPLOAD_SIZE_MB,
+      max_upload_size_bytes: RESOURCE_LIMITS.MAX_UPLOAD_SIZE_BYTES,
     },
     spending_caps: {
       daily_spend_cap_usd: SPENDING_CAP_CONFIG.DAILY_SPEND_CAP_USD,
       monthly_spend_cap_usd: SPENDING_CAP_CONFIG.MONTHLY_SPEND_CAP_USD,
       daily_token_cap: SPENDING_CAP_CONFIG.DAILY_TOKEN_CAP,
       max_output_tokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
+    },
+    timeouts: {
+      clone_timeout_ms: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
+      ls_remote_timeout_ms: TIMEOUT_CONFIG.LS_REMOTE_TIMEOUT_MS,
+      github_api_timeout_ms: TIMEOUT_CONFIG.GITHUB_API_TIMEOUT_MS,
+      gemini_insights_timeout_ms: TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
+      gemini_chat_timeout_ms: TIMEOUT_CONFIG.GEMINI_CHAT_TIMEOUT_MS,
+      gemini_probe_timeout_ms: TIMEOUT_CONFIG.GEMINI_PROBE_TIMEOUT_MS,
+      gitreverse_timeout_ms: TIMEOUT_CONFIG.GITREVERSE_TIMEOUT_MS,
+      excavation_http_timeout_ms: TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS,
+      general_request_timeout_ms: TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS,
+    },
+    db_optimizations: {
+      wal_mode: true,
+      prepared_statements: true,
+      covering_indexes: true,
+      duplicate_payment_prevention: true,
+      in_memory_micro_cache: true,
+      cache_stats: SqliteCacheService.getStats(),
     },
     current_spending: SpendingService.getSpendingSummary(),
   });
@@ -73,6 +150,85 @@ apiRouter.get('/limits', (_req: Request, res: Response) => {
 // Dedicated spending and budget breakdown endpoint
 apiRouter.get('/spending', (_req: Request, res: Response) => {
   return res.json(SpendingService.getSpendingSummary());
+});
+
+// Paginated spending & token usage history endpoint
+apiRouter.get('/spending/records', async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 15;
+    const service = req.query.service as string | undefined;
+    const repositoryId = (req.query.repository_id || req.query.repositoryId) as string | undefined;
+
+    const result = SpendingService.getPaginatedUsage({
+      page,
+      limit,
+      service,
+      repositoryId,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
+  }
+});
+
+// Top-up budget with duplicate payment prevention (strict Idempotency-Key header enforcement)
+apiRouter.post('/payments/topup', idempotency({ requireKey: true }), async (req: Request, res: Response) => {
+  try {
+    const idempotencyKey = (
+      (req.headers['idempotency-key'] || req.headers['x-idempotency-key']) as string ||
+      req.body?.idempotencyKey
+    )?.trim();
+
+    const amountUsd = parseFloat(req.body?.amountUsd ?? req.body?.amount);
+    const paymentMethod = req.body?.paymentMethod || 'card';
+    const description = req.body?.description || 'CodeSage Budget Top-Up';
+
+    if (!idempotencyKey) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        detail: 'An Idempotency-Key header is required to process payments and prevent duplicate charges.',
+        code: 'IDEMPOTENCY_KEY_REQUIRED',
+      });
+    }
+
+    if (isNaN(amountUsd) || amountUsd <= 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        detail: 'Invalid top-up amount. Must be a positive number in USD.',
+        code: 'INVALID_AMOUNT',
+      });
+    }
+
+    const result = PaymentService.processTopUp({
+      idempotencyKey,
+      amountUsd,
+      paymentMethod,
+      description,
+    });
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message || 'Payment processing error' });
+  }
+});
+
+// Paginated payment transaction history endpoint for auditing
+apiRouter.get('/payments/history', async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const status = req.query.status as string | undefined;
+
+    const result = PaymentService.getPaginatedHistory({
+      page,
+      limit,
+      status,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
+  }
 });
 
 // Server SQLite cache stats endpoint
@@ -85,33 +241,181 @@ apiRouter.get('/cache/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// Clear server SQLite cache endpoint
+// Clear server cache endpoint (Clears both SQLite persistent cache and in-memory repeat request cache)
 apiRouter.delete('/cache', async (_req: Request, res: Response) => {
   try {
     const cleared = SqliteCacheService.clear();
-    return res.json({ success: cleared });
+    const inMemCleared = RepeatRequestCacheService.invalidate();
+    return res.json({ success: cleared, in_memory_entries_cleared: inMemCleared });
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
   }
 });
 
-// List remote branches for a repository without full cloning
-apiRouter.get('/repositories/branches', async (req: Request, res: Response) => {
+// ==========================================
+// ERROR LOGGING TELEMETRY & MANAGEMENT
+// ==========================================
+
+// Paginated query for system error logs
+apiRouter.get('/logs/errors', async (req: Request, res: Response) => {
+  try {
+    const { page, limit, level, code, search, since } = req.query;
+    const result = ErrorLoggingService.getLogs({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      level: level as any,
+      code: code as string,
+      search: search as string,
+      since: since ? Number(since) : undefined,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Internal Server Error', detail: err.message });
+  }
+});
+
+// Aggregate statistics and top error codes
+apiRouter.get('/logs/stats', async (_req: Request, res: Response) => {
+  try {
+    const stats = ErrorLoggingService.getStats();
+    return res.json(stats);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Internal Server Error', detail: err.message });
+  }
+});
+
+// Clear or prune error logs
+apiRouter.delete('/logs/errors', async (req: Request, res: Response) => {
+  try {
+    const retentionDays = req.query.retention_days ? Number(req.query.retention_days) : undefined;
+    if (retentionDays !== undefined) {
+      const pruned = ErrorLoggingService.prune(retentionDays);
+      return res.json({ success: true, pruned_records: pruned });
+    }
+    ErrorLoggingService.clear();
+    return res.json({ success: true, message: 'All error logs cleared.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Internal Server Error', detail: err.message });
+  }
+});
+
+// ==========================================
+// SYSTEM BACKUP & DISASTER RECOVERY
+// ==========================================
+
+// List all system backups
+apiRouter.get('/system/backups', async (_req: Request, res: Response) => {
+  try {
+    const backups = await BackupService.listBackups();
+    return res.json({ backups, count: backups.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Backup Error', detail: err.message });
+  }
+});
+
+// Create a new full system snapshot backup
+apiRouter.post('/system/backups', async (req: Request, res: Response) => {
+  try {
+    const label = req.body?.label;
+    const manifest = await BackupService.createBackup({ label });
+    return res.status(201).json({ success: true, backup: manifest });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Backup Creation Failed', detail: err.message });
+  }
+});
+
+// Verify integrity of an existing backup archive
+apiRouter.get('/system/backups/:backup_id/verify', async (req: Request, res: Response) => {
+  try {
+    const result = await BackupService.verifyBackup(req.params.backup_id);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Backup Verification Failed', detail: err.message });
+  }
+});
+
+// Restore system state from backup archive
+apiRouter.post('/system/backups/:backup_id/restore', async (req: Request, res: Response) => {
+  try {
+    const skipRollback = req.body?.skip_rollback === true;
+    const result = await BackupService.restoreBackup(req.params.backup_id, { skipRollback });
+    return res.json({ message: 'System state successfully restored.', ...result });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Restoration Failed', detail: err.message });
+  }
+});
+
+// Delete a backup archive
+apiRouter.delete('/system/backups/:backup_id', async (req: Request, res: Response) => {
+  try {
+    const deleted = BackupService.deleteBackup(req.params.backup_id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Not Found', detail: 'Backup archive not found.' });
+    }
+    return res.json({ success: true, message: 'Backup archive deleted.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Delete Backup Failed', detail: err.message });
+  }
+});
+
+// List remote branches for a repository without full cloning (Cached for 3m with in-flight deduplication)
+apiRouter.get(
+  '/repositories/branches',
+  cacheRepeatRequests({ ttlMs: 180_000 }),
+  requestTimeout(TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS, 'Branch check'),
+  async (req: Request, res: Response) => {
   try {
     const url = req.query.url as string;
     if (!url || !url.trim()) {
       return res.status(400).json({ detail: 'Query parameter "url" is required.' });
     }
 
-    const branchesInfo = await RepoCloneService.getRemoteBranches(url.trim());
-    return res.json(branchesInfo);
+    const trimmedUrl = url.trim();
+
+    // Check if an in-flight branch check is already running for this exact URL
+    if (inflightBranches.has(trimmedUrl)) {
+      const branchesInfo = await inflightBranches.get(trimmedUrl);
+      return res.json(branchesInfo);
+    }
+
+    const branchPromise = RepoCloneService.getRemoteBranches(trimmedUrl);
+    inflightBranches.set(trimmedUrl, branchPromise);
+
+    try {
+      const branchesInfo = await branchPromise;
+      return res.json(branchesInfo);
+    } finally {
+      inflightBranches.delete(trimmedUrl);
+    }
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
   }
 });
 
-// Submit repository endpoint with SQLite fast cache retrieval
-apiRouter.post('/repositories', cloneLimiter, async (req: Request, res: Response) => {
+// Paginated repository list endpoint querying indexed SQLite metadata cache
+apiRouter.get('/repositories', async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string | undefined;
+    const sortBy = req.query.sortBy as any;
+    const order = req.query.order as any;
+
+    const result = SqliteCacheService.listPaginated({
+      page,
+      limit,
+      search,
+      sortBy,
+      order,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ detail: err.message });
+  }
+});
+
+// Submit repository endpoint with SQLite fast cache retrieval and Single-Flight coalescing
+apiRouter.post('/repositories', cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS, 'Repository excavation'), async (req: Request, res: Response) => {
   try {
     const { url, branch, force_refresh } = req.body;
     if (!url || typeof url !== 'string' || !url.trim()) {
@@ -132,18 +436,18 @@ apiRouter.post('/repositories', cloneLimiter, async (req: Request, res: Response
       });
     }
 
+    const normalized = RepoValidationService.validateAndNormalizeUrl(url);
+    const targetBranch = branch || 'main';
+    const expectedRepoId = RepoCloneService.generateRepositoryId(
+      normalized.owner,
+      normalized.repo,
+      normalized.normalized_url,
+      targetBranch
+    );
+
     // 1. Check SQLite fast cache first if fresh re-dig was not explicitly requested
     if (!force_refresh) {
       try {
-        const normalized = RepoValidationService.validateAndNormalizeUrl(url);
-        const targetBranch = branch || 'main';
-        const expectedRepoId = RepoCloneService.generateRepositoryId(
-          normalized.owner,
-          normalized.repo,
-          normalized.normalized_url,
-          targetBranch
-        );
-
         // Try SQLite cache
         const sqliteCached = SqliteCacheService.get(expectedRepoId);
         if (sqliteCached) {
@@ -171,70 +475,299 @@ apiRouter.post('/repositories', cloneLimiter, async (req: Request, res: Response
       }
     }
 
-    const [repoPath, metadata] = await RepoCloneService.cloneRepository(
-      url,
-      RESOURCE_LIMITS.MAX_REPO_FILES,
-      RESOURCE_LIMITS.MAX_REPO_SIZE_MB,
-      undefined,
-      branch
-    );
-    const analysis = RepoAnalysisService.analyzeRepository(repoPath);
+    // 2. Single-Flight Inflight Coalescing: Attach to existing active clone/analysis if running
+    if (inflightExcavations.has(expectedRepoId)) {
+      console.log(`[SingleFlight] Coalescing duplicate excavation request for: ${expectedRepoId}`);
+      try {
+        const sharedResult = await inflightExcavations.get(expectedRepoId);
+        return res.json({
+          ...sharedResult,
+          from_cache: false,
+          coalesced: true,
+        });
+      } catch (err: any) {
+        return res.status(400).json({ detail: err.message || 'Error processing repository.' });
+      }
+    }
 
-    const initialData: any = {
-      repository_id: metadata.repository_id,
-      status: 'ready',
-      overview: {
+    // 3. Initiate single excavation execution
+    const excavationTask = (async () => {
+      const [repoPath, metadata] = await RepoCloneService.cloneRepository(
+        url,
+        RESOURCE_LIMITS.MAX_REPO_FILES,
+        RESOURCE_LIMITS.MAX_REPO_SIZE_MB,
+        undefined,
+        branch
+      );
+      const analysis = RepoAnalysisService.analyzeRepository(repoPath);
+
+      const initialData: any = {
         repository_id: metadata.repository_id,
-        owner: metadata.owner,
-        repo: metadata.repo,
-        branch: metadata.branch || 'main',
-        files: metadata.files,
-        size_mb: metadata.size_mb,
-        normalized_url: metadata.normalized_url,
-      },
-      facts: {
-        repository_id: metadata.repository_id,
-        url: metadata.normalized_url,
-        branch: metadata.branch || 'main',
-        languages: analysis.languages,
-        frameworks: analysis.frameworks,
-        important_files: analysis.important_files,
-        tree_summary: analysis.tree_summary,
-        stats: analysis.stats,
-      },
-      learning_path: [] as string[],
-      architecture_summary: '',
-      storage_path: metadata.storage_path,
-    };
+        status: 'ready',
+        overview: {
+          repository_id: metadata.repository_id,
+          owner: metadata.owner,
+          repo: metadata.repo,
+          branch: metadata.branch || 'main',
+          files: metadata.files,
+          size_mb: metadata.size_mb,
+          normalized_url: metadata.normalized_url,
+        },
+        facts: {
+          repository_id: metadata.repository_id,
+          url: metadata.normalized_url,
+          branch: metadata.branch || 'main',
+          languages: analysis.languages,
+          frameworks: analysis.frameworks,
+          important_files: analysis.important_files,
+          tree_summary: analysis.tree_summary,
+          stats: analysis.stats,
+        },
+        learning_path: [] as string[],
+        architecture_summary: '',
+        storage_path: metadata.storage_path,
+      };
 
-    // Generate Gemini insights (GitReverse prompt is fetched on-demand to save requests)
-    const insights = await generateRepositoryInsights(initialData);
+      // Generate Gemini insights (GitReverse prompt is fetched on-demand to save requests)
+      const insights = await generateRepositoryInsights(initialData);
 
-    initialData.learning_path = insights.learning_path;
-    initialData.architecture_summary = insights.architecture_summary;
-    initialData.gemini_available = insights.gemini_available;
-    initialData.gemini_status = insights.gemini_status;
+      initialData.learning_path = insights.learning_path;
+      initialData.architecture_summary = insights.architecture_summary;
+      initialData.gemini_available = insights.gemini_available;
+      initialData.gemini_status = insights.gemini_status;
 
-    // Persist response metadata to disk
-    const metadataFile = path.join(path.dirname(repoPath), 'metadata.json');
-    fs.mkdirSync(path.dirname(metadataFile), { recursive: true });
-    fs.writeFileSync(metadataFile, JSON.stringify(initialData, null, 2), 'utf-8');
+      // Persist response metadata to disk
+      const metadataFile = path.join(path.dirname(repoPath), 'metadata.json');
+      fs.mkdirSync(path.dirname(metadataFile), { recursive: true });
+      fs.writeFileSync(metadataFile, JSON.stringify(initialData, null, 2), 'utf-8');
 
-    // Index into SQLite cache for sub-10ms instant subsequent retrieval
-    SqliteCacheService.set(initialData);
+      // Index into SQLite cache for sub-10ms instant subsequent retrieval
+      SqliteCacheService.set(initialData);
 
-    return res.json({
-      ...initialData,
-      from_cache: false,
-      cache_source: 'fresh',
-    });
+      return {
+        ...initialData,
+        from_cache: false,
+        cache_source: 'fresh',
+      };
+    })();
+
+    inflightExcavations.set(expectedRepoId, excavationTask);
+
+    try {
+      const result = await excavationTask;
+      return res.json(result);
+    } finally {
+      inflightExcavations.delete(expectedRepoId);
+    }
   } catch (err: any) {
     return res.status(400).json({ detail: err.message || 'Error processing repository.' });
   }
 });
 
-// Dedicated endpoint to fetch or regenerate GitReverse prompt for a repository
-apiRouter.get('/repositories/:repo_id/reverse-prompt', reversePromptLimiter, async (req: Request, res: Response) => {
+// Upload and excavate compressed repository archive (.zip, .tar.gz, .tgz)
+// Enforces 50MB limit with upfront Content-Length and streaming multipart validation
+apiRouter.post(
+  '/repositories/upload',
+  cloneLimiter,
+  repositoryArchiveUpload('archive'),
+  requestTimeout(TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS, 'Archive extraction and analysis'),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          detail: 'Archive file is required under form field "archive". Supported formats: .zip, .tar.gz, .tgz, .tar',
+          code: 'ARCHIVE_REQUIRED',
+        });
+      }
+
+      const originalName = req.file.originalname;
+      const baseName = (req.body.name as string) || path.basename(originalName, path.extname(originalName)).replace(/\.tar$/i, '');
+      const cleanRepoName = (baseName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase() || 'local_repo').substring(0, 50);
+      const uniqueSuffix = Date.now().toString(36);
+      const repoId = `upload_${cleanRepoName}_${uniqueSuffix}`;
+
+      const targetDir = path.resolve('storage', 'repos', repoId, 'source');
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      // Safely extract archive with Zip-Slip path containment and size checks
+      const extractResult = await CompressionService.extractArchive(req.file.path, targetDir);
+
+      // Analyze extracted source code
+      const analysis = RepoAnalysisService.analyzeRepository(targetDir);
+
+      const initialData: any = {
+        repository_id: repoId,
+        status: 'ready',
+        overview: {
+          repository_id: repoId,
+          owner: 'upload',
+          repo: cleanRepoName,
+          branch: 'main',
+          files: extractResult.fileCount,
+          size_mb: parseFloat((extractResult.totalSizeBytes / (1024 * 1024)).toFixed(2)),
+          normalized_url: `upload://${originalName}`,
+        },
+        facts: {
+          repository_id: repoId,
+          url: `upload://${originalName}`,
+          branch: 'main',
+          languages: analysis.languages,
+          frameworks: analysis.frameworks,
+          important_files: analysis.important_files,
+          tree_summary: analysis.tree_summary,
+          stats: analysis.stats,
+        },
+        learning_path: [] as string[],
+        architecture_summary: '',
+        storage_path: targetDir,
+      };
+
+      // Generate Gemini insights
+      const insights = await generateRepositoryInsights(initialData);
+      initialData.learning_path = insights.learning_path;
+      initialData.architecture_summary = insights.architecture_summary;
+      initialData.gemini_available = insights.gemini_available;
+      initialData.gemini_status = insights.gemini_status;
+
+      // Persist response metadata to disk
+      const metadataFile = path.resolve('storage', 'repos', repoId, 'metadata.json');
+      fs.mkdirSync(path.dirname(metadataFile), { recursive: true });
+      fs.writeFileSync(metadataFile, JSON.stringify(initialData, null, 2), 'utf-8');
+
+      // Index into SQLite cache for instant subsequent retrieval
+      SqliteCacheService.set(initialData);
+
+      return res.json({
+        ...initialData,
+        from_cache: false,
+        cache_source: 'upload',
+      });
+    } catch (err: any) {
+      console.error('[UploadArchive] Error processing uploaded archive:', err);
+      return res.status(400).json({
+        error: 'Archive Processing Failed',
+        detail: err.message || 'Error processing uploaded repository archive.',
+        code: 'ARCHIVE_PROCESSING_ERROR',
+      });
+    }
+  }
+);
+
+// Export and download compressed repository archive (.tar.gz or .zip)
+apiRouter.get(
+  '/repositories/:repo_id/archive',
+  requestTimeout(TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS, 'Archive creation and export'),
+  async (req: Request, res: Response) => {
+    try {
+      const repoId = req.params.repo_id;
+      const format = (req.query.format as string) === 'zip' ? 'zip' : 'tar.gz';
+
+      // Security check on repoId parameter
+      if (!repoId || !/^[a-zA-Z0-9_-]+$/.test(repoId)) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          detail: 'Invalid repository identifier.',
+          code: 'INVALID_REPO_ID',
+        });
+      }
+
+      const exportResult = await CompressionService.createRepositoryArchive(repoId, format);
+
+      res.setHeader('Content-Type', exportResult.mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${exportResult.fileName}"`);
+      res.setHeader('Content-Length', exportResult.sizeBytes);
+
+      return res.download(exportResult.archivePath, exportResult.fileName, (err) => {
+        if (err && !res.headersSent) {
+          console.error(`[ArchiveExport] Download error for ${repoId}:`, err);
+          res.status(500).json({ detail: `Error streaming archive: ${err.message}` });
+        }
+      });
+    } catch (err: any) {
+      return res.status(404).json({
+        error: 'Archive Creation Failed',
+        detail: err.message || 'Error creating repository archive.',
+        code: 'ARCHIVE_EXPORT_FAILED',
+      });
+    }
+  }
+);
+
+// Compress and optimize image (PNG, JPEG, WebP, SVG)
+apiRouter.post(
+  '/tools/compress-image',
+  requestTimeout(TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS, 'Image compression'),
+  async (req: Request, res: Response) => {
+    try {
+      const { image, mimeType, maxWidth, quality, download } = req.body || {};
+      if (!image) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          detail: 'No image provided. Please supply base64 string or data URL.',
+          code: 'MISSING_IMAGE',
+        });
+      }
+
+      let buffer: Buffer;
+      let detectedMime = (mimeType as string) || 'image/png';
+
+      if (typeof image === 'string' && image.startsWith('data:')) {
+        const parts = image.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        if (mimeMatch) detectedMime = mimeMatch[1];
+        buffer = Buffer.from(parts[1], 'base64');
+      } else if (typeof image === 'string') {
+        buffer = Buffer.from(image, 'base64');
+      } else if (Buffer.isBuffer(image)) {
+        buffer = image;
+      } else {
+        return res.status(400).json({
+          error: 'Bad Request',
+          detail: 'Unsupported image format. Provide base64 or data URL.',
+          code: 'INVALID_IMAGE_FORMAT',
+        });
+      }
+
+      const result = await CompressionService.compressImageBuffer(buffer, detectedMime, {
+        maxWidth: maxWidth ? Number(maxWidth) : undefined,
+        quality: quality ? Number(quality) : undefined,
+      });
+
+      if (download === true || req.query.download === 'true') {
+        res.setHeader('Content-Type', result.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="compressed.${result.format}"`);
+        res.setHeader('Content-Length', result.compressedSizeBytes);
+        return res.send(result.buffer);
+      }
+
+      return res.json({
+        success: true,
+        originalSizeBytes: result.originalSizeBytes,
+        compressedSizeBytes: result.compressedSizeBytes,
+        savingsBytes: result.savingsBytes,
+        savingsPercentage: result.savingsPercentage,
+        mimeType: result.mimeType,
+        format: result.format,
+        compressedBase64: `data:${result.mimeType};base64,${result.buffer.toString('base64')}`,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        error: 'Compression Failed',
+        detail: err.message || 'Error executing image compression.',
+        code: 'IMAGE_COMPRESSION_ERROR',
+      });
+    }
+  }
+);
+
+// Dedicated endpoint to fetch or regenerate GitReverse prompt for a repository (Cached for 10m with deduplication)
+apiRouter.get(
+  '/repositories/:repo_id/reverse-prompt',
+  cacheRepeatRequests({ ttlMs: 600_000 }),
+  reversePromptLimiter,
+  requestTimeout(TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS, 'Reverse prompt generation'),
+  async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
     const force = req.query.force === 'true';
@@ -260,22 +793,38 @@ apiRouter.get('/repositories/:repo_id/reverse-prompt', reversePromptLimiter, asy
       return res.json(repoData.gitreverse_prompt);
     }
 
-    // 3. Fetch from GitReverse with fallback
-    const result = await GitReverseService.fetchReversePrompt(
-      repoData.facts?.url || repoData.overview?.normalized_url,
-      repoData.overview?.owner,
-      repoData.overview?.repo,
-      repoData
-    );
-
-    // Update in memory and cache
-    repoData.gitreverse_prompt = result;
-    SqliteCacheService.set(repoData);
-    if (fs.existsSync(metadataFile)) {
-      fs.writeFileSync(metadataFile, JSON.stringify(repoData, null, 2), 'utf-8');
+    // 3. Single-Flight Coalescing: Attach to active prompt generation if running
+    if (inflightPrompts.has(repoId)) {
+      const existingResult = await inflightPrompts.get(repoId);
+      return res.json(existingResult);
     }
 
-    return res.json(result);
+    const promptTask = (async () => {
+      const result = await GitReverseService.fetchReversePrompt(
+        repoData.facts?.url || repoData.overview?.normalized_url,
+        repoData.overview?.owner,
+        repoData.overview?.repo,
+        repoData
+      );
+
+      // Update in memory and cache
+      repoData.gitreverse_prompt = result;
+      SqliteCacheService.set(repoData);
+      if (fs.existsSync(metadataFile)) {
+        fs.writeFileSync(metadataFile, JSON.stringify(repoData, null, 2), 'utf-8');
+      }
+
+      return result;
+    })();
+
+    inflightPrompts.set(repoId, promptTask);
+
+    try {
+      const result = await promptTask;
+      return res.json(result);
+    } finally {
+      inflightPrompts.delete(repoId);
+    }
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
   }
@@ -330,6 +879,48 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
 
     const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
 
+    // Repeat query caching: Return cached answers immediately for identical repeat queries (< 1ms)
+    const normalizedMessage = message.trim().toLowerCase().replace(/[?!.,]+$/, '');
+    const queryCacheKey = `chat:${repoId}:${style || 'technical'}:${normalizedMessage}`;
+    const bypassCache = req.query.force_refresh === 'true' || req.headers['cache-control'] === 'no-cache';
+
+    if (!bypassCache) {
+      const cached = RepeatRequestCacheService.get<any>(queryCacheKey);
+      if (cached) {
+        if (wantsStream) {
+          let isClientConnected = true;
+          req.on('close', () => { isClientConnected = false; });
+
+          res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.setHeader('Connection', 'keep-alive');
+          res.setHeader('X-Cache', 'HIT');
+          res.flushHeaders?.();
+
+          const sendEvent = (event: string, data: any) => {
+            if (isClientConnected && !res.writableEnded && res.writable) {
+              res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+            }
+          };
+
+          sendEvent('status', { status: 'cached', model: 'in-memory-cache' });
+          sendEvent('chunk', { delta: cached.data.answer });
+          sendEvent('done', {
+            answer: cached.data.answer,
+            gemini_status: cached.data.gemini_status,
+            from_cache: true,
+          });
+          return res.end();
+        } else {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json({
+            ...cached.data,
+            from_cache: true,
+          });
+        }
+      }
+    }
+
     if (wantsStream) {
       let isClientConnected = true;
       req.on('close', () => {
@@ -365,6 +956,9 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
           }
         );
 
+        // Cache completed query for 30 minutes to eliminate redundant Gemini API quota usage
+        RepeatRequestCacheService.set(queryCacheKey, result, { ttlMs: 1800_000 });
+
         if (isClientConnected) {
           sendEvent('done', {
             answer: result.answer,
@@ -384,6 +978,8 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
     }
 
     const result = await answerRepositoryQuery(repoData, message, style || 'technical');
+    // Cache non-streaming result for 30 minutes
+    RepeatRequestCacheService.set(queryCacheKey, result, { ttlMs: 1800_000 });
     return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ detail: err.message });
@@ -469,9 +1065,87 @@ const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
 // Maximum text preview limit
 const MAX_PREVIEW_BYTES = RESOURCE_LIMITS.MAX_PREVIEW_BYTES;
 
-// Get file content endpoint supporting both query param (?path=...) and wildcard path (/files/*)
-apiRouter.get('/repositories/:repo_id/file', handleGetFileContent);
-apiRouter.get('/repositories/:repo_id/files/*', handleGetFileContent);
+// Paginated repository files list endpoint for large codebases (Cached for 2m)
+apiRouter.get(
+  '/repositories/:repo_id/files',
+  cacheRepeatRequests({ ttlMs: 120_000 }),
+  async (req: Request, res: Response) => {
+  try {
+    const repoId = req.params.repo_id;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const search = ((req.query.search as string) || '').trim().toLowerCase();
+    const extension = ((req.query.extension as string) || '').trim().toLowerCase();
+
+    const repoDir = path.resolve('storage', 'repos', repoId, 'source');
+    if (!fs.existsSync(repoDir)) {
+      return res.status(404).json({
+        detail: `Repository with ID '${repoId}' source files not found. Please submit it first.`,
+      });
+    }
+
+    const allFiles: Array<{ path: string; name: string; extension: string; size_bytes: number; is_binary: boolean }> = [];
+
+    const scanDir = (dir: string, base: string = '') => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith('.git') || entry.name === 'node_modules') continue;
+        const relPath = base ? `${base}/${entry.name}` : entry.name;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          scanDir(fullPath, relPath);
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase();
+          let size = 0;
+          try {
+            size = fs.statSync(fullPath).size;
+          } catch {}
+          allFiles.push({
+            path: relPath,
+            name: entry.name,
+            extension: ext,
+            size_bytes: size,
+            is_binary: BINARY_EXTENSIONS.has(ext),
+          });
+        }
+      }
+    };
+    scanDir(repoDir);
+
+    let filtered = allFiles;
+    if (search) {
+      filtered = filtered.filter(f => f.path.toLowerCase().includes(search) || f.name.toLowerCase().includes(search));
+    }
+    if (extension) {
+      const cleanExt = extension.startsWith('.') ? extension : `.${extension}`;
+      filtered = filtered.filter(f => f.extension.toLowerCase() === cleanExt);
+    }
+
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const offset = (page - 1) * limit;
+    const pagedFiles = filtered.slice(offset, offset + limit);
+
+    return res.json({
+      repository_id: repoId,
+      files: pagedFiles,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ detail: `Error listing files: ${err.message}` });
+  }
+});
+
+// Get file content endpoint supporting both query param (?path=...) and wildcard path (/files/*) (Cached for 5m)
+apiRouter.get('/repositories/:repo_id/file', cacheRepeatRequests({ ttlMs: 300_000 }), handleGetFileContent);
+apiRouter.get('/repositories/:repo_id/files/*', cacheRepeatRequests({ ttlMs: 300_000 }), handleGetFileContent);
 
 async function handleGetFileContent(req: Request, res: Response) {
   try {
