@@ -19,6 +19,10 @@
       "destination": "/logos/$1"
     },
     {
+      "source": "/server.cjs(.*)",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
