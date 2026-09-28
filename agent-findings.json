@@ -1,0 +1,615 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-28T05:03:10.625Z",
+  "scope": "Avnish1447-agent-findings",
+  "total": 13,
+  "findings": [
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "e968b267-9d00-4e06-8f1e-cdb03b3b71e9",
+      "category": "authorization_bypass",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "src/lib/supabase.ts:25 — createClient uses the browser anonymous key.",
+        "src/lib/supabase.ts:70 — a history upsert reaches Supabase.",
+        "supabase_schema.sql:44 — INSERT accepts any user_id [sink].",
+        "supabase_schema.sql:50 — UPDATE accepts any existing and replacement row [sink].",
+        "supabase_schema.sql:57 — DELETE accepts any row [sink]."
+      ],
+      "exploitability": "difficult",
+      "filePath": "supabase_schema.sql",
+      "startLine": 44,
+      "endLine": 44,
+      "description": "The INSERT policy accepts any user_id, while the adjacent UPDATE and DELETE policies accept any existing row. An anonymous Supabase caller can therefore create, change, or remove repository history attributed to another user when the table is available to the anonymous role.\n\n**Evidence**\n- Source/control: A caller using the browser-published Supabase URL and anonymous key who chooses a user_id or an existing row ID.\n- Sink/decision: The unrestricted INSERT policy on public.user_repo_history, with adjacent unrestricted UPDATE and DELETE policies.\n- Missing mitigation: The write policies do not restrict rows to a user identity verified by Supabase.",
+      "recommendation": "Pass a verifiable user token to Supabase and require its subject to match user_id for INSERT and UPDATE. Restrict DELETE to the verified owner or remove that policy if deletion is unnecessary.",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "c1683d5ed4a12b26f750e5ad2568ddd3b4d9e58c60fc6f5c6ad5e2a0c55426c9",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "(root)",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 1
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "d978956a-bb9c-4296-beb5-fbac6c366ccf",
+      "category": "authorization_bypass",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server.ts:38 — Express accepts the HTTP request.",
+        "server/app.ts:61 — The API router receives the request.",
+        "server/routes/api.ts:321 — The log deletion route invokes adminGuard.",
+        "server/routes/api.ts:53 — adminGuard admits the request without a credential.",
+        "server/services/errorLoggingService.ts:501 — clear() deletes persisted logs."
+      ],
+      "exploitability": "difficult",
+      "filePath": "server/routes/api.ts",
+      "startLine": 53,
+      "endLine": 54,
+      "description": "The administrator guard treats nonproduction mode as authorization. A caller who can reach the server in that mode can clear operational error records without an administrator credential.\n\n**Evidence**\n- Source/control: Unauthenticated DELETE /api/v1/logs/errors request.\n- Sink/decision: ErrorLoggingService.clear deletes error_logs rows and truncates the log file.\n- Missing mitigation: The log deletion route does not require administrator authorization in every network-reachable server mode.",
+      "recommendation": "Apply administrator authorization to log deletion in every mode, or confine intentionally unauthenticated development access to a trusted local interface.",
+      "cwe": "CWE-862",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "83f99838249b282756f684c13aca60b41489b611ee0022595a56690db52c4b7b",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 2
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "cc783cf2-8d5e-4d06-baac-27641e394c88",
+      "category": "other",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server/routes/api.ts:411 — The route reads the URL query parameter.",
+        "server/routes/api.ts:424 — The route calls getRemoteBranches.",
+        "server/services/repoCloneService.ts:47 — URL validation throws for an invalid URL.",
+        "server/services/repoCloneService.ts:130 — The catch block logs the unsanitized URL."
+      ],
+      "exploitability": "trivial",
+      "filePath": "server/services/repoCloneService.ts",
+      "startLine": 130,
+      "endLine": 130,
+      "description": "The branch lookup logs the original caller-supplied URL on validation failure. Embedded line breaks are not escaped, so one request can produce forged log lines.\n\n**Evidence**\n- Source/control: The url query parameter of GET /api/v1/repositories/branches.\n- Sink/decision: console.warn in getRemoteBranches.\n- Missing mitigation: The log statement does not encode control characters in the rejected URL.",
+      "recommendation": "Encode control characters before including a rejected URL in a log message, or log it as a safely serialized field.",
+      "cwe": "CWE-117",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "295941fcbe79fd12efafea8ed98a7dacec073bb89e0af6c009f9e8a703fc8338",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 3
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "c1b22c14-82ec-4624-94d5-23fba95417f0",
+      "category": "denial_of_service",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "api/index.ts:4 — forwards the HTTP request to Express",
+        "server/app.ts:61 — mounts the API router",
+        "server/routes/api.ts:373 — calls BackupService.verifyBackup",
+        "server/services/backupService.ts:276 — synchronously extracts the full archive [sink]"
+      ],
+      "exploitability": "difficult",
+      "filePath": "server/services/backupService.ts",
+      "startLine": 276,
+      "endLine": 278,
+      "description": "An unauthenticated verification request synchronously extracts a selected backup archive before checking its manifest or enforcing an extraction budget. A large stored archive turns a short request into substantial event-loop blocking and temporary disk work.\n\n**Evidence**\n- Source/control: Unauthenticated backup ID supplied to GET /api/v1/system/backups/:backup_id/verify.\n- Sink/decision: execFileSync runs full tar extraction into a temporary directory.\n- Missing mitigation: The verification path has no operator authorization or archive extraction budget before it starts synchronous work.",
+      "recommendation": "Require operator authorization for backup verification, enforce archive and extracted-size limits, and run extraction outside the request event loop.",
+      "cwe": "CWE-400",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "37555717576d664d38417d6896d36e85f9ad9768b5bb062a9520c1a4a2a74a90",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 4
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "b6eb7b1e-790a-474c-9ced-9bb12f5671c2",
+      "category": "sensitive_data_exposure",
+      "severity": "medium",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "api/index.ts:4 — forwards the HTTP request to Express",
+        "server/app.ts:61 — mounts the API router",
+        "server/routes/api.ts:296 — calls ErrorLoggingService.getLogs",
+        "server/services/errorLoggingService.ts:375 — reads full log records",
+        "server/routes/api.ts:304 — returns the records [sink]"
+      ],
+      "exploitability": "trivial",
+      "filePath": "server/routes/api.ts",
+      "startLine": 304,
+      "endLine": 304,
+      "description": "The error-log read route sends detailed stored records to any HTTP caller. Those records can contain other callers’ request URLs, IP addresses, user agents, stack traces, and metadata.\n\n**Evidence**\n- Source/control: Unauthenticated GET /api/v1/logs/errors request.\n- Sink/decision: res.json(result) returns the detailed error-log records.\n- Missing mitigation: The read route does not verify an operator identity or project log entries to a public-safe set of fields.",
+      "recommendation": "Require operator authorization for detailed logs and return only fields needed by that feature. Remove sensitive request values from records exposed through any public telemetry route.",
+      "cwe": "CWE-200",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "b3cf9e651cfae4533487b6ad64c13b40af6734609ad1af490877844b120d6fd7",
+      "firstSeenAt": "2026-09-27T17:24:30.081Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 5
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "76d23013-706a-4468-8dae-3430273a398f",
+      "category": "denial_of_service",
+      "severity": "medium",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server.ts:38 — server accepts direct network connections",
+        "server/app.ts:35 — one proxy hop is trusted",
+        "server/middleware/rateLimiter.ts:60 — cloneLimiter uses per-client limits",
+        "server/routes/api.ts:461 — repository submission",
+        "server/services/repoCloneService.ts:241 — git clone consumes resources"
+      ],
+      "exploitability": "difficult",
+      "filePath": "server/app.ts",
+      "startLine": 35,
+      "endLine": 35,
+      "description": "The app trusts a forwarded client IP from any direct peer. A direct client can rotate X-Forwarded-For values, defeating the per-IP limits that bound repository ingestion.\n\n**Evidence**\n- Source/control: X-Forwarded-For supplied by a client connecting directly to the built-in listener.\n- Sink/decision: The spoofable client identity used by the general and clone rate-limit decisions before persistent repository cloning.\n- Missing mitigation: The rate-limit identity can be supplied by a direct client, and persistent repository storage has no aggregate bound on this path.",
+      "recommendation": "Trust forwarded addresses only from verified proxy peers or prevent direct access to the listener. Add a server-wide bound on concurrent cloning and stored repository space.",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "5ecb439ef2ed43e1b5fee76f214084db67e56cb21f15885a4dacaa1d2acf978d",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 6
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "5bcff4d5-6f3b-4dc9-a1a4-e1865abbcf0f",
+      "category": "authorization_bypass",
+      "severity": "medium",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server.ts:38 — network request reaches the application",
+        "server/routes/api.ts:53 — adminGuard returns without credential verification",
+        "server/routes/api.ts:381 — backup restore route calls restoreBackup",
+        "server/services/backupService.ts:367 — live storage is replaced [sink]"
+      ],
+      "exploitability": "difficult",
+      "filePath": "server/routes/api.ts",
+      "startLine": 53,
+      "endLine": 54,
+      "description": "The administrator guard admits requests without checking a credential whenever NODE_ENV is not production. On a reachable server in that mode, an unauthenticated caller can restore or delete existing backups.\n\n**Evidence**\n- Source/control: Unauthenticated HTTP requests to the backup management routes.\n- Sink/decision: The guard’s early authorization decision permits BackupService.restoreBackup to replace the live database and repository files.\n- Missing mitigation: The backup mutation routes do not require administrator authorization in every network-reachable server mode.",
+      "recommendation": "Require an administrator credential for backup mutation in every mode. If unauthenticated development access is intentional, constrain that server to a trusted local interface.",
+      "cwe": "CWE-862",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "9e01e1dfc742ae273a51f9f6f2694b92fc8080e16a1990fa2f88140f55393995",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 7
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "4adf77f1-3cb2-4f90-8f6f-d5c7bd05d4dd",
+      "category": "sensitive_data_exposure",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "src/lib/supabase.ts:25 — createClient uses the browser anonymous key.",
+        "src/lib/supabase.ts:105 — the app demonstrates direct table access.",
+        "supabase_schema.sql:38 — unrestricted SELECT policy authorizes every row [sink]."
+      ],
+      "exploitability": "difficult",
+      "filePath": "supabase_schema.sql",
+      "startLine": 38,
+      "endLine": 38,
+      "description": "The SELECT row policy permits every repository-history row, regardless of the requesting user. An anonymous client can omit or change the application's client-side user_id filter and read another user's history.\n\n**Evidence**\n- Source/control: A direct Supabase request using the browser's configured anonymous project key.\n- Sink/decision: SELECT authorization for public.user_repo_history under USING (true).\n- Missing mitigation: The database SELECT policy lacks a verified identity-to-user_id condition.",
+      "recommendation": "Send a verifiable user token to Supabase and require its subject to match user_id in the SELECT policy.",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "a0a06abfcb7286f85b9234e15e7b0ad9816e33b3c9a07f6fe45a3a0ea03e3b73",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "(root)",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 8
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "3a22ba43-039b-40f5-bf4e-a011ab598bd6",
+      "category": "denial_of_service",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "skills/brag/references/audio.md:254 — documented custom-track invocation",
+        "skills/brag/scripts/analyze_music_cues.py:294 — main() calls analyze_track()",
+        "skills/brag/scripts/analyze_music_cues.py:124 — analyze_track() decodes the full file",
+        "skills/brag/scripts/analyze_music_cues.py:147 — full-track spectrum allocation [sink]"
+      ],
+      "exploitability": "difficult",
+      "filePath": "skills/brag/scripts/analyze_music_cues.py",
+      "startLine": 147,
+      "endLine": 147,
+      "description": "The analyzer transforms every decoded sample of a custom audio file, regardless of the requested planning window. A long compressed file can consume far more memory during analysis than its input size suggests.\n\n**Evidence**\n- Source/control: A custom audio file selected for the documented /brag cue-analysis command.\n- Sink/decision: The full-track librosa STFT and magnitude array.\n- Missing mitigation: No decoded-duration or sample-count limit is enforced before full-file loading and spectrum allocation.",
+      "recommendation": "Limit decoded samples before bulk processing, and analyze only the requested window or reject tracks exceeding a defined duration.",
+      "cwe": "CWE-400",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "e0e8dcec251db3491ed157986e9df48a8caa4346dcf7869a90f0f0824f70fe2b",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Brag automation skill",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 9
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "08442953-4945-43de-9be9-b35d80dc241e",
+      "category": "other",
+      "severity": "medium",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server/routes/api.ts:209 — public top-up route accepts the request.",
+        "server/routes/api.ts:236 — PaymentService.processTopUp receives the amount.",
+        "server/services/paymentService.ts:42 — SpendingService.recordPayment receives it.",
+        "server/services/spendingService.ts:395 — a succeeded payment row is inserted [sink]."
+      ],
+      "exploitability": "trivial",
+      "filePath": "server/services/spendingService.ts",
+      "startLine": 388,
+      "endLine": 403,
+      "description": "The public top-up path records a caller-selected amount as a succeeded payment without checking a trusted charge result. A caller can therefore create false payment-history entries and increase recorded payment totals.\n\n**Evidence**\n- Source/control: The Idempotency-Key header and amountUsd body field on POST /api/v1/payments/topup.\n- Sink/decision: Insertion of a succeeded row into payment_transactions.\n- Missing mitigation: No trusted charge confirmation or administrator authorization gates the succeeded ledger insertion.",
+      "recommendation": "Record a payment as succeeded only after verifying a processor-confirmed charge and amount, or require authorization for a manual credit.",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "7fd9bde93a41fc0e1f3d63e4b9025884478692df53a7a6a3de843ef0d80e7fdd",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 10
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "0816c407-1993-422a-ab78-6c489c28200a",
+      "category": "other",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server/routes/api.ts:962 — insights request",
+        "server/services/geminiService.ts:102 — preflight spending check",
+        "server/services/geminiService.ts:130 — Gemini request",
+        "server/services/geminiService.ts:148 — repeated usage key",
+        "server/services/spendingService.ts:309 — existing key suppresses a new record"
+      ],
+      "exploitability": "difficult",
+      "filePath": "server/services/geminiService.ts",
+      "startLine": 148,
+      "endLine": 155,
+      "description": "Each successful insights regeneration makes a new Gemini call, but the usage key identifies a combination of repository, model, and estimated token counts rather than that call. Separate calls with matching counts therefore share a key, and the ledger records only the first one.\n\n**Evidence**\n- Source/control: Repeated POST requests to /api/v1/repositories/:repo_id/insights for a stored repository.\n- Sink/decision: SpendingService.recordUsage suppresses the new usage record after Gemini generation has completed.\n- Missing mitigation: The usage record has no identity unique to each completed provider call.",
+      "recommendation": "Assign a unique call ID before each Gemini request and record that call once after completion. Reuse its ID only when retrying the same call.",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.064Z",
+      "fingerprint": "0dde2f8791916b3534c2a8ed8810cd70f76e5d61ee6fbe25d54f30a8bdff9e39",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "Repository ingestion and filesystem",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 11
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "bc35a44b-9930-4517-9718-2d92846f8c30",
+      "category": "information_disclosure",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "package.json:8 — The build places the backend bundle and source map in dist.",
+        "server.ts:38 — The standalone server accepts the GET request.",
+        "server.ts:32 — express.static serves the requested file from dist."
+      ],
+      "exploitability": "difficult",
+      "filePath": "server.ts",
+      "startLine": 32,
+      "endLine": 32,
+      "description": "The production server publishes the entire dist directory, which also contains its backend bundle and source map. An HTTP client can download those implementation artifacts.\n\n**Evidence**\n- Source/control: An unauthenticated request for /server.cjs or /server.cjs.map.\n- Sink/decision: express.static(distPath) returns the backend artifact.\n- Missing mitigation: The static mount does not exclude backend build artifacts from the public asset directory.",
+      "recommendation": "Write the backend bundle and source map outside the browser asset directory, or mount a directory containing only public assets.",
+      "cwe": "CWE-200",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.063Z",
+      "fingerprint": "3727ba736d3c8cf6876fb59673a4b579dbf5bbc2d8f0377e6a114440901a4124",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "(root)",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 12
+    },
+    {
+      "scanProvenance": {
+        "contextCitations": [],
+        "scanId": "bf3337b6-bfd6-46b2-a37d-70bec063051b",
+        "scope": {
+          "primary": {
+            "repositoryId": "1385043357",
+            "provider": null,
+            "host": null,
+            "revision": "631dceb9960b80668b359726f2f6769079333be5"
+          },
+          "selectedContext": [],
+          "limitations": []
+        },
+        "evidenceStatus": "not_loaded",
+        "supportingContext": null,
+        "sourceFrames": []
+      },
+      "id": "1b3e5948-6761-405a-8e84-234a4dce8e94",
+      "category": "sensitive_data_exposure",
+      "severity": "low",
+      "source": "LLM",
+      "reachability": "external",
+      "reachabilityCallStack": [
+        "server.ts:38 — Express accepts the HTTP request.",
+        "server.ts:29 — Vite middleware handles the storage path and serves the file."
+      ],
+      "exploitability": "difficult",
+      "filePath": "server.ts",
+      "startLine": 29,
+      "endLine": 29,
+      "description": "The non-production listener mounts Vite’s file-serving middleware while application storage is inside Vite’s project root. A reachable caller can request stored application files directly.\n\n**Evidence**\n- Source/control: An unauthenticated HTTP request for a file under /storage, such as /storage/codesage_cache.db.\n- Sink/decision: Vite’s middleware serves a project-root file through the Express listener.\n- Missing mitigation: Storage files are inside Vite’s served root without an HTTP file-access denial for storage.",
+      "recommendation": "Place runtime storage outside Vite’s allowed root and deny storage paths in both Vite configurations.",
+      "cwe": "CWE-552",
+      "state": "resolved",
+      "detectedAt": "2026-09-27T18:25:20.063Z",
+      "fingerprint": "aa20df7391da3a57a6e159d30ee3e30c6305815f7c7760f0b7357c39d3b71aed",
+      "firstSeenAt": "2026-09-27T18:25:11.186Z",
+      "lastSeenAt": "2026-09-27T18:25:11.186Z",
+      "subsystemName": "(root)",
+      "tickets": [],
+      "repoId": "1385043357",
+      "repoName": "Avnish1447/CodeSage",
+      "row": 13
+    }
+  ]
+}

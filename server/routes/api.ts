@@ -50,19 +50,34 @@ export function isValidRepoId(repoId: string): boolean {
  * Administrator authorization guard for privileged system operations (CWE-862)
  */
 export function adminGuard(req: Request, res: Response, next: () => void) {
-  if (process.env.NODE_ENV !== 'production') {
-    return next();
-  }
   const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
   const provided = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
-  if (!adminKey || provided !== adminKey) {
-    return res.status(403).json({
-      error: 'Forbidden',
-      detail: 'Administrator authorization required for this operation.',
-      code: 'ADMIN_REQUIRED',
-    });
+
+  // If a valid administrator credential is provided, allow access in any mode
+  if (adminKey && provided === adminKey) {
+    return next();
   }
-  return next();
+
+  // In non-production mode, confine intentionally unauthenticated development access strictly to the local loopback interface
+  if (process.env.NODE_ENV !== 'production') {
+    const rawIp = req.socket?.remoteAddress || req.ip || '';
+    const isLoopback =
+      rawIp === '127.0.0.1' ||
+      rawIp === '::1' ||
+      rawIp === '::ffff:127.0.0.1' ||
+      req.hostname === 'localhost' ||
+      req.hostname === '127.0.0.1';
+
+    if (isLoopback) {
+      return next();
+    }
+  }
+
+  return res.status(403).json({
+    error: 'Forbidden',
+    detail: 'Administrator authorization required for this operation.',
+    code: 'ADMIN_REQUIRED',
+  });
 }
 
 let isBackupInProgress = false;
@@ -225,11 +240,34 @@ apiRouter.post('/payments/topup', idempotency({ requireKey: true }), async (req:
       });
     }
 
-    if (isNaN(amountUsd) || amountUsd <= 0) {
+    if (isNaN(amountUsd) || amountUsd <= 0 || amountUsd > 100) {
       return res.status(400).json({
         error: 'Bad Request',
-        detail: 'Invalid top-up amount. Must be a positive number in USD.',
+        detail: 'Invalid top-up amount. Must be a positive number up to $100.00 USD.',
         code: 'INVALID_AMOUNT',
+      });
+    }
+
+    // Require administrator authorization for manual credits, processor confirmation, or local development interface
+    const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
+    const providedAdminKey = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
+    const isAdmin = Boolean(adminKey && providedAdminKey === adminKey);
+    const processorToken = (req.body?.processorToken || req.body?.chargeId || req.headers['x-payment-processor-token'] || req.headers['x-charge-id']) as string | undefined;
+
+    const rawIp = req.socket?.remoteAddress || req.ip || '';
+    const isLoopback =
+      rawIp === '127.0.0.1' ||
+      rawIp === '::1' ||
+      rawIp === '::ffff:127.0.0.1' ||
+      req.hostname === 'localhost' ||
+      req.hostname === '127.0.0.1';
+    const isDevAuthorized = process.env.NODE_ENV !== 'production' && isLoopback;
+
+    if (!isAdmin && !processorToken && !isDevAuthorized) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        detail: 'Payment top-up requires a verified payment processor charge confirmation or administrator authorization.',
+        code: 'PAYMENT_VERIFICATION_REQUIRED',
       });
     }
 
@@ -289,8 +327,8 @@ apiRouter.delete('/cache', adminGuard, async (_req: Request, res: Response) => {
 // ERROR LOGGING TELEMETRY & MANAGEMENT
 // ==========================================
 
-// Paginated query for system error logs
-apiRouter.get('/logs/errors', async (req: Request, res: Response) => {
+// Paginated query for system error logs (protected by admin authorization to prevent sensitive data exposure)
+apiRouter.get('/logs/errors', adminGuard, async (req: Request, res: Response) => {
   try {
     const { page, limit, level, code, search, since } = req.query;
     const result = ErrorLoggingService.getLogs({
@@ -367,8 +405,8 @@ apiRouter.post('/system/backups', adminGuard, async (req: Request, res: Response
   }
 });
 
-// Verify integrity of an existing backup archive
-apiRouter.get('/system/backups/:backup_id/verify', async (req: Request, res: Response) => {
+// Verify integrity of an existing backup archive (protected by admin authorization)
+apiRouter.get('/system/backups/:backup_id/verify', adminGuard, async (req: Request, res: Response) => {
   try {
     const result = await BackupService.verifyBackup(req.params.backup_id);
     return res.json(result);

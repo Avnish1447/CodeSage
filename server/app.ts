@@ -31,8 +31,12 @@ process.on('unhandledRejection', (reason: any) => {
 export function createApp() {
   const app = express();
 
-  // Trust reverse proxy hops (Vercel edge CDN / load balancer)
-  app.set('trust proxy', 1);
+  // Trust reverse proxy hops only when behind verified proxies (e.g. Vercel edge CDN) or explicit configuration;
+  // defaults to 'loopback' to prevent direct clients from spoofing client IPs via X-Forwarded-For
+  const trustProxyConfig = process.env.TRUST_PROXY
+    ? (process.env.TRUST_PROXY === 'true' ? true : process.env.TRUST_PROXY === 'false' ? false : !isNaN(Number(process.env.TRUST_PROXY)) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY)
+    : (process.env.VERCEL ? 1 : (process.env.NODE_ENV === 'production' ? 1 : 'loopback'));
+  app.set('trust proxy', trustProxyConfig);
 
   // Real-time request telemetry and uptime monitoring
   app.use(uptimeTracker());

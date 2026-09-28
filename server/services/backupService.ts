@@ -269,6 +269,17 @@ export class BackupService {
       return { valid: false, backupId, error: 'Backup archive file does not exist.' };
     }
 
+    // Enforce archive size budget before extracting to prevent resource exhaustion (CWE-400)
+    const MAX_VERIFY_ARCHIVE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+    const stat = fs.statSync(archivePath);
+    if (stat.size > MAX_VERIFY_ARCHIVE_SIZE_BYTES) {
+      return {
+        valid: false,
+        backupId,
+        error: `Backup archive size (${(stat.size / 1024 / 1024).toFixed(1)}MB) exceeds maximum permitted verification limit (100MB).`,
+      };
+    }
+
     const tempExtractDir = path.resolve(this.BACKUPS_DIR, `.verify_${cleanId}_${Date.now()}`);
 
     try {

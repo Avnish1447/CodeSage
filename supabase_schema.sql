@@ -30,28 +30,44 @@ CREATE INDEX IF NOT EXISTS idx_user_repo_history_repo_id
 -- 3. Enable Row Level Security (RLS)
 ALTER TABLE public.user_repo_history ENABLE ROW LEVEL SECURITY;
 
--- 4. Create RLS Policies for Anon Key Client Access
--- Allows client to read their analyzed repositories
+-- 4. Create RLS Policies with User Identity Verification
+-- Ensures authenticated clients can only read their own analyzed repositories
 CREATE POLICY "Allow select on user_repo_history"
     ON public.user_repo_history
     FOR SELECT
-    USING (true);
+    USING (
+        (auth.uid() IS NOT NULL AND auth.uid()::text = user_id)
+        OR (auth.jwt() ->> 'sub' = user_id)
+    );
 
--- Allows client to insert new analyzed repositories
+-- Ensures clients can only insert repositories matching their verified identity
 CREATE POLICY "Allow insert on user_repo_history"
     ON public.user_repo_history
     FOR INSERT
-    WITH CHECK (true);
+    WITH CHECK (
+        (auth.uid() IS NOT NULL AND auth.uid()::text = user_id)
+        OR (auth.jwt() ->> 'sub' = user_id)
+    );
 
--- Allows client to update existing records
+-- Ensures clients can only update their own records
 CREATE POLICY "Allow update on user_repo_history"
     ON public.user_repo_history
     FOR UPDATE
-    USING (true)
-    WITH CHECK (true);
+    USING (
+        (auth.uid() IS NOT NULL AND auth.uid()::text = user_id)
+        OR (auth.jwt() ->> 'sub' = user_id)
+    )
+    WITH CHECK (
+        (auth.uid() IS NOT NULL AND auth.uid()::text = user_id)
+        OR (auth.jwt() ->> 'sub' = user_id)
+    );
 
--- Allows client to delete records
+-- Ensures clients can only delete their own records
 CREATE POLICY "Allow delete on user_repo_history"
     ON public.user_repo_history
     FOR DELETE
-    USING (true);
+    USING (
+        (auth.uid() IS NOT NULL AND auth.uid()::text = user_id)
+        OR (auth.jwt() ->> 'sub' = user_id)
+    );
+

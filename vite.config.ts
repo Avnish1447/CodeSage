@@ -7,6 +7,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    fs: {
+      deny: ['**/storage/**', '**/.env*', '**/dist/server.cjs*', '**/server/**'],
+    },
     watch: {
       ignored: [
         '**/storage/**',

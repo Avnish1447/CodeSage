@@ -114,6 +114,9 @@ def _format_cue(cue: dict[str, Any]) -> str:
     return f"{cue['time']:.2f}s ({cue['intensity']:.2f}, {cue['kind']})"
 
 
+MAX_TRACK_DURATION_SECONDS = 600.0  # 10 minutes maximum analysis budget
+
+
 def analyze_track(
     input_path: Path,
     window_start: float,
@@ -121,7 +124,9 @@ def analyze_track(
     top_cues: int,
     sr: int,
 ) -> tuple[dict[str, Any], str]:
-    y, actual_sr = librosa.load(input_path, sr=sr, mono=True)
+    # Enforce maximum decode duration to prevent excessive memory allocation during STFT (CWE-400)
+    max_decode_duration = min(MAX_TRACK_DURATION_SECONDS, max(window_start + window_duration + 10.0, 120.0))
+    y, actual_sr = librosa.load(input_path, sr=sr, mono=True, duration=max_decode_duration)
     duration = float(librosa.get_duration(y=y, sr=actual_sr))
     window_end = min(duration, window_start + window_duration)
 

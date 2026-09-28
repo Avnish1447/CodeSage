@@ -127,7 +127,8 @@ export class RepoCloneService {
         has_multiple_branches: sorted.length > 1,
       };
     } catch (err: any) {
-      console.warn(`[RepoCloneService] Could not list remote branches for ${url}:`, err.message);
+      const sanitizedUrl = String(url).replace(/[\r\n\t\x00-\x1f]/g, '_');
+      console.warn(`[RepoCloneService] Could not list remote branches for ${sanitizedUrl}:`, err.message);
       return {
         branches: ['main'],
         default_branch: 'main',

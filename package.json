@@ -14,7 +14,8 @@
     "test:backups": "tsx server/tests/test_backup_restoration.ts",
     "test:seo": "tsx server/tests/test_seo_links.ts",
     "test:404": "tsx server/tests/test_404_page.ts",
-    "test:all": "tsx server/tests/test_compression_upload.ts && tsx server/tests/test_error_logging.ts && tsx server/tests/test_concurrency.ts && tsx server/tests/test_backup_restoration.ts && tsx server/tests/test_seo_links.ts && tsx server/tests/test_404_page.ts"
+    "test:security": "tsx server/tests/test_security_remediations.ts",
+    "test:all": "tsx server/tests/test_compression_upload.ts && tsx server/tests/test_error_logging.ts && tsx server/tests/test_concurrency.ts && tsx server/tests/test_backup_restoration.ts && tsx server/tests/test_seo_links.ts && tsx server/tests/test_404_page.ts && tsx server/tests/test_security_remediations.ts"
   },
   "dependencies": {
     "@clerk/react": "^6.17.2",

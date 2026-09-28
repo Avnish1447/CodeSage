@@ -142,10 +142,11 @@ Respond ONLY with valid JSON.`;
       const text = response.text || '{}';
       const parsed = JSON.parse(text);
       if (parsed.learning_path && parsed.architecture_summary) {
-        // Record token usage in persistent spending ledger with idempotency key
+        // Record token usage in persistent spending ledger with unique call ID
         const promptTokens = Math.ceil(prompt.length / 4);
         const completionTokens = Math.ceil(text.length / 4);
-        const idempotencyKey = `insights:${repoData.repository_id}:${modelName}:${promptTokens}_${completionTokens}`;
+        const callId = crypto.randomBytes(8).toString('hex');
+        const idempotencyKey = `insights_${repoData.repository_id}_${Date.now()}_${callId}`;
         SpendingService.recordUsage({
           service: 'gemini_insights',
           model: modelName,
