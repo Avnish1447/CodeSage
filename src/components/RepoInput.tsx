@@ -152,7 +152,7 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
   );
 
   return (
-    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 relative overflow-visible">
+    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 relative overflow-visible">
       {/* Brand & Engine Identifier */}
       <div className="flex items-center space-x-2.5 mb-3">
         <div className="p-1 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
@@ -161,7 +161,7 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
             <img src="/logos/app-icon.svg" alt="CodeSage" className="w-4 h-4 object-contain rounded" />
           </picture>
         </div>
-        <span className="text-[#8F8F8F] dark:text-[#888888] text-xs font-mono uppercase tracking-wider font-medium">
+        <span className="text-[#8F8F8F] dark:text-[#888888] text-xs font-mono uppercase tracking-wider font-medium truncate">
           Stratigraphy Engine &bull; Gemini RAG
         </span>
       </div>
@@ -169,14 +169,14 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
       <h2 className="text-xl sm:text-2xl font-semibold text-[#171717] dark:text-[#EDEDED] mb-2 tracking-[-0.03em]">
         Excavate & Inspect Any <span className="font-playfair italic font-normal text-[#e8702a]">GitHub Repository</span>
       </h2>
-      <p className="text-[#4D4D4D] dark:text-[#A1A1A1] text-sm mb-5 max-w-2xl leading-relaxed">
+      <p className="text-[#4D4D4D] dark:text-[#A1A1A1] text-xs sm:text-sm mb-4 sm:mb-5 max-w-2xl leading-relaxed">
         Enter a public GitHub repository URL to unearth file trees, detect tech stacks, and conduct context-grounded queries with Gemini AI.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* URL Input Bar */}
         <div className="relative flex items-center">
-          <div className="absolute left-3.5 text-[#8F8F8F] dark:text-[#888888] pointer-events-none">
+          <div className="absolute left-3 sm:left-3.5 text-[#8F8F8F] dark:text-[#888888] pointer-events-none">
             <Github className="w-4 h-4" />
           </div>
           <input
@@ -187,12 +187,12 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
             aria-label="GitHub repository URL"
             maxLength={500}
             disabled={loading}
-            className="w-full bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] focus:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0072F5] dark:focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#0072F5] outline-none rounded-lg pl-10 pr-32 py-2.5 text-xs sm:text-sm font-mono transition-all disabled:opacity-50"
+            className="w-full bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] focus:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0072F5] dark:focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#0072F5] outline-none rounded-lg pl-9 sm:pl-10 pr-20 xs:pr-28 sm:pr-32 py-2 sm:py-2.5 text-xs sm:text-sm font-mono transition-all disabled:opacity-50"
           />
 
           {/* Micro Branch Checking Spinner */}
           {isCheckingBranches && (
-            <div className="absolute right-32 hidden sm:flex items-center space-x-1.5 text-[#8F8F8F] text-[11px] font-mono pointer-events-none animate-pulse">
+            <div className="absolute right-28 sm:right-32 hidden sm:flex items-center space-x-1.5 text-[#8F8F8F] text-[11px] font-mono pointer-events-none animate-pulse">
               <Loader2 className="w-3 h-3 animate-spin text-[#e8702a]" />
               <span>inspecting branches...</span>
             </div>
@@ -203,16 +203,18 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
             type="submit"
             disabled={loading || !url.trim()}
             aria-label="Dig and analyze repository"
-            className="absolute right-1.5 px-4 py-1.5 bg-[#e8702a] hover:bg-[#d66320] text-white font-medium text-xs rounded-md shadow-sm flex items-center space-x-1.5 disabled:opacity-50 transition-colors cursor-pointer"
+            className="absolute right-1.5 px-2.5 xs:px-4 py-1.5 bg-[#e8702a] hover:bg-[#d66320] text-white font-medium text-xs rounded-md shadow-sm flex items-center space-x-1 sm:space-x-1.5 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {loading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Digging...</span>
+                <span className="hidden xs:inline">Digging...</span>
+                <span className="xs:hidden">...</span>
               </>
             ) : (
               <>
-                <span>Dig Code</span>
+                <span className="hidden xs:inline">Dig Code</span>
+                <span className="xs:hidden">Dig</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}

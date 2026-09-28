@@ -11,7 +11,7 @@ export const LearningPathCard: React.FC<LearningPathCardProps> = ({
   architectureSummary,
 }) => {
   return (
-    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 space-y-6">
+    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         <div className="flex items-center space-x-2.5">
@@ -31,12 +31,12 @@ export const LearningPathCard: React.FC<LearningPathCardProps> = ({
 
       {/* Architecture Summary */}
       {architectureSummary && (
-        <div className="bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg p-4 space-y-2">
+        <div className="bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] rounded-lg p-3.5 sm:p-4 space-y-2">
           <div className="flex items-center space-x-2 text-[11px] font-medium uppercase tracking-wider text-[#4D4D4D] dark:text-[#A1A1A1]">
             <Layers className="w-3.5 h-3.5 text-[#e8702a]" />
             <span>Architecture Overview</span>
           </div>
-          <p className="text-[13px] text-[#4D4D4D] dark:text-[#A1A1A1] leading-relaxed whitespace-pre-line">
+          <p className="text-[13px] text-[#4D4D4D] dark:text-[#A1A1A1] leading-relaxed whitespace-pre-line break-words">
             {architectureSummary}
           </p>
         </div>

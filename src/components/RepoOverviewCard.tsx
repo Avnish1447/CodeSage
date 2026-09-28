@@ -22,20 +22,20 @@ export const RepoOverviewCard: React.FC<RepoOverviewCardProps> = ({
 }) => {
   const { showInfo } = useToast();
   return (
-    <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-6 space-y-6 transition-colors duration-200">
+    <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6 transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-black/[0.06] dark:border-white/[0.08]">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-[#e8702a] rounded-lg">
+        <div className="flex items-start sm:items-center space-x-3 min-w-0 flex-1">
+          <div className="p-2.5 bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-[#e8702a] rounded-lg shrink-0">
             <FolderGit2 className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight">{overview.owner} / {overview.repo}</h3>
+              <h3 className="text-lg sm:text-xl font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight break-words min-w-0">{overview.owner} / {overview.repo}</h3>
               <a
                 href={overview.normalized_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors"
+                className="text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors shrink-0"
                 title="Open on GitHub"
               >
                 <ExternalLink className="w-4 h-4" />

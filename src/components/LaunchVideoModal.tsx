@@ -28,7 +28,7 @@ export const LaunchVideoModal: React.FC<LaunchVideoModalProps> = ({ isOpen, onCl
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -47,14 +47,14 @@ export const LaunchVideoModal: React.FC<LaunchVideoModalProps> = ({ isOpen, onCl
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="relative w-full max-w-5xl my-auto z-10 bg-slate-950/95 border border-slate-800 rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-5xl my-auto z-10 bg-slate-950/95 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto max-w-[calc(100vw-1.5rem)]"
           >
             {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
               aria-label="Close launch video modal"
-              className="absolute top-5 right-5 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer z-30"
+              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer z-30"
               title="Close Video (Esc)"
             >
               <X className="w-5 h-5" />

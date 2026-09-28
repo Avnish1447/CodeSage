@@ -50,6 +50,8 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: 483px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -150,6 +152,47 @@ body {
 code, pre, .font-mono {
   font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   font-feature-settings: 'liga';
+}
+
+/* Global Mobile Overflow Containment */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100svh;
+}
+
+/* Code & Pre mobile overflow guards */
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+code {
+  word-break: break-word;
+}
+
+pre code {
+  word-break: normal;
+  white-space: pre;
+}
+
+/* Smooth hidden scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* ==========================================================================

@@ -178,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="border-b border-black/[0.08] dark:border-white/[0.08] bg-[#FAFAFA]/90 dark:bg-black/90 backdrop-blur-md sticky top-0 z-50 text-[#171717] dark:text-[#EDEDED] transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
         <div className="flex items-center space-x-3">
           <a
             href="#workbench"
@@ -195,7 +195,7 @@ export const Header: React.FC<HeaderProps> = ({
               <img
                 src="/logos/text-mark.svg"
                 alt="CodeSage"
-                className="h-7 sm:h-8 w-auto max-w-[160px] sm:max-w-[200px] object-contain brightness-100 dark:brightness-125 hover:opacity-85 transition-opacity duration-150"
+                className="h-7 sm:h-8 w-auto max-w-[130px] xs:max-w-[160px] sm:max-w-[200px] object-contain brightness-100 dark:brightness-125 hover:opacity-85 transition-opacity duration-150"
                 onError={(e) => {
                   const target = e.currentTarget;
                   if (!target.src.includes('textmark.png')) {
@@ -244,7 +244,7 @@ export const Header: React.FC<HeaderProps> = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.98 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-10 w-96 max-w-[90vw] bg-white dark:bg-[#111113] border border-black/[0.08] dark:border-white/[0.08] rounded-xl shadow-2xl p-4 z-50 text-xs space-y-3.5"
+                  className="absolute right-0 top-10 w-96 max-w-[calc(100vw-1.5rem)] bg-white dark:bg-[#111113] border border-black/[0.08] dark:border-white/[0.08] rounded-xl shadow-2xl p-4 z-50 text-xs space-y-3.5"
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] dark:border-white/[0.08]">
@@ -552,7 +552,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           <div
-            className="flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-medium text-[#e8702a] bg-[#e8702a]/10 border border-[#e8702a]/20 shadow-sm whitespace-nowrap"
+            className="flex items-center space-x-1.5 px-2 xs:px-3 py-1 rounded-md text-xs font-medium text-[#e8702a] bg-[#e8702a]/10 border border-[#e8702a]/20 shadow-sm whitespace-nowrap"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#e8702a]" />
             <span className="hidden md:inline font-mono">CodeSage AI</span>
@@ -567,7 +567,7 @@ export const Header: React.FC<HeaderProps> = ({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute top-16 right-4 sm:right-8 z-[60] max-w-md bg-amber-500/10 dark:bg-amber-950/60 border border-amber-500/30 text-slate-800 dark:text-slate-200 p-3.5 rounded-xl shadow-2xl text-xs space-y-2.5 backdrop-blur-md"
+            className="absolute top-16 left-3 right-3 sm:left-auto sm:right-8 z-[60] sm:max-w-md bg-amber-500/10 dark:bg-amber-950/60 border border-amber-500/30 text-slate-800 dark:text-slate-200 p-3.5 rounded-xl shadow-2xl text-xs space-y-2.5 backdrop-blur-md"
           >
             <div className="flex items-start justify-between gap-2.5">
               <div className="flex items-start space-x-2.5">

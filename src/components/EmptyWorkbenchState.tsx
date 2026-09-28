@@ -52,7 +52,7 @@ export const EmptyWorkbenchState: React.FC<EmptyWorkbenchStateProps> = ({ onSele
       className="space-y-6"
     >
       {/* Hero Welcome Banner */}
-      <div className="bg-white dark:bg-[#111113] rounded-2xl shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09),0_4px_20px_rgba(0,0,0,0.3)] p-8 sm:p-10 text-center relative overflow-hidden">
+      <div className="bg-white dark:bg-[#111113] rounded-2xl shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09),0_4px_20px_rgba(0,0,0,0.3)] p-5 sm:p-8 md:p-10 text-center relative overflow-hidden">
         {/* Ambient Subtle Accent Glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-28 bg-gradient-to-b from-[#e8702a]/15 to-transparent blur-2xl pointer-events-none" />
 
@@ -116,7 +116,7 @@ export const EmptyWorkbenchState: React.FC<EmptyWorkbenchStateProps> = ({ onSele
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.08 + 0.1 }}
               key={card.title}
-              className="bg-white dark:bg-[#111113] rounded-xl p-6 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] space-y-3"
+              className="bg-white dark:bg-[#111113] rounded-xl p-4 sm:p-6 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="p-2.5 rounded-lg bg-[#FAFAFA] dark:bg-[#161618] text-[#e8702a] border border-black/[0.05] dark:border-white/[0.08]">

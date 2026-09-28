@@ -149,7 +149,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
 
       {/* Navigation Header */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-[100] h-16 flex items-center justify-between px-6 backdrop-blur-md transition-colors duration-200 ${
+        className={`fixed top-0 left-0 right-0 z-[100] h-16 flex items-center justify-between px-4 sm:px-6 backdrop-blur-md transition-colors duration-200 ${
           isDark
             ? 'bg-black/60 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]'
             : 'bg-[#FAFAFA]/85 shadow-[0_1px_0_0_rgba(0,0,0,0.08)]'
@@ -171,7 +171,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             <img
               src="/logos/text-mark.svg"
               alt="CodeSage"
-              className={`h-8 sm:h-9 w-auto max-w-[190px] sm:max-w-[240px] object-contain transition-all duration-200 ${
+              className={`h-8 sm:h-9 w-auto max-w-[170px] sm:max-w-[240px] object-contain transition-all duration-200 ${
                 isDark
                   ? 'brightness-125 hover:brightness-150 drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]'
                   : 'brightness-100 hover:opacity-85'
@@ -208,10 +208,10 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
       </nav>
 
       {/* 3. Central Heading (z-50) */}
-      <div className="absolute top-[12%] sm:top-[13%] left-0 right-0 flex flex-col items-center text-center px-5 pointer-events-none z-50">
+      <div className="absolute top-[12%] sm:top-[13%] left-0 right-0 flex flex-col items-center text-center px-4 sm:px-5 pointer-events-none z-50">
         {/* Floating Brand Badge */}
         <div
-          className={`mb-4 sm:mb-5 inline-flex items-center space-x-2.5 px-3.5 py-1.5 rounded-full backdrop-blur-xl pointer-events-auto transition-colors duration-200 ${
+          className={`mb-4 sm:mb-5 inline-flex items-center space-x-2.5 px-3 sm:px-3.5 py-1.5 rounded-full backdrop-blur-xl pointer-events-auto transition-colors duration-200 ${
             isDark
               ? 'bg-black/80 shadow-[0_0_0_1px_rgba(255,255,255,0.12)] text-white/90'
               : 'bg-white/90 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.06)] text-[#171717]'
@@ -231,9 +231,9 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
           <span className="w-1.5 h-1.5 rounded-full bg-[#45A557] animate-pulse" />
         </div>
 
-        <h1 className={`leading-[0.95] tracking-[-2.28px] transition-colors duration-200 ${isDark ? 'text-white' : 'text-[#171717]'}`}>
+        <h1 className={`leading-[0.95] tracking-tight sm:tracking-[-2.28px] transition-colors duration-200 ${isDark ? 'text-white' : 'text-[#171717]'}`}>
           <span
-            className={`block font-playfair italic font-normal text-5xl sm:text-7xl md:text-8xl hero-anim hero-reveal ${
+            className={`block font-playfair italic font-normal text-4xl xs:text-5xl sm:text-7xl md:text-8xl hero-anim hero-reveal ${
               isDark ? 'drop-shadow-md' : 'drop-shadow-none'
             }`}
             style={{ letterSpacing: '-0.05em', animationDelay: '0.25s' }}
@@ -241,7 +241,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             Layers hold
           </span>
           <span
-            className={`block font-normal text-5xl sm:text-7xl md:text-8xl -mt-1 hero-anim hero-reveal ${
+            className={`block font-normal text-4xl xs:text-5xl sm:text-7xl md:text-8xl -mt-1 hero-anim hero-reveal ${
               isDark ? 'drop-shadow-md' : 'drop-shadow-none'
             }`}
             style={{ letterSpacing: '-0.06em', animationDelay: '0.42s' }}

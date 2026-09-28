@@ -168,8 +168,8 @@ export function App() {
     }
   };
   
-  // Sidebar Collapse State
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Sidebar Collapse State (open by default on desktop, collapsed on mobile for clean first-view)
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
 
   // Workbench View Modes: 'split' | 'chat' | 'explorer'
   const [viewMode, setViewMode] = useState<'split' | 'chat' | 'explorer'>('split');
@@ -512,25 +512,27 @@ export function App() {
           onToggleTheme={handleToggleTheme}
         />
 
-        <div className="flex-1 flex max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 items-start">
+        <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 gap-6 items-start">
           {/* IDE STUDIO COLLAPSIBLE SIDEBAR */}
           <aside
-            className={`shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 transition-all duration-200 flex flex-col space-y-5 ${
+            className={`shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl transition-all duration-200 flex flex-col ${
               isDark
                 ? 'bg-[#111113] text-[#EDEDED]'
                 : 'bg-white text-[#171717]'
             } ${
-              sidebarOpen ? 'w-full lg:w-72 shrink-0' : 'w-14 shrink-0 items-center px-2'
+              sidebarOpen
+                ? 'w-full lg:w-72 shrink-0 p-4 space-y-5'
+                : 'w-full lg:w-14 shrink-0 p-2.5 lg:p-2 lg:items-center space-y-0 lg:space-y-3'
             }`}
           >
             {/* Sidebar Header & Toggle */}
-            <div className="flex items-center justify-between w-full pb-3 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
-              {sidebarOpen && (
-                <div className="flex items-center space-x-2">
-                  <FolderGit2 className="w-4 h-4 text-[#e8702a]" />
-                  <span className="font-semibold text-sm tracking-[-0.28px]">Navigation</span>
-                </div>
-              )}
+            <div className={`flex items-center justify-between w-full ${sidebarOpen ? 'pb-3 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]' : 'pb-0 lg:pb-2'}`}>
+              <div className="flex items-center space-x-2">
+                <FolderGit2 className="w-4 h-4 text-[#e8702a]" />
+                <span className={`font-semibold text-sm tracking-[-0.28px] ${sidebarOpen ? 'inline' : 'inline lg:hidden'}`}>
+                  {sidebarOpen ? 'Navigation' : 'Navigation & History'}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -722,7 +724,7 @@ export function App() {
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center space-y-3 py-2">
+              <div className="hidden lg:flex flex-col items-center space-y-3 py-2">
                 {[
                   { id: 'all', title: 'Show All Sections', icon: LayoutGrid },
                   { id: 'stack', title: 'Tech Stack', icon: Layers },
@@ -779,9 +781,9 @@ export function App() {
                 />
 
                 {/* Top Control Header Bar */}
-                <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-3 sm:p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 transition-colors duration-200">
+                <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-3 sm:p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-colors duration-200">
                   {/* Primary View Switcher with Recessed Segmented Track */}
-                  <div className="bg-[#F2F2F2] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] p-1 rounded-lg flex items-center overflow-x-auto max-w-full gap-1">
+                  <div className="bg-[#F2F2F2] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] p-1 rounded-lg flex items-center overflow-x-auto max-w-full gap-1 no-scrollbar w-full sm:w-auto">
                     {[
                       { id: 'split', label: 'Dual Workbench', icon: LayoutGrid },
                       { id: 'chat', label: 'Chat Assistant', icon: MessageSquare },
@@ -794,7 +796,7 @@ export function App() {
                           type="button"
                           key={mode.id}
                           onClick={() => setViewMode(mode.id as any)}
-                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                          className={`flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                             isActive
                               ? 'bg-white dark:bg-[#222226] text-[#171717] dark:text-[#EDEDED] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
                               : 'text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED]'
@@ -890,7 +892,7 @@ export function App() {
                         <RagChatSection
                           key={repoData.repository_id}
                           repoData={repoData}
-                          heightClass="h-[840px]"
+                          heightClass="h-[560px] sm:h-[700px] lg:h-[840px]"
                           geminiStatus={geminiStatus}
                           onStatusChange={setGeminiStatus}
                         />
@@ -910,7 +912,7 @@ export function App() {
                       <RagChatSection
                         key={repoData.repository_id}
                         repoData={repoData}
-                        heightClass="h-[820px]"
+                        heightClass="h-[540px] sm:h-[680px] lg:h-[820px]"
                         geminiStatus={geminiStatus}
                         onStatusChange={setGeminiStatus}
                       />

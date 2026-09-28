@@ -247,7 +247,7 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 space-y-4">
+    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         <div className="flex items-center space-x-2.5">
@@ -563,7 +563,7 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
                       Showing first 512 KB of file.
                     </div>
                   )}
-                  <pre className="text-[#171717] dark:text-[#EDEDED] overflow-x-auto whitespace-pre selection:bg-[#e8702a]/20">
+                  <pre className="text-[#171717] dark:text-[#EDEDED] overflow-x-auto whitespace-pre selection:bg-[#e8702a]/20 max-w-full">
                     <code>{selectedFile.content}</code>
                   </pre>
                 </div>

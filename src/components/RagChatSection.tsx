@@ -324,7 +324,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
   };
 
   return (
-    <div className={`bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 flex flex-col ${heightClass}`}>
+    <div className={`bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 flex flex-col ${heightClass}`}>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] gap-2">
         <div className="flex items-center space-x-2.5">
@@ -452,7 +452,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
               transition={{
                 layout: { type: 'spring', stiffness: 450, damping: 32, mass: 0.7 },
               }}
-              className={`w-fit max-w-[85%] px-4 py-2.5 text-xs sm:text-[13px] leading-relaxed transition-all duration-200 ${
+              className={`w-fit max-w-[92%] sm:max-w-[85%] break-words px-3.5 sm:px-4 py-2.5 text-xs sm:text-[13px] leading-relaxed transition-all duration-200 ${
                 msg.isError
                   ? 'bg-red-500/10 dark:bg-red-500/15 border border-red-500/25 rounded-2xl rounded-bl-[4px] text-red-900 dark:text-red-300 font-sans shadow-sm'
                   : msg.role === 'user'
@@ -489,7 +489,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
                   </span>
                 </div>
               ) : (
-                <div className="markdown-body text-xs sm:text-[13px] font-sans space-y-1.5">
+                <div className="markdown-body text-xs sm:text-[13px] font-sans space-y-1.5 overflow-hidden">
                   <ReactMarkdown
                     components={{
                       strong: ({ children }) => (
@@ -497,17 +497,17 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
                           {children}
                         </span>
                       ),
-                      p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+                      p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed break-words">{children}</p>,
                       ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 my-1.5">{children}</ul>,
                       ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 my-1.5">{children}</ol>,
-                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      li: ({ children }) => <li className="leading-relaxed break-words">{children}</li>,
                       code: ({ children }) => (
-                        <code className="bg-[#EBEBEB] dark:bg-[#222226] text-[#e8702a] px-1 py-0.5 rounded text-[11px] font-mono shadow-[0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
+                        <code className="bg-[#EBEBEB] dark:bg-[#222226] text-[#e8702a] px-1 py-0.5 rounded text-[11px] font-mono shadow-[0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05)] break-words">
                           {children}
                         </code>
                       ),
                       pre: ({ children }) => (
-                        <pre className="bg-[#F2F2F2] dark:bg-[#0c0c0e] p-3 rounded-lg overflow-x-auto shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[12px] font-mono my-2 text-[#171717] dark:text-[#EDEDED] leading-5">
+                        <pre className="bg-[#F2F2F2] dark:bg-[#0c0c0e] p-3 rounded-lg overflow-x-auto max-w-full shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] text-[12px] font-mono my-2 text-[#171717] dark:text-[#EDEDED] leading-5">
                           {children}
                         </pre>
                       ),

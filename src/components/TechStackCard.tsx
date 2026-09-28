@@ -14,7 +14,7 @@ export const TechStackCard: React.FC<TechStackCardProps> = ({ facts }) => {
     .sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-6 space-y-6">
+    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 space-y-5 sm:space-y-6">
       {/* Card Header */}
       <div className="flex items-center justify-between pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         <div className="flex items-center space-x-2.5">
@@ -69,7 +69,7 @@ export const TechStackCard: React.FC<TechStackCardProps> = ({ facts }) => {
             </div>
 
             {/* Language Grid Chips */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
               {sortedLanguages.map(([lang, count], idx) => {
                 const pct = Math.round((count / totalFiles) * 100);
                 const dotColors = [

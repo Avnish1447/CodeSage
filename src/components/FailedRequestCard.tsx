@@ -124,17 +124,17 @@ export const FailedRequestCard: React.FC<FailedRequestCardProps> = ({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.25 }}
-      className="bg-white dark:bg-[#111113] rounded-xl shadow-[0_0_0_1px_rgba(229,72,77,0.2),0_4px_24px_rgba(229,72,77,0.06)] dark:shadow-[0_0_0_1px_rgba(229,72,77,0.3),0_4px_24px_rgba(0,0,0,0.5)] p-6 space-y-4"
+      className="bg-white dark:bg-[#111113] rounded-xl shadow-[0_0_0_1px_rgba(229,72,77,0.2),0_4px_24px_rgba(229,72,77,0.06)] dark:shadow-[0_0_0_1px_rgba(229,72,77,0.3),0_4px_24px_rgba(0,0,0,0.5)] p-4 sm:p-6 space-y-4"
     >
       {/* Header Bar */}
-      <div className="flex items-start justify-between gap-4 pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
-        <div className="flex items-start space-x-3">
-          <div className="p-2.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] shrink-0">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+        <div className="flex items-start space-x-2.5 sm:space-x-3 min-w-0 flex-1">
+          <div className="p-2 sm:p-2.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] shrink-0">
             {icon}
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h3 className="text-sm sm:text-base font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <h3 className="text-sm sm:text-base font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight break-words">
                 {title}
               </h3>
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-semibold ${badgeColor}`}>

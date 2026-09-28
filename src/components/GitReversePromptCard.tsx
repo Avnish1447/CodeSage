@@ -53,20 +53,20 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
   const paragraphs = promptText.split(/\n\s*\n/).filter(Boolean);
 
   return (
-    <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-6 space-y-4 transition-colors duration-200">
+    <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-4 sm:p-6 space-y-4 transition-colors duration-200">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-black/[0.06] dark:border-white/[0.08]">
-        <div className="flex items-start sm:items-center space-x-3">
-          <div className="p-2.5 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-[#e8702a] rounded-lg">
+        <div className="flex items-start sm:items-center space-x-3 min-w-0 flex-1">
+          <div className="p-2.5 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-[#e8702a] rounded-lg shrink-0">
             <Terminal className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+              <h3 className="text-base sm:text-lg font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight break-words">
                 GitReverse AI Builder Prompt
               </h3>
             </div>
-            <p className="text-xs text-[#64748B] dark:text-[#8F8F8F] mt-0.5">
+            <p className="text-xs text-[#64748B] dark:text-[#8F8F8F] mt-0.5 leading-relaxed">
               Natural-language reverse-engineered specification prompt to build or replicate this codebase
             </p>
           </div>
@@ -174,7 +174,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
             >
               <div className="space-y-3.5">
                 {paragraphs.map((p, idx) => (
-                  <p key={idx} className="leading-relaxed whitespace-pre-wrap">
+                  <p key={idx} className="leading-relaxed whitespace-pre-wrap break-words">
                     {p}
                   </p>
                 ))}

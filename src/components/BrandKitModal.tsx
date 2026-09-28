@@ -100,7 +100,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -116,17 +116,17 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="relative w-full max-w-4xl bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 max-h-[90vh] overflow-y-auto"
+          className="relative w-full max-w-4xl bg-slate-950 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl z-10 max-h-[90vh] overflow-y-auto max-w-[calc(100vw-1.5rem)]"
         >
           {/* Header */}
-          <div className="flex items-start justify-between pb-6 border-b border-slate-800">
+          <div className="flex items-start justify-between pb-4 sm:pb-6 border-b border-slate-800 gap-2">
             <div className="space-y-1">
               <div className="flex items-center space-x-2 text-xs font-semibold text-[#e8702a] uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Official Brand Assets & Logos</span>
               </div>
-              <h2 id="brand-kit-title" className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-                <img src="/logos/primary-logo.svg" alt="" className="w-7 h-7 object-contain" />
+              <h2 id="brand-kit-title" className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2 sm:gap-3">
+                <img src="/logos/primary-logo.svg" alt="" className="w-6 h-6 sm:w-7 sm:h-7 object-contain" />
                 CodeSage Identity Kit
               </h2>
               <p className="text-xs sm:text-sm text-slate-400">
@@ -134,7 +134,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
               </p>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setPreviewBg(previewBg === 'dark' ? 'light' : 'dark')}
@@ -157,11 +157,11 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
           </div>
 
           {/* Asset Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-5 py-4 sm:py-6">
             {BRAND_ASSETS.map((asset) => (
               <div
                 key={asset.id}
-                className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between group"
+                className="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between group"
               >
                 <div>
                   {/* Canvas Preview Container */}
