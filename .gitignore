@@ -132,6 +132,7 @@ __MACOSX/
 .cursor/
 .antigravity/
 brag-output/
+*agent-findings*
 
 # IDE & Editor Settings
 .vscode/*
