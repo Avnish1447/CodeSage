@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { ClerkProvider, useUser, useClerk } from '@clerk/react';
 
 export interface AppUser {
@@ -44,17 +44,6 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
   const clerk = useClerk();
 
-  // Safety timer to prevent perpetual loading screen if Clerk endpoint is unreachable (e.g. unconfigured CNAME)
-  const [loadTimedOut, setLoadTimedOut] = useState(false);
-
-  useEffect(() => {
-    if (isLoaded) return;
-    const timer = setTimeout(() => {
-      setLoadTimedOut(true);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [isLoaded]);
-
   const [devUser, setDevUser] = useState<AppUser | null>(() => {
     try {
       const saved = localStorage.getItem('codesage_dev_user');
@@ -89,11 +78,6 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      if (!isLoaded && typeof clerk?.openSignIn !== 'function') {
-        throw new Error(
-          'Clerk authentication client could not be loaded. If you are deploying on a *.vercel.app domain without custom DNS CNAME records, please use your Clerk Development instance keys (pk_test_...).'
-        );
-      }
       clerk.openSignIn();
     } catch (err: any) {
       console.error('[Clerk] Sign in error:', err);
@@ -140,7 +124,7 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
     <AuthContext.Provider
       value={{
         user,
-        loading: !isLoaded && !loadTimedOut,
+        loading: !isLoaded,
         isSigningIn,
         authError,
         loginWithGoogle,
