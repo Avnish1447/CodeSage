@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+temp
+storage
+logs
+*.log
+.git
+.gemini
+.agents
+codesage-agent-findings.json
+agent-findings.json
+.env*
