@@ -157,7 +157,7 @@ const LocalAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const loginWithGoogle = async () => {
     setAuthError(
-      'Clerk authentication is not configured yet. Add VITE_CLERK_PUBLISHABLE_KEY in your .env file to enable Clerk cloud sign-in, or click "Dev Login" to continue locally.'
+      'Clerk authentication is not configured yet. Add VITE_CLERK_PUBLISHABLE_CONFIG in your .env file to enable Clerk cloud sign-in, or click "Dev Login" to continue locally.'
     );
   };
 
@@ -210,7 +210,12 @@ const LocalAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim() || '';
+  const clerkPubKey = (
+    import.meta.env.VITE_CLERK_PUBLISHABLE_CONFIG?.trim() ||
+    import.meta.env.VITE_CLERK_CONFIG?.trim() ||
+    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim() ||
+    ''
+  );
   const isClerkAvailable = Boolean(clerkPubKey && clerkPubKey.startsWith('pk_'));
 
   if (isClerkAvailable) {
