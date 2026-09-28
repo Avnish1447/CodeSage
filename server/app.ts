@@ -61,6 +61,64 @@ export function createApp() {
   // General rate limiting across API routes
   app.use('/api', generalLimiter);
 
+  // Clerk Frontend API proxy for production vercel.app domains (e.g. thecodesage.vercel.app/__clerk)
+  app.all('/__clerk*', async (req, res) => {
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'thecodesage.vercel.app';
+    const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
+    const proxyUrl = process.env.CLERK_PROXY_URL || `${proto}://${host}/__clerk`;
+
+    const subPath = req.url.replace(/^\/__clerk/, '') || '/';
+    const targetUrl = `https://frontend-api.clerk.services${subPath}`;
+
+    try {
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (value && !['host', 'connection', 'content-length'].includes(key.toLowerCase())) {
+          if (Array.isArray(value)) {
+            value.forEach((v) => headers.append(key, v));
+          } else {
+            headers.set(key, value);
+          }
+        }
+      }
+
+      headers.set('Clerk-Proxy-Url', proxyUrl);
+      if (clerkSecretKey) {
+        headers.set('Clerk-Secret-Key', clerkSecretKey);
+      }
+      const rawIp = req.socket?.remoteAddress || (req.headers['x-forwarded-for'] as string) || '';
+      if (rawIp) {
+        headers.set('X-Forwarded-For', Array.isArray(rawIp) ? rawIp.join(', ') : rawIp);
+      }
+
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers,
+        redirect: 'manual',
+      };
+
+      if (!['GET', 'HEAD'].includes(req.method) && req.body) {
+        fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      }
+
+      const clerkRes = await fetch(targetUrl, fetchOptions);
+
+      res.status(clerkRes.status);
+      clerkRes.headers.forEach((val, key) => {
+        if (key.toLowerCase() !== 'content-encoding') {
+          res.setHeader(key, val);
+        }
+      });
+
+      const buffer = await clerkRes.arrayBuffer();
+      return res.send(Buffer.from(buffer));
+    } catch (err: any) {
+      console.error('[Clerk Proxy Error]:', err.message);
+      return res.status(502).json({ error: 'Bad Gateway', message: 'Failed to proxy request to Clerk Frontend API.' });
+    }
+  });
+
   // Mount API router
   app.use('/api/v1', apiRouter);
 

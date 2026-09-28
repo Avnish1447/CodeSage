@@ -249,10 +249,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ''
   );
   const isClerkAvailable = Boolean(clerkPubKey && clerkPubKey.startsWith('pk_'));
+  const customProxyUrl = (
+    import.meta.env.VITE_CLERK_PROXY_URL?.trim() ||
+    (typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app') && clerkPubKey.startsWith('pk_live_')
+      ? `${window.location.origin}/__clerk`
+      : undefined)
+  );
 
   if (isClerkAvailable) {
     return (
-      <ClerkProvider publishableKey={clerkPubKey} afterSignOutUrl="/">
+      <ClerkProvider
+        publishableKey={clerkPubKey}
+        proxyUrl={customProxyUrl || undefined}
+        afterSignOutUrl="/"
+      >
         <ClerkAuthBridge>{children}</ClerkAuthBridge>
       </ClerkProvider>
     );

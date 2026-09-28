@@ -15,6 +15,14 @@
       "destination": "/api/index.ts"
     },
     {
+      "source": "/__clerk/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/__clerk",
+      "destination": "/api/index.ts"
+    },
+    {
       "source": "/logos/(.*)",
       "destination": "/logos/$1"
     },
