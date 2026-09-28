@@ -480,75 +480,73 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* Clerk & Dev Authentication State */}
-          {!authLoading && (
-            user ? (
-              <div className="flex items-center space-x-2 bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] px-2 py-1 rounded-lg">
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'User'}
-                    className="w-5 h-5 rounded-full object-cover border border-black/10 dark:border-white/20"
-                  />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-[#e8702a] text-white text-[10px] font-bold flex items-center justify-center">
-                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
-                  </div>
-                )}
-                <span className="text-xs font-medium hidden sm:inline max-w-[110px] truncate text-[#171717] dark:text-[#EDEDED]">
-                  {user.displayName || user.email?.split('@')[0]}
+          {user ? (
+            <div className="flex items-center space-x-2 bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] px-2 py-1 rounded-lg">
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName || 'User'}
+                  className="w-5 h-5 rounded-full object-cover border border-black/10 dark:border-white/20"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-[#e8702a] text-white text-[10px] font-bold flex items-center justify-center">
+                  {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                </div>
+              )}
+              <span className="text-xs font-medium hidden sm:inline max-w-[110px] truncate text-[#171717] dark:text-[#EDEDED]">
+                {user.displayName || user.email?.split('@')[0]}
+              </span>
+              {user.isDev && (
+                <span className="px-1.5 py-0.5 text-[9px] font-mono font-semibold rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  DEV
                 </span>
-                {user.isDev && (
-                  <span className="px-1.5 py-0.5 text-[9px] font-mono font-semibold rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                    DEV
-                  </span>
+              )}
+              <button
+                onClick={logout}
+                title="Sign Out"
+                aria-label="Sign out"
+                className="p-1 rounded text-[#8F8F8F] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => loginWithGoogle()}
+                disabled={isSigningIn}
+                className="flex items-center space-x-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-md text-xs font-medium bg-[#171717] hover:bg-[#2c2c2c] dark:bg-white dark:hover:bg-[#EDEDED] text-white dark:text-[#171717] transition-all cursor-pointer shadow-sm disabled:opacity-60"
+                title="Sign in with Clerk"
+              >
+                {isSigningIn ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e8702a]" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                      <path
+                        fill="currentColor"
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
+                      />
+                    </svg>
+                    <span>Sign in</span>
+                  </>
                 )}
-                <button
-                  onClick={logout}
-                  title="Sign Out"
-                  aria-label="Sign out"
-                  className="p-1 rounded text-[#8F8F8F] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-1.5">
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => loginWithGoogle()}
-                  disabled={isSigningIn}
-                  className="flex items-center space-x-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-md text-xs font-medium bg-[#171717] hover:bg-[#2c2c2c] dark:bg-white dark:hover:bg-[#EDEDED] text-white dark:text-[#171717] transition-all cursor-pointer shadow-sm disabled:opacity-60"
-                  title="Sign in with Clerk"
-                >
-                  {isSigningIn ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e8702a]" />
-                      <span>Signing in...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                        <path
-                          fill="currentColor"
-                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
-                        />
-                      </svg>
-                      <span>Sign in</span>
-                    </>
-                  )}
-                </motion.button>
+              </motion.button>
 
-                {isLocalhost && (
-                  <button
-                    onClick={loginAsDev}
-                    title="Quick sign-in with local dev profile"
-                    className="hidden sm:inline-flex items-center px-2 py-1 rounded text-[11px] font-mono font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
-                  >
-                    Dev Login
-                  </button>
-                )}
-              </div>
-            )
+              {isLocalhost && (
+                <button
+                  onClick={loginAsDev}
+                  title="Quick sign-in with local dev profile"
+                  className="hidden sm:inline-flex items-center px-2 py-1 rounded text-[11px] font-mono font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
+                >
+                  Dev Login
+                </button>
+              )}
+            </div>
           )}
 
           <div
@@ -590,14 +588,12 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-500/20">
-              {isLocalhost && (
-                <button
-                  onClick={loginAsDev}
-                  className="px-2.5 py-1 rounded bg-[#0072F5] hover:bg-[#0060df] text-white font-medium text-[11px] transition-colors cursor-pointer shadow-sm flex items-center space-x-1"
-                >
-                  <span>Continue with Dev Profile</span>
-                </button>
-              )}
+              <button
+                onClick={loginAsDev}
+                className="px-2.5 py-1 rounded bg-[#0072F5] hover:bg-[#0060df] text-white font-medium text-[11px] transition-colors cursor-pointer shadow-sm flex items-center space-x-1"
+              >
+                <span>Continue with Dev Profile</span>
+              </button>
               <a
                 href="https://dashboard.clerk.com/"
                 target="_blank"
