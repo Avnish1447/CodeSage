@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ClerkProvider, useUser, useClerk } from '@clerk/react';
 
 export interface AppUser {
@@ -44,6 +44,17 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
   const clerk = useClerk();
 
+  // Safety fallback timeout: if Clerk CDN/origin restrictions stall isLoaded on localhost,
+  // ensure we do not block UI rendering indefinitely.
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+  useEffect(() => {
+    if (isLoaded) return;
+    const timer = setTimeout(() => {
+      setLoadTimedOut(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [isLoaded]);
+
   const [devUser, setDevUser] = useState<AppUser | null>(() => {
     try {
       const saved = localStorage.getItem('codesage_dev_user');
@@ -78,7 +89,13 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      clerk.openSignIn();
+      if (typeof clerk?.openSignIn === 'function') {
+        clerk.openSignIn();
+      } else {
+        setAuthError(
+          'Clerk authentication is not ready or blocked on localhost by the live production key. You can click "Dev Login" to continue locally, or test on the live production domain (https://thecodesage.vercel.app).'
+        );
+      }
     } catch (err: any) {
       console.error('[Clerk] Sign in error:', err);
       setAuthError(err?.message || 'Could not open Clerk sign-in modal.');
@@ -124,7 +141,7 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
     <AuthContext.Provider
       value={{
         user,
-        loading: !isLoaded,
+        loading: !isLoaded && !loadTimedOut,
         isSigningIn,
         authError,
         loginWithGoogle,
