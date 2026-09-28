@@ -243,9 +243,9 @@ const LocalAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const clerkPubKey = (
+    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim() ||
     import.meta.env.VITE_CLERK_PUBLISHABLE_CONFIG?.trim() ||
     import.meta.env.VITE_CLERK_CONFIG?.trim() ||
-    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim() ||
     ''
   );
   const isClerkAvailable = Boolean(clerkPubKey && clerkPubKey.startsWith('pk_'));
