@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ClerkProvider, useUser, useClerk } from '@clerk/react';
+import { useToast } from './ToastContext';
 
 export interface AppUser {
   uid: string;
@@ -43,6 +44,7 @@ export const useAuth = () => useContext(AuthContext);
 const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
   const clerk = useClerk();
+  const { showError, showWarning } = useToast();
 
   // Safety fallback timeout: if Clerk CDN/origin restrictions stall isLoaded on localhost,
   // ensure we do not block UI rendering indefinitely.
@@ -89,16 +91,27 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      if (typeof clerk?.openSignIn === 'function') {
-        clerk.openSignIn();
+      // If Clerk is not loaded or failed to connect to Clerk servers
+      if (!clerk || !clerk.loaded) {
+        const msg =
+          'Clerk authentication is not reachable or still initializing. If using a production key without custom DNS, click "Dev Login" to continue locally.';
+        setAuthError(msg);
+        showError(msg, 'Clerk Authentication Unavailable', 7000);
+        return;
+      }
+
+      if (typeof clerk.openSignIn === 'function') {
+        await clerk.openSignIn();
       } else {
-        setAuthError(
-          'Clerk authentication is not ready or blocked on localhost by the live production key. You can click "Dev Login" to continue locally, or test on the live production domain (https://thecodesage.vercel.app).'
-        );
+        const msg = 'Clerk sign-in modal is not available in this environment. Click "Dev Login" to continue.';
+        setAuthError(msg);
+        showWarning(msg, 'Sign In Notice', 6000);
       }
     } catch (err: any) {
       console.error('[Clerk] Sign in error:', err);
-      setAuthError(err?.message || 'Could not open Clerk sign-in modal.');
+      const msg = err?.message || 'Could not open Clerk sign-in modal. Click "Dev Login" to continue.';
+      setAuthError(msg);
+      showError(msg, 'Sign In Failed', 6000);
     } finally {
       setIsSigningIn(false);
     }
@@ -161,6 +174,7 @@ const ClerkAuthBridge: React.FC<{ children: React.ReactNode }> = ({ children }) 
  * Prevents Clerk crashes while providing local dev session capabilities.
  */
 const LocalAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { showWarning } = useToast();
   const [user, setUser] = useState<AppUser | null>(() => {
     try {
       const saved = localStorage.getItem('codesage_dev_user');
@@ -173,9 +187,10 @@ const LocalAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [authError, setAuthError] = useState<string | null>(null);
 
   const loginWithGoogle = async () => {
-    setAuthError(
-      'Clerk authentication is not configured yet. Add VITE_CLERK_PUBLISHABLE_CONFIG in your .env file to enable Clerk cloud sign-in, or click "Dev Login" to continue locally.'
-    );
+    const msg =
+      'Clerk authentication is not configured yet. Add VITE_CLERK_PUBLISHABLE_CONFIG in your .env file, or click "Dev Login" to continue locally.';
+    setAuthError(msg);
+    showWarning(msg, 'Clerk Unconfigured', 6000);
   };
 
   const loginAsDev = () => {

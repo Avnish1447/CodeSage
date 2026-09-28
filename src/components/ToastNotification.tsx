@@ -8,7 +8,7 @@ interface ToastCardProps {
   onDismiss: (id: string) => void;
 }
 
-const ToastCard: React.FC<ToastCardProps> = ({ toast, onDismiss }) => {
+const ToastCard = React.forwardRef<HTMLDivElement, ToastCardProps>(({ toast, onDismiss }, ref) => {
   const isError = toast.type === 'error';
   const isSuccess = toast.type === 'success';
   const isWarning = toast.type === 'warning';
@@ -57,6 +57,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onDismiss }) => {
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 20, scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -90,7 +91,9 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onDismiss }) => {
       </button>
     </motion.div>
   );
-};
+});
+
+ToastCard.displayName = 'ToastCard';
 
 export const ToastContainer: React.FC = () => {
   const { toasts, dismissToast } = useToast();
