@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { SqliteCacheService } from './sqliteCacheService.js';
 import { SpendingService } from './spendingService.js';
@@ -201,6 +202,10 @@ export class BackupService {
       const archiveStats = fs.statSync(archivePath);
       manifest.archiveSizeBytes = archiveStats.size;
 
+      // Store lightweight sidecar manifest to prevent blocking tar processes during listings (CWE-400)
+      const sidecarPath = path.resolve(this.BACKUPS_DIR, `${backupId}.manifest.json`);
+      fs.writeFileSync(sidecarPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
       return manifest;
     } finally {
       // Clean up staging directory
@@ -213,28 +218,49 @@ export class BackupService {
   }
 
   /**
-   * Lists all available system backup snapshots.
+   * Lists all available system backup snapshots using precomputed sidecar manifests
+   * to eliminate event-loop blocking synchronous tar child processes (CWE-400).
    */
   static async listBackups(): Promise<BackupManifest[]> {
     this.ensureDirs();
-    const archives = fs.readdirSync(this.BACKUPS_DIR).filter((f) => f.endsWith('.tar.gz'));
+    const archives = fs.readdirSync(this.BACKUPS_DIR).filter((f) => f.endsWith('.tar.gz')).slice(0, 100);
     const results: BackupManifest[] = [];
+    const execFileAsync = promisify(execFile);
 
     for (const archive of archives) {
       const archivePath = path.resolve(this.BACKUPS_DIR, archive);
+      const backupId = archive.replace('.tar.gz', '');
+      const sidecarPath = path.resolve(this.BACKUPS_DIR, `${backupId}.manifest.json`);
+
       try {
-        const manifestJson = execFileSync('/usr/bin/tar', ['-xOf', archivePath, 'manifest.json'], {
+        const stats = fs.statSync(archivePath);
+
+        // 1. Fast-path: read lightweight sidecar manifest file directly
+        if (fs.existsSync(sidecarPath)) {
+          const raw = fs.readFileSync(sidecarPath, 'utf-8');
+          const manifest: BackupManifest = JSON.parse(raw);
+          manifest.archiveSizeBytes = stats.size;
+          results.push(manifest);
+          continue;
+        }
+
+        // 2. Asynchronous fallback if sidecar was not yet written
+        const { stdout: manifestJson } = await execFileAsync('/usr/bin/tar', ['-xOf', archivePath, 'manifest.json'], {
           encoding: 'utf-8',
           timeout: 10000,
+          maxBuffer: 1024 * 1024,
         });
         const manifest: BackupManifest = JSON.parse(manifestJson);
-        const stats = fs.statSync(archivePath);
         manifest.archiveSizeBytes = stats.size;
+
+        try {
+          fs.writeFileSync(sidecarPath, JSON.stringify(manifest, null, 2), 'utf-8');
+        } catch {}
+
         results.push(manifest);
       } catch (err: any) {
         // Fallback for broken or unmanifested archives
         const stats = fs.statSync(archivePath);
-        const backupId = archive.replace('.tar.gz', '');
         results.push({
           backupId,
           createdAt: stats.mtimeMs,
@@ -494,6 +520,12 @@ export class BackupService {
     this.ensureDirs();
     const cleanId = backupId.replace(/[^a-zA-Z0-9_-]/g, '');
     const archivePath = path.resolve(this.BACKUPS_DIR, `${cleanId}.tar.gz`);
+    const sidecarPath = path.resolve(this.BACKUPS_DIR, `${cleanId}.manifest.json`);
+    if (fs.existsSync(sidecarPath)) {
+      try {
+        fs.unlinkSync(sidecarPath);
+      } catch {}
+    }
 
     if (fs.existsSync(archivePath)) {
       fs.unlinkSync(archivePath);

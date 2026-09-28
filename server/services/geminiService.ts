@@ -98,8 +98,9 @@ export async function generateRepositoryInsights(repoData: any) {
     };
   }
 
-  // Enforce spending cap pre-flight guard
-  const capCheck = SpendingService.checkSpendingCap();
+  // Enforce spending cap pre-flight guard with in-flight reservation (Finding 5)
+  const reservationId = `ins_${repoData.repository_id || 'repo'}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const capCheck = SpendingService.reserveAllowance(reservationId, SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS);
   if (!capCheck.allowed) {
     console.log(`[Gemini Insights] Spending cap enforced: ${capCheck.reason}. Serving deterministic insights.`);
     return {
@@ -111,8 +112,9 @@ export async function generateRepositoryInsights(repoData: any) {
     };
   }
 
-  const ai = getAiClient();
-  const prompt = `Analyze this software repository facts and generate a structured overview:
+  try {
+    const ai = getAiClient();
+    const prompt = `Analyze this software repository facts and generate a structured overview:
 Repository: ${owner}/${repo}
 Languages: ${JSON.stringify(repoData.facts?.languages)}
 Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
@@ -125,19 +127,20 @@ Provide a JSON object with:
 
 Respond ONLY with valid JSON.`;
 
-  for (const modelName of FREE_FLASH_MODELS) {
-    try {
-      const response = await withTimeout(
-        ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-          }
-        }),
-        TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
-        `Gemini Insights (${modelName})`
-      );
+    for (const modelName of FREE_FLASH_MODELS) {
+      try {
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+              maxOutputTokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
+            }
+          }),
+          TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
+          `Gemini Insights (${modelName})`
+        );
 
       const text = response.text || '{}';
       const parsed = JSON.parse(text);
@@ -172,6 +175,9 @@ Respond ONLY with valid JSON.`;
         console.log(`[Gemini] Model ${modelName} request error: ${err.message || err}`);
       }
     }
+    }
+  } finally {
+    SpendingService.releaseReservation(reservationId);
   }
 
   return {
@@ -214,8 +220,9 @@ export async function streamRepositoryQuery(
     };
   }
 
-  // Pre-flight check: Prevent runaway costs if spending caps are exceeded
-  const capCheck = SpendingService.checkSpendingCap();
+  // Pre-flight check with in-flight reservation: Prevent runaway costs if spending caps are exceeded
+  const chatReservationId = `chat_${repoData.repository_id || 'repo'}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const capCheck = SpendingService.reserveAllowance(chatReservationId, SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS);
   if (!capCheck.allowed) {
     console.log(`[Gemini Stream] Spending cap enforced: ${capCheck.reason}. Serving context fallback.`);
     const capNotice = style === 'simple'
@@ -230,7 +237,8 @@ export async function streamRepositoryQuery(
     };
   }
 
-  const ai = getAiClient();
+  try {
+    const ai = getAiClient();
 
   const styleDirective = style === 'simple'
     ? `RESPONSE STYLE DIRECTIVE (SIMPLIFIED & BEGINNER FRIENDLY):
@@ -310,6 +318,9 @@ User Question: ${userQuery}`;
         console.log(`[Gemini Stream] Model ${modelName} error: ${err.message || err}`);
       }
     }
+  }
+  } finally {
+    SpendingService.releaseReservation(chatReservationId);
   }
 
   // Graceful fallback response grounded in repo metadata when all model quotas are temporarily rate-limited
@@ -457,13 +468,15 @@ export async function generateGitReverseFallbackPrompt(repoData: any): Promise<s
     return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
   }
 
-  // Pre-flight check: skip AI call if spending cap exceeded
-  const capCheck = SpendingService.checkSpendingCap();
+  // Pre-flight check with in-flight reservation: skip AI call if spending cap exceeded
+  const reverseReservationId = `gitrev_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const capCheck = SpendingService.reserveAllowance(reverseReservationId, SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS);
   if (!capCheck.allowed) {
     return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
   }
 
-  const prompt = `You are GitReverse, an elite reverse-engineering system.
+  try {
+    const prompt = `You are GitReverse, an elite reverse-engineering system.
 Analyze the following repository metadata and generate a single, comprehensive, natural-language "build-from" prompt that a developer could feed into an AI coding assistant (like Cursor, Claude Code, or v0) to recreate this project or build an equivalent system from scratch.
 
 Repository: ${owner}/${repo}
@@ -480,17 +493,20 @@ Guidelines for the prompt:
 - Keep the prompt focused, actionable, and between 2 to 4 concise paragraphs.
 - Do NOT output extra conversational preamble or markdown code fences around the prompt. Return ONLY the prompt text itself.`;
 
-  for (const model of FREE_FLASH_MODELS) {
-    try {
-      const ai = getAiClient();
-      const response = await withTimeout(
-        ai.models.generateContent({
-          model,
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        }),
-        TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
-        `GitReverse Fallback (${model})`
-      );
+    for (const model of FREE_FLASH_MODELS) {
+      try {
+        const ai = getAiClient();
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              maxOutputTokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
+            },
+          }),
+          TIMEOUT_CONFIG.GEMINI_INSIGHTS_TIMEOUT_MS,
+          `GitReverse Fallback (${model})`
+        );
       const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (text && text.length > 50) {
         const fallbackId = crypto.randomBytes(6).toString('hex');
@@ -507,6 +523,9 @@ Guidelines for the prompt:
     } catch {
       continue;
     }
+  }
+  } finally {
+    SpendingService.releaseReservation(reverseReservationId);
   }
 
   return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;

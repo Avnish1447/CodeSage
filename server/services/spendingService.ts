@@ -11,6 +11,7 @@ export interface UsageRecordParams {
   completionTokens: number;
   repositoryId?: string;
   idempotencyKey?: string;
+  reservationId?: string;
 }
 
 export interface PaymentTransactionParams {
@@ -103,11 +104,70 @@ export class SpendingService {
   private static cachedMonthly: { totalUsd: number; totalTokens: number; callsCount: number; timestamp: number } | null = null;
   private static CACHE_TTL_MS = 2500; // 2.5s TTL
 
+  // In-flight token/spend reservations to prevent concurrent cap overrun (Finding 5)
+  private static inFlightReservations: Map<string, { tokens: number; costUsd: number; expiresAt: number }> = new Map();
+
+  private static pruneExpiredReservations(): void {
+    const now = Date.now();
+    for (const [id, res] of this.inFlightReservations.entries()) {
+      if (res.expiresAt <= now) {
+        this.inFlightReservations.delete(id);
+      }
+    }
+  }
+
+  static getReservedAllowance(): { totalTokens: number; totalUsd: number; count: number } {
+    this.pruneExpiredReservations();
+    let totalTokens = 0;
+    let totalUsd = 0;
+    for (const res of this.inFlightReservations.values()) {
+      totalTokens += res.tokens;
+      totalUsd += res.costUsd;
+    }
+    return {
+      totalTokens,
+      totalUsd: Math.round(totalUsd * 1000000) / 1000000,
+      count: this.inFlightReservations.size,
+    };
+  }
+
+  /**
+   * Atomically reserves tokens and estimated budget before an asynchronous AI provider request starts.
+   * Returns check details and sets allowed: false if the reservation would exceed configured daily/monthly caps.
+   */
+  static reserveAllowance(reservationId: string, tokens: number = 2048, costUsd?: number): ReturnType<typeof SpendingService.checkSpendingCap> {
+    this.pruneExpiredReservations();
+    const estimatedCost = costUsd !== undefined
+      ? costUsd
+      : Math.round(((tokens / 1000) * SPENDING_CAP_CONFIG.COST_PER_1K_OUTPUT_TOKENS) * 1000000) / 1000000;
+
+    const check = this.checkSpendingCap({ additionalTokens: tokens, additionalUsd: estimatedCost });
+    if (!check.allowed) {
+      return check;
+    }
+
+    this.inFlightReservations.set(reservationId, {
+      tokens,
+      costUsd: estimatedCost,
+      expiresAt: Date.now() + 120_000, // 2-minute auto-expiry prevents leaks
+    });
+
+    return check;
+  }
+
+  /**
+   * Releases an in-flight reservation once the request completes or fails.
+   */
+  static releaseReservation(reservationId: string): void {
+    this.inFlightReservations.delete(reservationId);
+  }
+
   private static get isAvailable(): boolean {
     return typeof DatabaseSync === 'function';
   }
 
   static reset(): void {
+    this.inFlightReservations.clear();
     if (this.db) {
       try {
         this.stmtInsertUsage = null;
@@ -340,10 +400,17 @@ export class SpendingService {
         // If unique constraint triggers on race condition, catch and return existing
         if (err.message && err.message.includes('UNIQUE constraint failed')) {
           console.log(`[SpendingService] Concurrent duplicate payment caught by unique index: ${params.idempotencyKey}`);
+          if (params.reservationId) {
+            this.releaseReservation(params.reservationId);
+          }
           return { estimatedCostUsd, totalTokens, isDuplicate: true };
         }
         console.warn('[SpendingService] Failed to insert usage record:', err.message);
       }
+    }
+
+    if (params.reservationId) {
+      this.releaseReservation(params.reservationId);
     }
 
     return { estimatedCostUsd, totalTokens, isDuplicate: false };
@@ -659,9 +726,10 @@ export class SpendingService {
   }
 
   /**
-   * Pre-flight guard: evaluates whether current spending complies with configured caps.
+   * Pre-flight guard: evaluates whether current spending complies with configured caps,
+   * factoring in active in-flight request reservations to prevent concurrent cap overruns.
    */
-  static checkSpendingCap(): {
+  static checkSpendingCap(options?: { additionalTokens?: number; additionalUsd?: number }): {
     allowed: boolean;
     reason?: string;
     dailySpendUsd: number;
@@ -672,72 +740,90 @@ export class SpendingService {
     dailyTokensCap: number;
     percentDailyUsed: number;
     percentMonthlyUsed: number;
+    reservedTokens: number;
+    reservedUsd: number;
   } {
     const daily = this.getDailySpending();
     const monthly = this.getMonthlySpending();
+    const reserved = this.getReservedAllowance();
+
+    const additionalTokens = options?.additionalTokens || 0;
+    const additionalUsd = options?.additionalUsd || 0;
+
+    const effectiveDailyUsd = daily.totalUsd + reserved.totalUsd + additionalUsd;
+    const effectiveMonthlyUsd = monthly.totalUsd + reserved.totalUsd + additionalUsd;
+    const effectiveDailyTokens = daily.totalTokens + reserved.totalTokens + additionalTokens;
 
     const dailyCapUsd = SPENDING_CAP_CONFIG.DAILY_SPEND_CAP_USD;
     const monthlyCapUsd = SPENDING_CAP_CONFIG.MONTHLY_SPEND_CAP_USD;
     const dailyTokensCap = SPENDING_CAP_CONFIG.DAILY_TOKEN_CAP;
 
-    const percentDailyUsed = dailyCapUsd > 0 ? Math.min(100, Math.round((daily.totalUsd / dailyCapUsd) * 1000) / 10) : 0;
-    const percentMonthlyUsed = monthlyCapUsd > 0 ? Math.min(100, Math.round((monthly.totalUsd / monthlyCapUsd) * 1000) / 10) : 0;
+    const percentDailyUsed = dailyCapUsd > 0 ? Math.min(100, Math.round((effectiveDailyUsd / dailyCapUsd) * 1000) / 10) : 0;
+    const percentMonthlyUsed = monthlyCapUsd > 0 ? Math.min(100, Math.round((effectiveMonthlyUsd / monthlyCapUsd) * 1000) / 10) : 0;
 
-    if (daily.totalUsd >= dailyCapUsd) {
+    if (effectiveDailyUsd >= dailyCapUsd) {
       return {
         allowed: false,
-        reason: `Daily AI spending cap of $${dailyCapUsd.toFixed(2)} reached (Current spend: $${daily.totalUsd.toFixed(2)}).`,
-        dailySpendUsd: daily.totalUsd,
+        reason: `Daily AI spending cap of $${dailyCapUsd.toFixed(2)} reached (Current spend + in-flight: $${effectiveDailyUsd.toFixed(2)}).`,
+        dailySpendUsd: effectiveDailyUsd,
         dailyCapUsd,
-        monthlySpendUsd: monthly.totalUsd,
+        monthlySpendUsd: effectiveMonthlyUsd,
         monthlyCapUsd,
-        dailyTokensUsed: daily.totalTokens,
+        dailyTokensUsed: effectiveDailyTokens,
         dailyTokensCap,
         percentDailyUsed,
         percentMonthlyUsed,
+        reservedTokens: reserved.totalTokens,
+        reservedUsd: reserved.totalUsd,
       };
     }
 
-    if (monthly.totalUsd >= monthlyCapUsd) {
+    if (effectiveMonthlyUsd >= monthlyCapUsd) {
       return {
         allowed: false,
-        reason: `Monthly AI spending cap of $${monthlyCapUsd.toFixed(2)} reached (Current spend: $${monthly.totalUsd.toFixed(2)}).`,
-        dailySpendUsd: daily.totalUsd,
+        reason: `Monthly AI spending cap of $${monthlyCapUsd.toFixed(2)} reached (Current spend + in-flight: $${effectiveMonthlyUsd.toFixed(2)}).`,
+        dailySpendUsd: effectiveDailyUsd,
         dailyCapUsd,
-        monthlySpendUsd: monthly.totalUsd,
+        monthlySpendUsd: effectiveMonthlyUsd,
         monthlyCapUsd,
-        dailyTokensUsed: daily.totalTokens,
+        dailyTokensUsed: effectiveDailyTokens,
         dailyTokensCap,
         percentDailyUsed,
         percentMonthlyUsed,
+        reservedTokens: reserved.totalTokens,
+        reservedUsd: reserved.totalUsd,
       };
     }
 
-    if (daily.totalTokens >= dailyTokensCap) {
+    if (effectiveDailyTokens >= dailyTokensCap) {
       return {
         allowed: false,
-        reason: `Daily token consumption limit reached (${daily.totalTokens.toLocaleString()} / ${dailyTokensCap.toLocaleString()} tokens).`,
-        dailySpendUsd: daily.totalUsd,
+        reason: `Daily token consumption limit reached (${effectiveDailyTokens.toLocaleString()} / ${dailyTokensCap.toLocaleString()} tokens).`,
+        dailySpendUsd: effectiveDailyUsd,
         dailyCapUsd,
-        monthlySpendUsd: monthly.totalUsd,
+        monthlySpendUsd: effectiveMonthlyUsd,
         monthlyCapUsd,
-        dailyTokensUsed: daily.totalTokens,
+        dailyTokensUsed: effectiveDailyTokens,
         dailyTokensCap,
         percentDailyUsed,
         percentMonthlyUsed,
+        reservedTokens: reserved.totalTokens,
+        reservedUsd: reserved.totalUsd,
       };
     }
 
     return {
       allowed: true,
-      dailySpendUsd: daily.totalUsd,
+      dailySpendUsd: effectiveDailyUsd,
       dailyCapUsd,
-      monthlySpendUsd: monthly.totalUsd,
+      monthlySpendUsd: effectiveMonthlyUsd,
       monthlyCapUsd,
-      dailyTokensUsed: daily.totalTokens,
+      dailyTokensUsed: effectiveDailyTokens,
       dailyTokensCap,
       percentDailyUsed,
       percentMonthlyUsed,
+      reservedTokens: reserved.totalTokens,
+      reservedUsd: reserved.totalUsd,
     };
   }
 

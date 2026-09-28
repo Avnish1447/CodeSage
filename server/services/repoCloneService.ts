@@ -370,15 +370,17 @@ export class RepoCloneService {
       }
 
       const data = await fallbackResp.json();
-      await this.downloadTreeItems(owner, repo, 'master', data.tree || [], targetPath);
+      const fallbackCommitRef = data.sha || altBranch;
+      await this.downloadTreeItems(owner, repo, fallbackCommitRef, data.tree || [], targetPath);
       return;
     }
 
     const data = await response.json();
-    await this.downloadTreeItems(owner, repo, 'main', data.tree || [], targetPath);
+    const commitRef = data.sha || primaryBranch;
+    await this.downloadTreeItems(owner, repo, commitRef, data.tree || [], targetPath);
   }
 
-  private static async downloadTreeItems(owner: string, repo: string, branch: string, tree: any[], targetPath: string) {
+  private static async downloadTreeItems(owner: string, repo: string, commitOrBranch: string, tree: any[], targetPath: string) {
     const codeExtensions = new Set([
       '.ts', '.tsx', '.js', '.jsx', '.py', '.json', '.md', '.html',
       '.css', '.toml', '.yml', '.yaml', '.sh', '.rs', '.go', '.java',
@@ -409,17 +411,47 @@ export class RepoCloneService {
       const fullPath = path.join(targetPath, relPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
 
-      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${relPath}`;
+      // Fetch blob pinned to the exact commit identity returned by the tree endpoint (CWE-400)
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${commitOrBranch}/${encodeURI(relPath)}`;
       try {
         const fileResp = await fetch(rawUrl, {
           signal: AbortSignal.timeout(8000),
         });
         if (fileResp.ok) {
-          const buffer = await fileResp.arrayBuffer();
-          if (buffer.byteLength > MAX_SINGLE_FILE_BYTES) continue;
-          if (cumulativeBytes + buffer.byteLength > MAX_CUMULATIVE_BYTES) break;
-          cumulativeBytes += buffer.byteLength;
-          fs.writeFileSync(fullPath, Buffer.from(buffer));
+          // Pre-check Content-Length header before reading response payload
+          const contentLength = parseInt(fileResp.headers.get('content-length') || '0', 10);
+          if (contentLength > MAX_SINGLE_FILE_BYTES) continue;
+          if (contentLength > 0 && cumulativeBytes + contentLength > MAX_CUMULATIVE_BYTES) break;
+
+          // Stream and cap bytes incrementally to avoid memory exhaustion (CWE-400)
+          const reader = fileResp.body?.getReader();
+          if (!reader) continue;
+
+          const chunks: Uint8Array[] = [];
+          let fileBytes = 0;
+          let exceeded = false;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              fileBytes += value.length;
+              if (fileBytes > MAX_SINGLE_FILE_BYTES || cumulativeBytes + fileBytes > MAX_CUMULATIVE_BYTES) {
+                exceeded = true;
+                await reader.cancel();
+                break;
+              }
+              chunks.push(value);
+            }
+          }
+
+          if (exceeded) {
+            if (cumulativeBytes + fileBytes > MAX_CUMULATIVE_BYTES) break;
+            continue;
+          }
+
+          cumulativeBytes += fileBytes;
+          fs.writeFileSync(fullPath, Buffer.concat(chunks));
         }
       } catch {
         // ignore individual file download error

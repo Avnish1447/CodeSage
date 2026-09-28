@@ -47,7 +47,7 @@ export function isValidRepoId(repoId: string): boolean {
 }
 
 /**
- * Administrator authorization guard for privileged system operations (CWE-862)
+ * Administrator authorization guard for privileged system operations (CWE-862, CWE-807, CWE-345)
  */
 export function adminGuard(req: Request, res: Response, next: () => void) {
   const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
@@ -58,17 +58,46 @@ export function adminGuard(req: Request, res: Response, next: () => void) {
     return next();
   }
 
-  // In non-production mode, confine intentionally unauthenticated development access strictly to the local loopback interface
+  // In non-production mode, confine unauthenticated development access strictly to verified loopback socket peers
+  // to prevent Host header spoofing (CWE-807) and cross-origin DNS rebinding / CSRF (CWE-345).
   if (process.env.NODE_ENV !== 'production') {
-    const rawIp = req.socket?.remoteAddress || req.ip || '';
+    const socketIp = req.socket?.remoteAddress || '';
     const isLoopback =
-      rawIp === '127.0.0.1' ||
-      rawIp === '::1' ||
-      rawIp === '::ffff:127.0.0.1' ||
-      req.hostname === 'localhost' ||
-      req.hostname === '127.0.0.1';
+      socketIp === '127.0.0.1' ||
+      socketIp === '::1' ||
+      socketIp === '::ffff:127.0.0.1';
 
     if (isLoopback) {
+      // Reject cross-origin requests targeting loopback admin operations from third-party websites
+      const origin = req.headers.origin as string | undefined;
+      if (origin) {
+        try {
+          const parsed = new URL(origin);
+          const isLocalOrigin = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+          if (!isLocalOrigin) {
+            return res.status(403).json({
+              error: 'Forbidden',
+              detail: 'Untrusted cross-origin request rejected for loopback administrator access.',
+              code: 'CROSS_ORIGIN_ADMIN_FORBIDDEN',
+            });
+          }
+        } catch {
+          return res.status(403).json({
+            error: 'Forbidden',
+            detail: 'Invalid origin header on administrator request.',
+            code: 'INVALID_ORIGIN',
+          });
+        }
+      }
+
+      if (req.headers['sec-fetch-site'] === 'cross-site') {
+        return res.status(403).json({
+          error: 'Forbidden',
+          detail: 'Cross-site request rejected for loopback administrator access.',
+          code: 'CROSS_SITE_ADMIN_FORBIDDEN',
+        });
+      }
+
       return next();
     }
   }
@@ -248,25 +277,33 @@ apiRouter.post('/payments/topup', idempotency({ requireKey: true }), async (req:
       });
     }
 
-    // Require administrator authorization for manual credits, processor confirmation, or local development interface
+    // Require administrator authorization for manual credits or local development loopback interface (CWE-345)
     const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
     const providedAdminKey = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
     const isAdmin = Boolean(adminKey && providedAdminKey === adminKey);
-    const processorToken = (req.body?.processorToken || req.body?.chargeId || req.headers['x-payment-processor-token'] || req.headers['x-charge-id']) as string | undefined;
 
-    const rawIp = req.socket?.remoteAddress || req.ip || '';
+    const socketIp = req.socket?.remoteAddress || '';
     const isLoopback =
-      rawIp === '127.0.0.1' ||
-      rawIp === '::1' ||
-      rawIp === '::ffff:127.0.0.1' ||
-      req.hostname === 'localhost' ||
-      req.hostname === '127.0.0.1';
-    const isDevAuthorized = process.env.NODE_ENV !== 'production' && isLoopback;
+      socketIp === '127.0.0.1' ||
+      socketIp === '::1' ||
+      socketIp === '::ffff:127.0.0.1';
 
-    if (!isAdmin && !processorToken && !isDevAuthorized) {
+    let isSafeLocalOrigin = true;
+    if (req.headers.origin) {
+      try {
+        const parsed = new URL(req.headers.origin as string);
+        isSafeLocalOrigin = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      } catch {
+        isSafeLocalOrigin = false;
+      }
+    }
+
+    const isDevAuthorized = process.env.NODE_ENV !== 'production' && isLoopback && isSafeLocalOrigin;
+
+    if (!isAdmin && !isDevAuthorized) {
       return res.status(403).json({
         error: 'Forbidden',
-        detail: 'Payment top-up requires a verified payment processor charge confirmation or administrator authorization.',
+        detail: 'Payment top-up requires administrator authorization or verified server-side payment confirmation.',
         code: 'PAYMENT_VERIFICATION_REQUIRED',
       });
     }
@@ -1173,6 +1210,12 @@ async function handleGetFileContent(req: Request, res: Response) {
       return res.status(400).json({ detail: 'File path parameter is required.' });
     }
 
+    // Validate repoId format strictly to prevent path traversal & symlink escape (CWE-22)
+    if (!isValidRepoId(repoId)) {
+      return res.status(400).json({ detail: 'Invalid repository ID format.' });
+    }
+
+    const realReposDir = fs.realpathSync(REPOS_DIR);
     const repoDir = path.resolve(REPOS_DIR, repoId);
     if (!fs.existsSync(repoDir)) {
       return res.status(404).json({
@@ -1180,11 +1223,27 @@ async function handleGetFileContent(req: Request, res: Response) {
       });
     }
 
+    const realRepoDir = fs.realpathSync(repoDir);
+    if (!realRepoDir.startsWith(realReposDir + path.sep) && realRepoDir !== realReposDir) {
+      return res.status(403).json({ detail: 'Access denied: Repository directory resolves outside base storage.' });
+    }
+
     const sourceRoot = path.resolve(repoDir, 'source');
     if (!fs.existsSync(sourceRoot)) {
       return res.status(404).json({
         detail: `Source files for repository '${repoId}' not found.`,
       });
+    }
+
+    // Verify source root is not a symbolic link pointing outside REPOS_DIR
+    const sourceRootLstat = fs.lstatSync(sourceRoot);
+    if (sourceRootLstat.isSymbolicLink()) {
+      return res.status(403).json({ detail: 'Access denied: Repository source root cannot be a symbolic link.' });
+    }
+
+    const realSourceRoot = fs.realpathSync(sourceRoot);
+    if (!realSourceRoot.startsWith(realReposDir + path.sep)) {
+      return res.status(403).json({ detail: 'Access denied: Repository source root resolves outside base storage.' });
     }
 
     // Path Traversal Security: Clean leading slashes and resolve against source root
@@ -1207,7 +1266,6 @@ async function handleGetFileContent(req: Request, res: Response) {
     }
 
     const realTargetPath = fs.realpathSync(targetPath);
-    const realSourceRoot = fs.realpathSync(sourceRoot);
     if (!realTargetPath.startsWith(realSourceRoot + path.sep) && realTargetPath !== realSourceRoot) {
       return res.status(403).json({ detail: 'Access denied: File resolves outside repository root.' });
     }

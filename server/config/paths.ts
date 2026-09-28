@@ -17,7 +17,13 @@ export const STORAGE_ROOT = IS_VERCEL
   ? path.join('/tmp', 'codesage_storage')
   : path.resolve(process.cwd(), 'storage');
 
-export const DB_PATH = path.join(STORAGE_ROOT, 'codesage_cache.db');
+/**
+ * Shared ledger adapter configuration for multi-instance serverless deployments (e.g. Vercel / AWS Lambda).
+ * If a persistent external storage path is supplied via environment variable (SHARED_DB_PATH or STORAGE_DIR),
+ * that shared store is prioritized over instance-local ephemeral /tmp storage to guarantee synchronized spending caps.
+ */
+export const SHARED_DB_PATH = process.env.SHARED_DB_PATH || (process.env.STORAGE_DIR ? path.join(process.env.STORAGE_DIR, 'codesage_cache.db') : null);
+export const DB_PATH = SHARED_DB_PATH || path.join(STORAGE_ROOT, 'codesage_cache.db');
 export const REPOS_DIR = path.join(STORAGE_ROOT, 'repos');
 export const LOGS_DIR = path.join(STORAGE_ROOT, 'logs');
 export const ERROR_LOG_PATH = path.join(LOGS_DIR, 'codesage_error.log');
