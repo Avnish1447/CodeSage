@@ -18,6 +18,7 @@ import { LaunchVideoModal } from './components/LaunchVideoModal';
 import { BrandKitModal } from './components/BrandKitModal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
+import { NeobrutalistLoginPage } from './components/NeobrutalistLoginPage';
 import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
@@ -65,7 +66,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [lastAttemptedUrl, setLastAttemptedUrl] = useState<string>('https://github.com/Avnish1447/CodeSage');
   
-  // Route Helper for Legal & Privacy Center
+  // Route Helpers
   const isPrivacyRoute = (p: string, h: string) => {
     const path = p.toLowerCase();
     const hash = h.toLowerCase();
@@ -84,8 +85,21 @@ export function App() {
     );
   };
 
+  const isLoginRoute = (p: string, h: string) => {
+    const path = p.toLowerCase();
+    const hash = h.toLowerCase();
+    return (
+      path === '/login' ||
+      path === '/login.html' ||
+      path === '/signin' ||
+      path === '/signin.html' ||
+      hash === '#login' ||
+      hash === '#signin'
+    );
+  };
+
   const checkIs404 = (path: string, h: string) => {
-    if (isPrivacyRoute(path, h)) return false;
+    if (isPrivacyRoute(path, h) || isLoginRoute(path, h)) return false;
     return (
       path === '/404' ||
       path === '/404.html' ||
@@ -99,10 +113,15 @@ export function App() {
     );
   };
 
-  // 404 & Privacy Route States
+  // 404, Privacy & Login Route States
   const [isPrivacyPage, setIsPrivacyPage] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return isPrivacyRoute(window.location.pathname, window.location.hash);
+  });
+
+  const [isLoginPage, setIsLoginPage] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return isLoginRoute(window.location.pathname, window.location.hash);
   });
 
   const [is404, setIs404] = useState<boolean>(() => {
@@ -114,6 +133,7 @@ export function App() {
     const handleRouteChange = () => {
       const path = window.location.pathname;
       const hash = window.location.hash;
+      setIsLoginPage(isLoginRoute(path, hash));
       setIsPrivacyPage(isPrivacyRoute(path, hash));
       setIs404(checkIs404(path, hash));
     };
@@ -474,13 +494,26 @@ export function App() {
 
   // Check health and analyze the default repo on mount
   useEffect(() => {
-    if (is404 || isPrivacyPage) return;
+    if (is404 || isPrivacyPage || isLoginPage) return;
     checkGeminiHealth(false);
     analyzeRepository('https://github.com/Avnish1447/CodeSage');
     if (window.location.hash === '#workbench' || window.location.hash === '#studio') {
       setTimeout(scrollToWorkbench, 300);
     }
-  }, [is404, isPrivacyPage]);
+  }, [is404, isPrivacyPage, isLoginPage]);
+
+  if (isLoginPage) {
+    return (
+      <NeobrutalistLoginPage
+        onNavigateHome={() => {
+          window.history.pushState(null, '', '/');
+          setIsLoginPage(false);
+          setIsPrivacyPage(false);
+          setIs404(false);
+        }}
+      />
+    );
+  }
 
   if (isPrivacyPage) {
     return (

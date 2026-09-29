@@ -327,3 +327,86 @@ html.theme-crossfade-active *::after {
   animation: fdc-dash 2s ease-in-out infinite;
 }
 
+/* Hard Neobrutalism Design System */
+.font-archivo {
+  font-family: 'Archivo', sans-serif;
+}
+.font-space-grotesk {
+  font-family: 'Space Grotesk', sans-serif;
+}
+.font-space-mono {
+  font-family: 'Space Mono', monospace;
+}
+
+.shadow-hard-sm {
+  box-shadow: 5px 5px 0 #000000;
+}
+.shadow-hard {
+  box-shadow: 8px 8px 0 #000000;
+}
+.shadow-hard-lg {
+  box-shadow: 12px 12px 0 #000000;
+}
+.shadow-acid {
+  box-shadow: 8px 8px 0 #e8ff00, 8px 8px 0 3px #000000;
+}
+
+.press-card {
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.press-card:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 4px 4px 0 #000000;
+}
+.press-card:active {
+  transform: translate(8px, 8px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.press-card-sm {
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.press-card-sm:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 3px 3px 0 #000000;
+}
+.press-card-sm:active {
+  transform: translate(5px, 5px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.grid-dots-bg {
+  background-color: #f4f1ea;
+  background-image: radial-gradient(#000000 1.4px, transparent 1.4px);
+  background-size: 22px 22px;
+}
+
+.tick-pattern {
+  background-image: repeating-linear-gradient(45deg, #000000 0, #000000 2px, transparent 2px, transparent 9px);
+}
+
+@keyframes marqueeScroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-animation {
+  display: flex;
+  width: max-content;
+  animation: marqueeScroll 22s linear infinite;
+}
+
+.marquee-animation:hover {
+  animation-play-state: paused;
+}
+
+.input-brutalist:focus {
+  background-color: #fffef2;
+  box-shadow: 5px 5px 0 #e8ff00, 5px 5px 0 2px #000000;
+  outline: none;
+}
+
