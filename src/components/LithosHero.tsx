@@ -16,7 +16,7 @@ interface LithosHeroProps {
 }
 
 export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = false, onToggleTheme }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, requestSignOut } = useAuth();
   const isLocalhost = typeof window !== 'undefined' && (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1'
@@ -219,7 +219,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               )}
               <button
                 type="button"
-                onClick={logout}
+                onClick={requestSignOut}
                 title="Sign Out"
                 aria-label="Sign out"
                 className="p-1 rounded text-[#8F8F8F] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"

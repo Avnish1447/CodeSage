@@ -50,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   const {
     user,
     logout,
+    requestSignOut,
   } = useAuth();
 
   const loadErrorStats = async () => {
@@ -496,7 +497,8 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               )}
               <button
-                onClick={logout}
+                type="button"
+                onClick={requestSignOut}
                 title="Sign Out"
                 aria-label="Sign out"
                 className="p-1 rounded text-[#8F8F8F] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"

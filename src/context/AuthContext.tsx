@@ -3,6 +3,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useToast } from './ToastContext';
 import { AuthModal } from '../components/AuthModal';
+import { SignOutConfirmModal } from '../components/SignOutConfirmModal';
 
 export interface AppUser {
   uid: string;
@@ -30,6 +31,10 @@ export interface AuthContextType {
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
+  isSignOutModalOpen: boolean;
+  requestSignOut: () => void;
+  cancelSignOut: () => void;
+  confirmSignOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -48,12 +53,16 @@ const AuthContext = createContext<AuthContextType>({
   isAuthModalOpen: false,
   openAuthModal: () => {},
   closeAuthModal: () => {},
+  isSignOutModalOpen: false,
+  requestSignOut: () => {},
+  cancelSignOut: () => {},
+  confirmSignOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { showError, showWarning, showSuccess } = useToast();
+  const { showError, showWarning, showSuccess, showInfo } = useToast();
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -279,6 +288,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false);
   };
 
+  const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
+
   const logout = async () => {
     try {
       localStorage.removeItem('codesage_dev_user');
@@ -293,6 +304,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthError(null);
     }
   };
+
+  const requestSignOut = useCallback(() => {
+    setIsSignOutModalOpen(true);
+  }, []);
+
+  const cancelSignOut = useCallback(() => {
+    setIsSignOutModalOpen(false);
+  }, []);
+
+  const confirmSignOut = useCallback(async () => {
+    setIsSignOutModalOpen(false);
+    await logout();
+    showInfo('You have signed out. Please sign in to continue using CodeSage.', 'Signed Out', 4000);
+  }, [showInfo]);
 
   const clearAuthError = () => setAuthError(null);
 
@@ -314,10 +339,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthModalOpen,
         openAuthModal,
         closeAuthModal,
+        isSignOutModalOpen,
+        requestSignOut,
+        cancelSignOut,
+        confirmSignOut,
       }}
     >
       {children}
       <AuthModal isOpen={isAuthModalOpen} onClose={closeAuthModal} />
+      <SignOutConfirmModal
+        isOpen={isSignOutModalOpen}
+        onClose={cancelSignOut}
+        onConfirm={confirmSignOut}
+        user={user}
+      />
     </AuthContext.Provider>
   );
 };
+
