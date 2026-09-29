@@ -56,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
     loginWithGoogle,
     loginAsDev,
     logout,
+    openAuthModal,
   } = useAuth();
 
   const loadErrorStats = async () => {
@@ -514,10 +515,10 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-1.5">
               <motion.button
                 whileTap={{ scale: 0.97 }}
-                onClick={() => loginWithGoogle()}
+                onClick={() => openAuthModal ? openAuthModal() : loginWithGoogle()}
                 disabled={isSigningIn}
                 className="flex items-center space-x-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-md text-xs font-medium bg-[#171717] hover:bg-[#2c2c2c] dark:bg-white dark:hover:bg-[#EDEDED] text-white dark:text-[#171717] transition-all cursor-pointer shadow-sm disabled:opacity-60"
-                title="Sign in with Clerk"
+                title="Sign in"
               >
                 {isSigningIn ? (
                   <>
@@ -597,12 +598,12 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
               <a
-                href="https://dashboard.clerk.com/"
+                href="https://supabase.com/dashboard/project/mhvqbzuckqggdqcjteki/auth/providers"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 font-medium text-[11px] transition-colors cursor-pointer inline-flex items-center space-x-1"
               >
-                <span>Clerk Dashboard ↗</span>
+                <span>Supabase Auth ↗</span>
               </a>
               <button
                 onClick={clearAuthError}

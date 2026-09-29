@@ -16,7 +16,7 @@ interface LithosHeroProps {
 }
 
 export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = false, onToggleTheme }) => {
-  const { user, isSigningIn, loginWithGoogle, loginAsDev, logout } = useAuth();
+  const { user, isSigningIn, loginWithGoogle, loginAsDev, logout, openAuthModal } = useAuth();
   const isLocalhost = typeof window !== 'undefined' && (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1'
@@ -232,10 +232,10 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.97 }}
-                onClick={() => loginWithGoogle()}
+                onClick={() => openAuthModal ? openAuthModal() : loginWithGoogle()}
                 disabled={isSigningIn}
                 className="flex items-center space-x-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-md text-xs font-medium bg-[#171717] hover:bg-[#2c2c2c] dark:bg-white dark:hover:bg-[#EDEDED] text-white dark:text-[#171717] transition-all cursor-pointer shadow-sm disabled:opacity-60"
-                title="Sign in with Clerk"
+                title="Sign in"
               >
                 {isSigningIn ? (
                   <>
