@@ -485,6 +485,21 @@ export function App() {
     if (twitterDescTag) twitterDescTag.setAttribute('content', metaDescription);
   }, [loading, error, viewMode, repoData, leftTab, lastAttemptedUrl, showLaunchVideo, showBrandKit]);
 
+  // Canonical domain forwarder: redirect preview/deployment aliases (e.g. code-sage-*.vercel.app) to thecodesage.vercel.app
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hostname = window.location.hostname;
+    if (
+      hostname !== 'localhost' &&
+      hostname !== '127.0.0.1' &&
+      hostname.endsWith('.vercel.app') &&
+      hostname !== 'thecodesage.vercel.app'
+    ) {
+      const canonicalTarget = `https://thecodesage.vercel.app${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.replace(canonicalTarget);
+    }
+  }, []);
+
   const initialAnalyzedUserRef = useRef<string | null>(null);
 
   // Check health and analyze the default repo on initial user authentication

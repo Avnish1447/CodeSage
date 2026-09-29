@@ -170,7 +170,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      const redirectTo = `${window.location.origin}/`;
+      const isLocal = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+      );
+      const redirectTo = isLocal ? `${window.location.origin}/` : 'https://thecodesage.vercel.app/';
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -211,7 +215,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      const redirectTo = `${window.location.origin}/`;
+      const isLocal = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+      );
+      const redirectTo = isLocal ? `${window.location.origin}/` : 'https://thecodesage.vercel.app/';
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
