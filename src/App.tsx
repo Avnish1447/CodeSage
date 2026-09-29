@@ -293,7 +293,7 @@ export function App() {
     } else {
       setFirestoreHistory([]);
     }
-  }, [user]);
+  }, [user?.uid]);
 
   const checkGeminiHealth = async (forceProbe: boolean = false) => {
     try {
@@ -313,7 +313,12 @@ export function App() {
     workbenchRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const analyzeRepository = async (url: string, branch?: string, forceRefresh = false) => {
+  const analyzeRepository = async (
+    url: string,
+    branch?: string,
+    forceRefresh = false,
+    silent = false
+  ) => {
     const trimmed = url.trim();
     const requestKey = `${trimmed}#${branch || ''}`;
 
@@ -343,7 +348,9 @@ export function App() {
           setLoading(false);
           currentInflightRepoRef.current = null;
           loadCachedList();
-          showInfo('Loaded from cache', `${localCached.overview.owner}/${localCached.overview.repo} (0ms instant access)`);
+          if (!silent) {
+            showInfo('Loaded from cache', `${localCached.overview.owner}/${localCached.overview.repo} (0ms instant access)`);
+          }
           return;
         }
       } catch (err) {
@@ -388,10 +395,12 @@ export function App() {
       // Automatically store in client-side IndexedDB for instant 0ms future reloads
       await indexedDbService.saveAnalysisToCache(data);
       loadCachedList();
-      showSuccess(
-        forceRefresh ? 'Repository refreshed' : 'Repository excavated',
-        `${data.overview.owner}/${data.overview.repo} (${data.facts?.stats?.file_count || 0} files) analyzed.`
-      );
+      if (!silent) {
+        showSuccess(
+          forceRefresh ? 'Repository refreshed' : 'Repository excavated',
+          `${data.overview.owner}/${data.overview.repo} (${data.facts?.stats?.file_count || 0} files) analyzed.`
+        );
+      }
 
       // Automatically sync analyzed repository to user's personal Firestore history
       if (user?.uid) {
@@ -476,15 +485,28 @@ export function App() {
     if (twitterDescTag) twitterDescTag.setAttribute('content', metaDescription);
   }, [loading, error, viewMode, repoData, leftTab, lastAttemptedUrl, showLaunchVideo, showBrandKit]);
 
-  // Check health and analyze the default repo on mount
+  const initialAnalyzedUserRef = useRef<string | null>(null);
+
+  // Check health and analyze the default repo on initial user authentication
   useEffect(() => {
-    if (is404 || isPrivacyPage || !user) return;
+    if (is404 || isPrivacyPage || !user?.uid) {
+      if (!user) {
+        initialAnalyzedUserRef.current = null;
+      }
+      return;
+    }
+
+    // Run once per authenticated user session to prevent duplicate or looping calls
+    if (initialAnalyzedUserRef.current === user.uid) return;
+    initialAnalyzedUserRef.current = user.uid;
+
     checkGeminiHealth(false);
-    analyzeRepository('https://github.com/Avnish1447/CodeSage');
+    analyzeRepository('https://github.com/Avnish1447/CodeSage', undefined, false, true); // silent = true: suppress automatic cache toast on login
+
     if (window.location.hash === '#workbench' || window.location.hash === '#studio') {
       setTimeout(scrollToWorkbench, 300);
     }
-  }, [is404, isPrivacyPage, user]);
+  }, [is404, isPrivacyPage, user?.uid]);
 
   // 1. Legal Center (Privacy Policy & Terms) remains accessible unconditionally
   if (isPrivacyPage) {

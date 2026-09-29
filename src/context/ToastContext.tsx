@@ -47,7 +47,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         duration: autoDismissDuration,
       };
 
-      setToasts((prev) => [...prev.slice(-4), newToast]); // Keep max 5 visible toasts
+      setToasts((prev) => {
+        // Prevent duplicate toasts from stacking if identical toast is already active
+        const isDuplicate = prev.some(
+          (t) => t.message === message && t.title === title && t.type === type
+        );
+        if (isDuplicate) {
+          return prev;
+        }
+        return [...prev.slice(-4), newToast]; // Keep max 5 visible toasts
+      });
 
       if (autoDismissDuration > 0) {
         setTimeout(() => {

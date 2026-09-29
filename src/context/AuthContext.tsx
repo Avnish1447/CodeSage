@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useToast } from './ToastContext';
@@ -130,25 +130,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Compute active user (devUser takes priority if manually selected; otherwise real Supabase user)
-  const user: AuthUser | null = devUser
-    ? devUser
-    : supabaseUser
-    ? {
-        uid: supabaseUser.id,
-        displayName:
-          supabaseUser.user_metadata?.full_name ||
-          supabaseUser.user_metadata?.name ||
-          supabaseUser.user_metadata?.user_name ||
-          supabaseUser.email?.split('@')[0] ||
-          'CodeSage User',
-        email: supabaseUser.email || null,
-        photoURL:
-          supabaseUser.user_metadata?.avatar_url ||
-          supabaseUser.user_metadata?.picture ||
-          null,
-        isDev: false,
-      }
-    : null;
+  const user: AuthUser | null = useMemo(() => {
+    if (devUser) return devUser;
+    if (!supabaseUser) return null;
+    return {
+      uid: supabaseUser.id,
+      displayName:
+        supabaseUser.user_metadata?.full_name ||
+        supabaseUser.user_metadata?.name ||
+        supabaseUser.user_metadata?.user_name ||
+        supabaseUser.email?.split('@')[0] ||
+        'CodeSage User',
+      email: supabaseUser.email || null,
+      photoURL:
+        supabaseUser.user_metadata?.avatar_url ||
+        supabaseUser.user_metadata?.picture ||
+        null,
+      isDev: false,
+    };
+  }, [devUser, supabaseUser]);
 
   const openAuthModal = useCallback(() => {
     setAuthError(null);
@@ -290,7 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       localStorage.removeItem('codesage_dev_user');
       setDevUser(null);
@@ -303,7 +303,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setAuthError(null);
     }
-  };
+  }, []);
 
   const requestSignOut = useCallback(() => {
     setIsSignOutModalOpen(true);
@@ -317,34 +317,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsSignOutModalOpen(false);
     await logout();
     showInfo('You have signed out. Please sign in to continue using CodeSage.', 'Signed Out', 4000);
-  }, [showInfo]);
+  }, [logout, showInfo]);
 
-  const clearAuthError = () => setAuthError(null);
+  const clearAuthError = useCallback(() => setAuthError(null), []);
+
+  const contextValue = useMemo<AuthContextType>(
+    () => ({
+      user,
+      loading,
+      isSigningIn,
+      authError,
+      loginWithGoogle,
+      loginWithEmail,
+      verifyOtp,
+      loginAsDev,
+      logout,
+      clearAuthError,
+      isAuthConfigured: isSupabaseConfigured,
+      isClerkConfigured: isSupabaseConfigured,
+      isAuthModalOpen,
+      openAuthModal,
+      closeAuthModal,
+      isSignOutModalOpen,
+      requestSignOut,
+      cancelSignOut,
+      confirmSignOut,
+    }),
+    [
+      user,
+      loading,
+      isSigningIn,
+      authError,
+      loginWithGoogle,
+      loginWithEmail,
+      verifyOtp,
+      loginAsDev,
+      logout,
+      clearAuthError,
+      isAuthModalOpen,
+      openAuthModal,
+      closeAuthModal,
+      isSignOutModalOpen,
+      requestSignOut,
+      cancelSignOut,
+      confirmSignOut,
+    ]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        isSigningIn,
-        authError,
-        loginWithGoogle,
-        loginWithEmail,
-        verifyOtp,
-        loginAsDev,
-        logout,
-        clearAuthError,
-        isAuthConfigured: isSupabaseConfigured,
-        isClerkConfigured: isSupabaseConfigured,
-        isAuthModalOpen,
-        openAuthModal,
-        closeAuthModal,
-        isSignOutModalOpen,
-        requestSignOut,
-        cancelSignOut,
-        confirmSignOut,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
       <AuthModal isOpen={isAuthModalOpen} onClose={closeAuthModal} />
       <SignOutConfirmModal
