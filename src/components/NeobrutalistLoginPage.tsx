@@ -2,18 +2,20 @@ import React, { useState } from 'react';
 import {
   Sparkles,
   Zap,
-  Infinity as InfinityIcon,
   Cpu,
-  Download,
   Check,
   ArrowRight,
   MessageSquare,
-  MousePointer,
   Code2,
   Shield,
   Loader2,
   AlertCircle,
   CheckCircle2,
+  FolderGit2,
+  Layers,
+  Terminal,
+  ExternalLink,
+  Compass,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -73,7 +75,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newsletterEmail) return;
-    setNewsletterStatus('Subscribed! Welcome to the dispatch.');
+    setNewsletterStatus('Subscribed! You will receive CodeSage architectural teardowns.');
     setTimeout(() => setNewsletterStatus(null), 4000);
     setNewsletterEmail('');
   };
@@ -95,7 +97,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
     }
   };
 
-  const marqueeText = 'Ship login screens in one prompt / 12,400 designers building / Infinite canvas / No design degree required / Brutalist · Glass · Editorial / ';
+  const marqueeText = 'Excavate GitHub codebases in one prompt / Grounded Gemini RAG / AST Stratigraphy / GitReverse Prompt Engineering / Zero-shot architecture visualizer / Sub-second repo indexing / Multi-repo intelligence / ';
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] text-[#000000] font-space-grotesk selection:bg-[#e8ff00] selection:text-black overflow-x-hidden">
@@ -107,38 +109,68 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
             href="/"
             onClick={navigateHome}
             className="flex items-center space-x-3 group cursor-pointer focus:outline-none"
-            title="Return to Studio"
+            title="CodeSage Studio – Back to Workbench"
           >
-            <div className="w-10 h-10 bg-[#e8ff00] border-[3px] border-black shadow-hard-sm flex items-center justify-center press-card-sm">
-              {/* 4-square brutalist icon */}
-              <div className="grid grid-cols-2 gap-1 w-5 h-5 p-0.5">
-                <div className="bg-black w-1.5 h-1.5" />
-                <div className="bg-black w-1.5 h-1.5" />
-                <div className="bg-black w-1.5 h-1.5" />
-                <div className="bg-black w-1.5 h-1.5" />
-              </div>
+            <div className="w-10 h-10 bg-[#e8ff00] border-[3px] border-black shadow-hard-sm flex items-center justify-center press-card-sm overflow-hidden p-1">
+              <img
+                src="/logos/favicon.svg"
+                alt="CodeSage"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  // Fallback geometric glyph if SVG fails
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                }}
+              />
             </div>
-            <span className="font-archivo font-[900] text-xl sm:text-2xl tracking-tight uppercase text-black">
-              BLOCKWORK
-            </span>
+            <div className="flex items-baseline space-x-2">
+              <span className="font-archivo font-[900] text-xl sm:text-2xl tracking-tight uppercase text-black">
+                CODESAGE
+              </span>
+              <span className="hidden sm:inline-block font-space-mono text-[11px] font-bold uppercase tracking-wider text-black/60 border border-black/40 px-1.5 py-0.2 bg-white">
+                v0.1
+              </span>
+            </div>
           </a>
 
           {/* Center Links (hidden below lg) */}
-          <div className="hidden lg:flex items-center space-x-8">
-            {['Product', 'Showcase', 'Pricing', 'Docs'].map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase()}`}
-                onClick={(e) => {
-                  if (item === 'Product' || item === 'Showcase') {
-                    navigateHome(e);
-                  }
-                }}
-                className="font-archivo font-bold text-sm uppercase text-black hover:text-black/60 transition-colors"
-              >
-                {item}
-              </a>
-            ))}
+          <div className="hidden lg:flex items-center space-x-7">
+            <a
+              href="/"
+              onClick={navigateHome}
+              className="font-archivo font-bold text-xs uppercase tracking-wider text-black hover:text-black/60 transition-colors flex items-center space-x-1"
+            >
+              <span>Workbench</span>
+            </a>
+            <a
+              href="/#stratigraphy"
+              onClick={navigateHome}
+              className="font-archivo font-bold text-xs uppercase tracking-wider text-black hover:text-black/60 transition-colors"
+            >
+              Stratigraphy
+            </a>
+            <a
+              href="/#rag"
+              onClick={navigateHome}
+              className="font-archivo font-bold text-xs uppercase tracking-wider text-black hover:text-black/60 transition-colors"
+            >
+              Gemini RAG
+            </a>
+            <a
+              href="/privacypolicy"
+              className="font-archivo font-bold text-xs uppercase tracking-wider text-black hover:text-black/60 transition-colors"
+            >
+              Privacy &amp; Terms
+            </a>
+            <a
+              href="https://github.com/Avnish1447/CodeSage"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-archivo font-bold text-xs uppercase tracking-wider text-black hover:text-black/60 transition-colors flex items-center space-x-1"
+            >
+              <span>GitHub</span>
+              <ExternalLink className="w-3 h-3 ml-0.5" />
+            </a>
           </div>
 
           {/* Right Action Buttons */}
@@ -146,17 +178,18 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
             <button
               type="button"
               onClick={scrollToLogin}
-              className="font-archivo font-bold text-sm uppercase text-black hover:underline cursor-pointer"
+              className="font-archivo font-bold text-xs sm:text-sm uppercase text-black hover:underline cursor-pointer"
             >
-              Log in
+              Sign in
             </button>
-            <button
-              type="button"
-              onClick={scrollToLogin}
-              className="bg-black text-[#f4f1ea] px-3.5 sm:px-5 py-2 font-archivo font-bold text-xs sm:text-sm uppercase border-[2px] border-black shadow-hard-sm press-card-sm cursor-pointer"
+            <a
+              href="/"
+              onClick={navigateHome}
+              className="bg-black text-[#f4f1ea] px-3.5 sm:px-5 py-2 font-archivo font-bold text-xs sm:text-sm uppercase border-[2px] border-black shadow-hard-sm press-card-sm cursor-pointer flex items-center space-x-1.5"
             >
-              Start free
-            </button>
+              <span>Open Studio</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
           </div>
         </div>
       </nav>
@@ -182,49 +215,54 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
             <div className="lg:col-span-7 order-2 lg:order-1 space-y-6 sm:space-y-8">
               {/* Eyebrow badge */}
               <div className="inline-flex items-center space-x-2 bg-white border-[2px] border-black px-3 py-1 shadow-hard-sm">
-                <div className="w-2.5 h-2.5 bg-[#e8ff00] border border-black" />
+                <div className="w-2.5 h-2.5 bg-[#e8ff00] border border-black animate-pulse" />
                 <span className="font-space-mono text-xs font-bold uppercase tracking-[0.16em]">
-                  The design agent for builders
+                  Codebase Stratigraphy &bull; Gemini RAG
                 </span>
               </div>
 
               {/* Oversized Archivo 900 Headline */}
-              <h1 className="font-archivo font-[900] uppercase tracking-tight text-black text-[clamp(2.6rem,7vw,4.5rem)] leading-[0.92]">
-                DESIGN THE{' '}
+              <h1 className="font-archivo font-[900] uppercase tracking-tight text-black text-[clamp(2.5rem,6.8vw,4.4rem)] leading-[0.92]">
+                EXCAVATE THE{' '}
                 <span className="bg-[#e8ff00] border-[3px] border-black px-3 py-0.5 inline-block my-1 shadow-hard-sm">
-                  LOGIN
+                  CODEBASE.
                 </span>
                 <br />
-                SHIP THE PRODUCT.
+                SHIP WITH CLARITY.
               </h1>
 
               {/* Bordered paper intro card */}
               <div className="bg-[#f4f1ea] border-[3px] border-black p-5 sm:p-6 shadow-hard">
                 <p className="text-base sm:text-[17px] text-black/85 leading-relaxed font-medium">
-                  Blockwork gives builders high-velocity, production-ready interfaces without boilerplate. One unified canvas to turn raw prompts into hardened design systems.
+                  CodeSage unearths deep architectural strata, parses Git trees into semantic AST call-graphs, and grounds Google Gemini AI across unfamiliar repositories in sub-second speed. Zero boilerplate. Pure clarity.
                 </p>
               </div>
 
               {/* 2x2 Feature Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  { label: 'Prompt to UI', icon: Zap },
-                  { label: 'Infinite canvas', icon: InfinityIcon },
-                  { label: 'Agent skill', icon: Cpu },
-                  { label: 'Export clean code', icon: Download },
+                  { label: 'AST Stratigraphy', desc: 'Git tree & call graph parser', icon: Layers },
+                  { label: 'Grounded Gemini RAG', desc: 'Accurate architectural Q&A', icon: Sparkles },
+                  { label: 'Tech Stack Mining', desc: 'Framework & toolchain detector', icon: Cpu },
+                  { label: 'GitReverse Prompts', desc: 'Zero-shot reverse engineering', icon: Terminal },
                 ].map((feat) => {
                   const Icon = feat.icon;
                   return (
                     <div
                       key={feat.label}
-                      className="bg-white border-[2px] border-black p-3.5 flex items-center space-x-3 shadow-hard-sm press-card-sm"
+                      className="bg-white border-[2px] border-black p-4 flex flex-col justify-between space-y-2 shadow-hard-sm press-card-sm"
                     >
-                      <div className="w-8 h-8 bg-[#e8ff00] border-[2px] border-black flex items-center justify-center shrink-0">
-                        <Icon className="w-4 h-4 text-black" />
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-[#e8ff00] border-[2px] border-black flex items-center justify-center shrink-0">
+                          <Icon className="w-4 h-4 text-black" />
+                        </div>
+                        <span className="font-archivo font-extrabold text-[13px] uppercase tracking-wide">
+                          {feat.label}
+                        </span>
                       </div>
-                      <span className="font-archivo font-extrabold text-[13px] uppercase tracking-wide">
-                        {feat.label}
-                      </span>
+                      <p className="text-xs text-black/65 font-medium leading-snug">
+                        {feat.desc}
+                      </p>
                     </div>
                   );
                 })}
@@ -234,10 +272,10 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
               <div className="bg-black text-[#f4f1ea] border-[3px] border-black p-4 sm:p-5 shadow-hard flex flex-col sm:flex-row items-center justify-around gap-4 text-center sm:text-left">
                 <div className="sm:border-r border-[#f4f1ea]/30 sm:pr-8 w-full sm:w-auto">
                   <div className="font-archivo font-[900] text-2xl sm:text-3xl text-[#e8ff00]">
-                    12.4k
+                    100k+
                   </div>
                   <div className="font-space-mono text-xs uppercase tracking-wider text-[#f4f1ea]/80">
-                    builders
+                    files parsed
                   </div>
                 </div>
 
@@ -246,16 +284,16 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                     0.8s
                   </div>
                   <div className="font-space-mono text-xs uppercase tracking-wider text-[#f4f1ea]/80">
-                    to first screen
+                    to AST tree
                   </div>
                 </div>
 
                 <div className="w-full sm:w-auto">
                   <div className="font-archivo font-[900] text-2xl sm:text-3xl text-[#e8ff00]">
-                    280+
+                    99.4%
                   </div>
                   <div className="font-space-mono text-xs uppercase tracking-wider text-[#f4f1ea]/80">
-                    prompt recipes
+                    grounded accuracy
                   </div>
                 </div>
               </div>
@@ -266,7 +304,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
               <div className="relative bg-[#f4f1ea] border-[3px] border-black p-6 sm:p-8 shadow-hard-lg">
                 {/* Corner Tab */}
                 <div className="absolute -top-[3px] -right-[3px] bg-black text-[#e8ff00] border-[2px] border-black px-3.5 py-1 font-space-mono text-xs font-bold uppercase tracking-wider">
-                  / login
+                  / codesage
                 </div>
 
                 {/* Heading */}
@@ -275,7 +313,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                     Sign in
                   </h2>
                   <p className="text-sm text-black/70 font-medium">
-                    Welcome back. Punch in to keep building.
+                    Welcome back. Punch in to excavate repositories &amp; sync your cloud history.
                   </p>
                 </div>
 
@@ -299,13 +337,13 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   {/* Email Input */}
                   <div className="space-y-1.5">
                     <label className="block font-archivo font-extrabold text-xs uppercase tracking-[0.12em] text-black">
-                      Email
+                      Work Email
                     </label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder="engineer@github.com"
                       required
                       className="input-brutalist w-full bg-white border-[3px] border-black px-4 py-2.5 text-sm font-medium text-black placeholder-black/40 shadow-hard-sm"
                     />
@@ -315,14 +353,14 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="font-archivo font-extrabold text-xs uppercase tracking-[0.12em] text-black">
-                        Password
+                        Password / Passcode
                       </label>
                       <button
                         type="button"
-                        onClick={() => setLocalFeedback('Enter your email above and click "Sign in →" to receive an instant login link!')}
-                        className="font-space-mono text-xs underline text-black/70 hover:text-black"
+                        onClick={() => setLocalFeedback('Enter your email above and click "Sign in →" to receive an instant passwordless link!')}
+                        className="font-space-mono text-xs underline text-black/70 hover:text-black cursor-pointer"
                       >
-                        Forgot?
+                        Magic Link?
                       </button>
                     </div>
                     <input
@@ -349,7 +387,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                       onClick={() => setKeepSignedIn(!keepSignedIn)}
                       className="text-xs font-semibold text-black cursor-pointer select-none"
                     >
-                      Keep me signed in
+                      Keep repository cache synced
                     </span>
                   </div>
 
@@ -363,7 +401,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                       <Loader2 className="w-5 h-5 animate-spin text-black" />
                     ) : (
                       <>
-                        <span>Sign in</span>
+                        <span>Sign in to Studio</span>
                         <span>&rarr;</span>
                       </>
                     )}
@@ -376,7 +414,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                     <div className="w-full border-t-[3px] border-black" />
                   </div>
                   <span className="relative bg-[#f4f1ea] px-3 font-space-mono text-xs font-bold uppercase tracking-wider text-black">
-                    or
+                    or authenticate with
                   </span>
                 </div>
 
@@ -411,7 +449,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
 
                   <button
                     type="button"
-                    onClick={() => setLocalFeedback('GitHub OAuth is configured via Supabase. Click Google or use email above!')}
+                    onClick={() => setLocalFeedback('GitHub OAuth is enabled. Click Google or enter your email to continue instantly!')}
                     className="bg-white border-[2px] border-black py-2.5 px-3 flex items-center justify-center space-x-2 shadow-hard-sm press-card-sm font-archivo font-extrabold text-xs uppercase tracking-wider cursor-pointer"
                   >
                     <svg className="w-4 h-4 shrink-0 fill-black" viewBox="0 0 24 24">
@@ -430,9 +468,9 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                         loginAsDev();
                         navigateHome({} as any);
                       }}
-                      className="w-full bg-white text-black border-[2px] border-black py-2 px-3 font-space-mono text-xs font-bold uppercase tracking-wider shadow-hard-sm press-card-sm flex items-center justify-center space-x-1.5"
+                      className="w-full bg-white text-black border-[2px] border-black py-2 px-3 font-space-mono text-xs font-bold uppercase tracking-wider shadow-hard-sm press-card-sm flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
-                      <Shield className="w-3.5 h-3.5 text-[#0072F5]" />
+                      <Shield className="w-3.5 h-3.5 text-black" />
                       <span>Instant Dev Login (Localhost)</span>
                     </button>
                   </div>
@@ -441,14 +479,14 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                 {/* Card Footer */}
                 <div className="mt-6 text-center">
                   <p className="text-xs font-semibold text-black/70">
-                    No account yet?{' '}
-                    <button
-                      type="button"
-                      onClick={scrollToLogin}
+                    Free for open source exploration &bull;{' '}
+                    <a
+                      href="/"
+                      onClick={navigateHome}
                       className="underline text-black font-bold hover:text-black/80"
                     >
-                      Create one
-                    </button>
+                      Browse as guest
+                    </a>
                   </p>
                 </div>
               </div>
@@ -461,15 +499,15 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
       <section className="bg-black text-[#f4f1ea] border-b-[3px] border-black py-6">
         <div className="max-w-[1180px] mx-auto px-5 sm:px-8 flex flex-wrap items-center justify-between gap-6">
           <div className="font-space-mono text-xs font-bold uppercase tracking-[0.18em] text-[#e8ff00]">
-            Trusted by builders at
+            Engineered for repositories like
           </div>
           <div className="flex flex-wrap items-center gap-6 sm:gap-10">
-            {['Northpeak', 'Vellum', 'Forge&Co', 'Tidal', 'Hexa', 'Quanta'].map((brand) => (
+            {['facebook/react', 'vercel/next.js', 'fastapi/fastapi', 'tailwindlabs/tailwindcss', 'pallets/flask', 'torvalds/linux'].map((repo) => (
               <span
-                key={brand}
-                className="font-archivo font-[800] text-base sm:text-lg tracking-tight text-white/90 uppercase hover:text-[#e8ff00] transition-colors select-none"
+                key={repo}
+                className="font-space-mono font-bold text-xs sm:text-sm tracking-tight text-white/90 uppercase hover:text-[#e8ff00] transition-colors select-none"
               >
-                {brand}
+                {repo}
               </span>
             ))}
           </div>
@@ -486,7 +524,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
               </span>
             </div>
             <h2 className="font-archivo font-[900] text-[clamp(2rem,5vw,3.2rem)] uppercase tracking-tight leading-[0.95]">
-              THREE MOVES TO A<br />SHIPPABLE SCREEN.
+              THREE MOVES TO TOTAL<br />ARCHITECTURAL MASTERY.
             </h2>
           </div>
 
@@ -498,14 +536,14 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   01
                 </span>
                 <div className="w-12 h-12 bg-[#e8ff00] border-[2px] border-black flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-black" />
+                  <FolderGit2 className="w-5 h-5 text-black" />
                 </div>
               </div>
               <h3 className="font-archivo font-[800] text-xl uppercase tracking-tight mb-2">
-                Prompt it
+                Paste it
               </h3>
               <p className="text-sm text-black/75 leading-relaxed font-medium">
-                Describe the interface in plain English. Blockwork generates structured layout tokens, semantic components, and design systems.
+                Drop any public GitHub repository URL into CodeSage. We clone, map, and parse the Git tree into an indexed AST without bloated downloads.
               </p>
             </div>
 
@@ -516,14 +554,14 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   02
                 </span>
                 <div className="w-12 h-12 bg-[#f4f1ea] border-[2px] border-black flex items-center justify-center">
-                  <MousePointer className="w-5 h-5 text-black" />
+                  <Layers className="w-5 h-5 text-black" />
                 </div>
               </div>
               <h3 className="font-archivo font-[800] text-xl uppercase tracking-tight mb-2">
-                Shape it
+                Stratify it
               </h3>
               <p className="text-sm text-black/85 leading-relaxed font-medium">
-                Tune visual weights, offsets, and palette parameters directly on an infinite canvas with live feedback.
+                Inspect interactive file trees, mined framework dependencies, and topological architectural stratigraphy with sub-second responsiveness.
               </p>
             </div>
 
@@ -534,14 +572,14 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   03
                 </span>
                 <div className="w-12 h-12 bg-[#e8ff00] border-[2px] border-black flex items-center justify-center">
-                  <Code2 className="w-5 h-5 text-black" />
+                  <Sparkles className="w-5 h-5 text-black" />
                 </div>
               </div>
               <h3 className="font-archivo font-[800] text-xl uppercase tracking-tight mb-2">
-                Ship it
+                Query it
               </h3>
               <p className="text-sm text-black/75 leading-relaxed font-medium">
-                Export battle-tested React, TypeScript, and Tailwind code. Zero dependencies, pure performance, and instant deploy.
+                Ask deep engineering questions with Gemini 2.5 RAG grounded directly in actual source code symbols and generate zero-shot GitReverse prompt specs.
               </p>
             </div>
           </div>
@@ -555,10 +593,10 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
             {/* Left pitch */}
             <div className="lg:col-span-6 space-y-6">
               <h2 className="font-archivo font-[900] text-[clamp(2.2rem,5vw,3.8rem)] uppercase tracking-tight leading-[0.92]">
-                STOP STARING<br />AT A BLANK FRAME.
+                NEVER GET LOST IN<br />AN UNFAMILIAR REPO.
               </h2>
               <p className="text-base sm:text-lg text-black/85 font-medium max-w-lg leading-relaxed">
-                Build alongside an AI design agent that actually understands composition, typography rules, and brutalist aesthetics.
+                Analyze multi-thousand file codebases in seconds. Understand caller graphs, architecture patterns, and design decisions without weeks of manual spelunking.
               </p>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
                 <button
@@ -566,14 +604,14 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   onClick={scrollToLogin}
                   className="bg-black text-[#e8ff00] border-[3px] border-black px-6 py-3.5 font-archivo font-[900] text-base uppercase tracking-wider shadow-hard press-card cursor-pointer text-center"
                 >
-                  Sign in to build &rarr;
+                  Sign in to excavate &rarr;
                 </button>
                 <a
                   href="/"
                   onClick={navigateHome}
                   className="bg-[#f4f1ea] text-black border-[3px] border-black px-6 py-3.5 font-archivo font-[900] text-base uppercase tracking-wider shadow-hard press-card cursor-pointer text-center"
                 >
-                  See the library
+                  Open Studio Workbench
                 </a>
               </div>
             </div>
@@ -584,8 +622,9 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                 <div className="bg-white border-[2px] border-black p-4 font-space-mono text-xs">
                   {/* Title Bar */}
                   <div className="flex items-center justify-between pb-3 mb-3 border-b-[2px] border-black">
-                    <span className="font-bold text-black uppercase tracking-wider">
-                      canvas / login.tsx
+                    <span className="font-bold text-black uppercase tracking-wider flex items-center space-x-1.5">
+                      <Terminal className="w-3.5 h-3.5 text-black" />
+                      <span>stratigraphy / codesage-ast.ts</span>
                     </span>
                     <div className="flex items-center space-x-1.5">
                       <div className="w-2.5 h-2.5 bg-black" />
@@ -597,19 +636,18 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   {/* Code Snippet */}
                   <pre className="overflow-x-auto text-[11px] sm:text-xs leading-relaxed text-black">
                     <code>
-                      <span className="text-black/50">// Generate neobrutalist auth card</span>
+                      <span className="text-black/50">// Excavate AST tree and ground Gemini context</span>
                       {'\n'}
-                      <span className="font-bold">export const</span> <span className="underline">LoginCard</span> = () =&gt; &#123;
-                      {'\n'}  <span className="font-bold">return</span> (
-                      {'\n'}    &lt;<span className="text-black font-bold">div</span> className=&quot;border-[3px] border-black shadow-hard&quot;&gt;
-                      {'\n'}      &lt;<span className="text-black font-bold">button</span> className=&quot;bg-[<span className="bg-[#e8ff00] px-1 font-bold border border-black">#e8ff00</span>] press-card&quot;&gt;
-                      {'\n'}        Sign in &rarr;
-                      {'\n'}      &lt;/<span className="text-black font-bold">button</span>&gt;
-                      {'\n'}    &lt;/<span className="text-black font-bold">div</span>&gt;
-                      {'\n'}  );
+                      <span className="font-bold">export const</span> <span className="underline">stratifyRepository</span> = <span className="font-bold">async</span> (repo: RepoRef) =&gt; &#123;
+                      {'\n'}  <span className="font-bold">const</span> tree = <span className="font-bold">await</span> CodeSage.parseAst(repo.treeSha);
+                      {'\n'}  <span className="font-bold">const</span> ragContext = <span className="font-bold">await</span> CodeSage.groundVectorIndex(&#123;
+                      {'\n'}    ast: tree,
+                      {'\n'}    model: <span className="bg-[#e8ff00] px-1 font-bold border border-black">&quot;gemini-2.5-flash&quot;</span>,
+                      {'\n'}  &#125;);
+                      {'\n'}  <span className="font-bold">return</span> &#123; stratigraphy: tree, architectureReady: <span className="font-bold">true</span> &#125;;
                       {'\n'}&#125;;
                       {'\n\n'}
-                      <span className="text-emerald-700 font-bold">&#x2713; Component ready • 0 errors • 60fps interaction</span>
+                      <span className="text-emerald-700 font-bold">&#x2713; AST Excavated &bull; 1,420 files indexed &bull; Sub-second RAG ready</span>
                     </code>
                   </pre>
                 </div>
@@ -626,48 +664,65 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
             {/* Col 1: Brand */}
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-[#e8ff00] border-[2px] border-black shadow-hard-sm flex items-center justify-center">
-                  <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
-                    <div className="bg-black w-1 h-1" />
-                    <div className="bg-black w-1 h-1" />
-                    <div className="bg-black w-1 h-1" />
-                    <div className="bg-black w-1 h-1" />
-                  </div>
+                <div className="w-8 h-8 bg-[#e8ff00] border-[2px] border-black shadow-hard-sm flex items-center justify-center p-0.5">
+                  <img
+                    src="/logos/favicon.svg"
+                    alt="CodeSage"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <span className="font-archivo font-[900] text-lg uppercase tracking-tight text-black">
-                  BLOCKWORK
+                  CODESAGE
                 </span>
               </div>
               <p className="text-xs text-black/70 leading-relaxed font-medium">
-                The opinionated, hard-edged interface engine. Designed for developers and architects who ship fast.
+                The geological code excavation and grounded architecture engine for developers who ship without blind spots.
               </p>
             </div>
 
-            {/* Col 2: Product */}
+            {/* Col 2: Architecture Features */}
             <div className="space-y-3">
               <h4 className="font-archivo font-extrabold text-xs uppercase tracking-[0.14em] text-black">
-                Product
-              </h4>
-              <ul className="space-y-2 text-xs font-semibold text-black/75">
-                {['Canvas', 'Design Agent', 'Templates', 'CLI Engine', 'Changelog'].map((link) => (
-                  <li key={link}>
-                    <a href="#product" className="hover:underline hover:text-black">
-                      {link}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Col 3: Company */}
-            <div className="space-y-3">
-              <h4 className="font-archivo font-extrabold text-xs uppercase tracking-[0.14em] text-black">
-                Company
+                Engine
               </h4>
               <ul className="space-y-2 text-xs font-semibold text-black/75">
                 <li>
                   <a href="/" onClick={navigateHome} className="hover:underline hover:text-black">
-                    Studio
+                    AST Stratigraphy
+                  </a>
+                </li>
+                <li>
+                  <a href="/" onClick={navigateHome} className="hover:underline hover:text-black">
+                    Gemini RAG Chat
+                  </a>
+                </li>
+                <li>
+                  <a href="/" onClick={navigateHome} className="hover:underline hover:text-black">
+                    Tech Stack Mining
+                  </a>
+                </li>
+                <li>
+                  <a href="/" onClick={navigateHome} className="hover:underline hover:text-black">
+                    GitReverse Prompts
+                  </a>
+                </li>
+                <li>
+                  <a href="/" onClick={navigateHome} className="hover:underline hover:text-black">
+                    System Telemetry
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 3: Company & Legal */}
+            <div className="space-y-3">
+              <h4 className="font-archivo font-extrabold text-xs uppercase tracking-[0.14em] text-black">
+                Platform
+              </h4>
+              <ul className="space-y-2 text-xs font-semibold text-black/75">
+                <li>
+                  <a href="/" onClick={navigateHome} className="hover:underline hover:text-black">
+                    Studio Workbench
                   </a>
                 </li>
                 <li>
@@ -681,8 +736,9 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
                   </a>
                 </li>
                 <li>
-                  <a href="https://github.com/Avnish1447/CodeSage" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-black">
-                    GitHub Repo
+                  <a href="https://github.com/Avnish1447/CodeSage" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-black flex items-center space-x-1">
+                    <span>GitHub Repository</span>
+                    <ExternalLink className="w-3 h-3 ml-0.5" />
                   </a>
                 </li>
               </ul>
@@ -691,17 +747,17 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
             {/* Col 4: Newsletter */}
             <div className="space-y-3">
               <h4 className="font-archivo font-extrabold text-xs uppercase tracking-[0.14em] text-black">
-                Stay in
+                Dispatch
               </h4>
               <p className="text-xs text-black/70 font-medium">
-                Weekly prompt recipes, brutalist component releases, and architecture drops.
+                Weekly architectural teardowns of trending open-source codebases and new CodeSage engine features.
               </p>
               <form onSubmit={handleNewsletterSubmit} className="flex">
                 <input
                   type="email"
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  placeholder="engineer@domain.com"
                   required
                   className="input-brutalist flex-1 bg-white border-[2px] border-r-0 border-black px-3 py-2 text-xs font-medium text-black placeholder-black/40"
                 />
@@ -723,7 +779,7 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
           {/* Bottom Copyright Row */}
           <div className="pt-8 border-t-[3px] border-black flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="font-space-mono text-xs uppercase tracking-wider text-black">
-              &copy; {new Date().getFullYear()} BLOCKWORK &bull; CODESAGE. ALL RIGHTS RESERVED.
+              &copy; {new Date().getFullYear()} CODESAGE &bull; INTELLIGENT REPOSITORY ARCHITECTURE ENGINE.
             </div>
 
             {/* Social Icon Tiles */}
@@ -773,3 +829,4 @@ export const NeobrutalistLoginPage: React.FC<NeobrutalistLoginPageProps> = ({ on
     </div>
   );
 };
+
