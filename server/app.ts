@@ -69,7 +69,7 @@ export function createApp() {
     const proxyUrl = process.env.CLERK_PROXY_URL || `${proto}://${host}/__clerk`;
 
     const subPath = req.url.replace(/^\/__clerk/, '') || '/';
-    const targetUrl = `https://frontend-api.clerk.services${subPath}`;
+    const targetUrl = `https://frontend-api.clerk.dev${subPath}`;
 
     try {
       const headers = new Headers();
