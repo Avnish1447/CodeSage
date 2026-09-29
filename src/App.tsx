@@ -18,6 +18,7 @@ import { LaunchVideoModal } from './components/LaunchVideoModal';
 import { BrandKitModal } from './components/BrandKitModal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
+import { LoginPage } from './components/LoginPage';
 import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
@@ -29,6 +30,7 @@ import {
 } from './lib/supabase';
 import {
   Sparkles,
+  Loader2,
   Terminal,
   Code2,
   Compass,
@@ -86,6 +88,8 @@ export function App() {
 
   const checkIs404 = (path: string, h: string) => {
     if (isPrivacyRoute(path, h)) return false;
+    const p = path.toLowerCase();
+    if (p === '/login' || p === '/auth') return false;
     return (
       path === '/404' ||
       path === '/404.html' ||
@@ -202,8 +206,8 @@ export function App() {
   const [isRefreshingPrompt, setIsRefreshingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
-  // Clerk Auth & Supabase Cloud State
-  const { user } = useAuth();
+  // Supabase Auth & Cloud State
+  const { user, loading: authLoading } = useAuth();
   const [firestoreHistory, setFirestoreHistory] = useState<UserRepoHistoryItem[]>([]);
 
   // Local IndexedDB Cache State
@@ -474,14 +478,15 @@ export function App() {
 
   // Check health and analyze the default repo on mount
   useEffect(() => {
-    if (is404 || isPrivacyPage) return;
+    if (is404 || isPrivacyPage || !user) return;
     checkGeminiHealth(false);
     analyzeRepository('https://github.com/Avnish1447/CodeSage');
     if (window.location.hash === '#workbench' || window.location.hash === '#studio') {
       setTimeout(scrollToWorkbench, 300);
     }
-  }, [is404, isPrivacyPage]);
+  }, [is404, isPrivacyPage, user]);
 
+  // 1. Legal Center (Privacy Policy & Terms) remains accessible unconditionally
   if (isPrivacyPage) {
     return (
       <PrivacyPolicyPage
@@ -502,6 +507,31 @@ export function App() {
     );
   }
 
+  // 2. Auth Session Loading Screen
+  if (authLoading) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          isDark ? 'bg-[#0a0a0c] text-white' : 'bg-[#FAFAFA] text-neutral-900'
+        }`}
+      >
+        <div className="w-12 h-12 rounded-2xl bg-[#e8702a]/10 border border-[#e8702a]/30 flex items-center justify-center mb-4 shadow-lg shadow-[#e8702a]/10 animate-pulse">
+          <Sparkles className="w-6 h-6 text-[#e8702a]" />
+        </div>
+        <div className="flex items-center space-x-2 text-xs font-mono text-neutral-500 dark:text-neutral-400">
+          <Loader2 className="w-4 h-4 animate-spin text-[#e8702a]" />
+          <span>Verifying authentication session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. COMPULSORY AUTHENTICATION GATE: User must sign in or sign up to access CodeSage
+  if (!user) {
+    return <LoginPage isDark={isDark} onToggleTheme={handleToggleTheme} />;
+  }
+
+  // 4. 404 Error Screen
   if (is404) {
     return <NotFoundPage />;
   }

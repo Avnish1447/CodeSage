@@ -16,7 +16,7 @@ interface LithosHeroProps {
 }
 
 export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark = false, onToggleTheme }) => {
-  const { user, isSigningIn, loginWithGoogle, loginAsDev, logout, openAuthModal } = useAuth();
+  const { user, logout } = useAuth();
   const isLocalhost = typeof window !== 'undefined' && (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1'
@@ -227,46 +227,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
-          ) : (
-            <div className="flex items-center space-x-1.5">
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                onClick={() => openAuthModal ? openAuthModal() : loginWithGoogle()}
-                disabled={isSigningIn}
-                className="flex items-center space-x-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-md text-xs font-medium bg-[#171717] hover:bg-[#2c2c2c] dark:bg-white dark:hover:bg-[#EDEDED] text-white dark:text-[#171717] transition-all cursor-pointer shadow-sm disabled:opacity-60"
-                title="Sign in"
-              >
-                {isSigningIn ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e8702a]" />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                      <path
-                        fill="currentColor"
-                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
-                      />
-                    </svg>
-                    <span>Sign in</span>
-                  </>
-                )}
-              </motion.button>
-
-              {isLocalhost && (
-                <button
-                  type="button"
-                  onClick={loginAsDev}
-                  title="Quick sign-in with local dev profile"
-                  className="hidden sm:inline-flex items-center px-2 py-1 rounded text-[11px] font-mono font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
-                >
-                  Dev Login
-                </button>
-              )}
-            </div>
-          )}
+          ) : null}
 
           {onToggleTheme && (
             <motion.button

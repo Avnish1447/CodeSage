@@ -49,14 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const {
     user,
-    loading: authLoading,
-    isSigningIn,
-    authError,
-    clearAuthError,
-    loginWithGoogle,
-    loginAsDev,
     logout,
-    openAuthModal,
   } = useAuth();
 
   const loadErrorStats = async () => {
@@ -511,44 +504,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
-          ) : (
-            <div className="flex items-center space-x-1.5">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => openAuthModal ? openAuthModal() : loginWithGoogle()}
-                disabled={isSigningIn}
-                className="flex items-center space-x-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-md text-xs font-medium bg-[#171717] hover:bg-[#2c2c2c] dark:bg-white dark:hover:bg-[#EDEDED] text-white dark:text-[#171717] transition-all cursor-pointer shadow-sm disabled:opacity-60"
-                title="Sign in"
-              >
-                {isSigningIn ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e8702a]" />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                      <path
-                        fill="currentColor"
-                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
-                      />
-                    </svg>
-                    <span>Sign in</span>
-                  </>
-                )}
-              </motion.button>
-
-              {isLocalhost && (
-                <button
-                  onClick={loginAsDev}
-                  title="Quick sign-in with local dev profile"
-                  className="hidden sm:inline-flex items-center px-2 py-1 rounded text-[11px] font-mono font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/20 dark:hover:border-white/20 transition-all cursor-pointer"
-                >
-                  Dev Login
-                </button>
-              )}
-            </div>
-          )}
+          ) : null}
 
           <div
             className="flex items-center space-x-1.5 px-2 xs:px-3 py-1 rounded-md text-xs font-medium text-[#e8702a] bg-[#e8702a]/10 border border-[#e8702a]/20 shadow-sm whitespace-nowrap"
@@ -558,63 +514,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Floating Auth Notification */}
-      <AnimatePresence>
-        {authError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-16 left-3 right-3 sm:left-auto sm:right-8 z-[60] sm:max-w-md bg-amber-500/10 dark:bg-amber-950/60 border border-amber-500/30 text-slate-800 dark:text-slate-200 p-3.5 rounded-xl shadow-2xl text-xs space-y-2.5 backdrop-blur-md"
-          >
-            <div className="flex items-start justify-between gap-2.5">
-              <div className="flex items-start space-x-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold text-amber-700 dark:text-amber-400">
-                    Authentication Notice
-                  </div>
-                  <p className="mt-0.5 text-slate-700 dark:text-slate-300 leading-relaxed">
-                    {authError}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={clearAuthError}
-                aria-label="Dismiss error"
-                className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-500/20">
-              {isLocalhost && (
-                <button
-                  onClick={loginAsDev}
-                  className="px-2.5 py-1 rounded bg-[#0072F5] hover:bg-[#0060df] text-white font-medium text-[11px] transition-colors cursor-pointer shadow-sm flex items-center space-x-1"
-                >
-                  <span>Continue with Dev Profile</span>
-                </button>
-              )}
-              <a
-                href="https://supabase.com/dashboard/project/mhvqbzuckqggdqcjteki/auth/providers"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 font-medium text-[11px] transition-colors cursor-pointer inline-flex items-center space-x-1"
-              >
-                <span>Supabase Auth ↗</span>
-              </a>
-              <button
-                onClick={clearAuthError}
-                className="px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 text-[11px] transition-colors cursor-pointer ml-auto"
-              >
-                Dismiss
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </header>
   );
 };
