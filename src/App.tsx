@@ -17,6 +17,7 @@ import { EmptyWorkbenchState } from './components/EmptyWorkbenchState';
 import { LaunchVideoModal } from './components/LaunchVideoModal';
 import { BrandKitModal } from './components/BrandKitModal';
 import { NotFoundPage } from './components/NotFoundPage';
+import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
@@ -64,15 +65,31 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [lastAttemptedUrl, setLastAttemptedUrl] = useState<string>('https://github.com/Avnish1447/CodeSage');
   
-  // 404 Route State
-  const [is404, setIs404] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const path = window.location.pathname;
-    const hash = window.location.hash;
+  // Route Helper for Legal & Privacy Center
+  const isPrivacyRoute = (p: string, h: string) => {
+    const path = p.toLowerCase();
+    const hash = h.toLowerCase();
+    return (
+      path === '/privacypolicy' ||
+      path === '/privacypolicy.html' ||
+      path === '/privacy-policy' ||
+      path === '/privacy' ||
+      path === '/terms' ||
+      path === '/termsandconditions' ||
+      path === '/termsofservice' ||
+      path === '/legal' ||
+      hash === '#privacy' ||
+      hash === '#privacypolicy' ||
+      hash === '#terms'
+    );
+  };
+
+  const checkIs404 = (path: string, h: string) => {
+    if (isPrivacyRoute(path, h)) return false;
     return (
       path === '/404' ||
       path === '/404.html' ||
-      hash === '#404' ||
+      h === '#404' ||
       (path !== '/' &&
         path !== '/index.html' &&
         !path.startsWith('/api') &&
@@ -80,23 +97,25 @@ export function App() {
         !path.startsWith('/storage') &&
         !path.startsWith("/SVG's"))
     );
+  };
+
+  // 404 & Privacy Route States
+  const [isPrivacyPage, setIsPrivacyPage] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return isPrivacyRoute(window.location.pathname, window.location.hash);
+  });
+
+  const [is404, setIs404] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return checkIs404(window.location.pathname, window.location.hash);
   });
 
   useEffect(() => {
     const handleRouteChange = () => {
       const path = window.location.pathname;
       const hash = window.location.hash;
-      setIs404(
-        path === '/404' ||
-        path === '/404.html' ||
-        hash === '#404' ||
-        (path !== '/' &&
-          path !== '/index.html' &&
-          !path.startsWith('/api') &&
-          !path.startsWith('/logos') &&
-          !path.startsWith('/storage') &&
-          !path.startsWith("/SVG's"))
-      );
+      setIsPrivacyPage(isPrivacyRoute(path, hash));
+      setIs404(checkIs404(path, hash));
     };
 
     window.addEventListener('popstate', handleRouteChange);
@@ -455,13 +474,33 @@ export function App() {
 
   // Check health and analyze the default repo on mount
   useEffect(() => {
-    if (is404) return;
+    if (is404 || isPrivacyPage) return;
     checkGeminiHealth(false);
     analyzeRepository('https://github.com/Avnish1447/CodeSage');
     if (window.location.hash === '#workbench' || window.location.hash === '#studio') {
       setTimeout(scrollToWorkbench, 300);
     }
-  }, [is404]);
+  }, [is404, isPrivacyPage]);
+
+  if (isPrivacyPage) {
+    return (
+      <PrivacyPolicyPage
+        initialTab={
+          window.location.pathname.toLowerCase().includes('terms') ||
+          window.location.hash.toLowerCase().includes('terms')
+            ? 'terms'
+            : 'privacy'
+        }
+        onNavigateHome={() => {
+          window.history.pushState(null, '', '/');
+          setIsPrivacyPage(false);
+          setIs404(false);
+        }}
+        isDark={isDark}
+        onToggleTheme={handleToggleTheme}
+      />
+    );
+  }
 
   if (is404) {
     return <NotFoundPage />;
@@ -1068,6 +1107,21 @@ export function App() {
                 </li>
                 <li>
                   <a
+                    href="/privacypolicy"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.history.pushState(null, '', '/privacypolicy');
+                      setIsPrivacyPage(true);
+                      setIs404(false);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <span>Privacy Policy &amp; Terms</span>
+                  </a>
+                </li>
+                <li>
+                  <a
                     href="/404"
                     onClick={(e) => {
                       e.preventDefault();
@@ -1087,6 +1141,20 @@ export function App() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[#666666] dark:text-[#888888]">
               <span>&copy; {new Date().getFullYear()} CodeSage Contributors. All rights reserved.</span>
+              <span className="text-black/20 dark:text-white/20 hidden sm:inline">&bull;</span>
+              <a
+                href="/privacypolicy"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.history.pushState(null, '', '/privacypolicy');
+                  setIsPrivacyPage(true);
+                  setIs404(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="hover:text-[#171717] dark:hover:text-[#EDEDED] underline decoration-dotted transition-colors cursor-pointer"
+              >
+                Privacy &amp; Terms
+              </a>
               <span className="text-black/20 dark:text-white/20 hidden sm:inline">&bull;</span>
               <a
                 href="https://github.com/Avnish1447/CodeSage/blob/main/LICENSE"
