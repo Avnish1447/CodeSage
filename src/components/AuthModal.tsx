@@ -123,8 +123,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
             {/* Header */}
             <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#e8702a]/10 border border-[#e8702a]/20 mb-3 shadow-inner">
-                <Sparkles className="w-5 h-5 text-[#e8702a]" />
+              <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.1] mb-3 shadow-inner p-2">
+                <picture>
+                  <source srcSet="/logos/app-icon.png" type="image/png" />
+                  <img
+                    src="/logos/app-icon.svg"
+                    alt="CodeSage"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.src = '/logos/primary-logo.svg';
+                    }}
+                  />
+                </picture>
               </div>
               <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-white">
                 Sign in to CodeSage

@@ -537,8 +537,19 @@ export function App() {
           isDark ? 'bg-[#0a0a0c] text-white' : 'bg-[#FAFAFA] text-neutral-900'
         }`}
       >
-        <div className="w-12 h-12 rounded-2xl bg-[#e8702a]/10 border border-[#e8702a]/30 flex items-center justify-center mb-4 shadow-lg shadow-[#e8702a]/10 animate-pulse">
-          <Sparkles className="w-6 h-6 text-[#e8702a]" />
+        <div className="w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.1] flex items-center justify-center mb-4 shadow-lg p-2.5">
+          <picture>
+            <source srcSet="/logos/app-icon.png" type="image/png" />
+            <img
+              src="/logos/app-icon.svg"
+              alt="CodeSage"
+              className="w-full h-full object-contain animate-pulse"
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.src = '/logos/primary-logo.svg';
+              }}
+            />
+          </picture>
         </div>
         <div className="flex items-center space-x-2 text-xs font-mono text-neutral-500 dark:text-neutral-400">
           <Loader2 className="w-4 h-4 animate-spin text-[#e8702a]" />

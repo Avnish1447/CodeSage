@@ -92,24 +92,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark = true, onToggleThe
     >
       {/* Top Bar */}
       <header className="w-full px-6 py-4 flex items-center justify-between z-20 border-b border-black/[0.05] dark:border-white/[0.06] backdrop-blur-md">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#e8702a] to-[#d6611e] flex items-center justify-center shadow-lg shadow-[#e8702a]/20 border border-white/20">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-sm tracking-tight text-neutral-900 dark:text-white">
-                CodeSage
-              </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#e8702a]/10 text-[#e8702a] border border-[#e8702a]/20 font-semibold">
-                v0.1.0
-              </span>
-            </div>
-            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
-              Codebase Stratigraphy Engine
-            </span>
-          </div>
-        </div>
+        <a
+          href="/"
+          className="flex items-center space-x-2.5 cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0072F5] rounded-md"
+          title="CodeSage – Intelligent Codebase Stratigraphy"
+        >
+          <picture>
+            <source srcSet="/logos/text-mark.svg" type="image/svg+xml" />
+            <source srcSet="/logos/text-mark.png" type="image/png" />
+            <img
+              src="/logos/text-mark.svg"
+              alt="CodeSage"
+              className={`h-7 sm:h-8 w-auto max-w-[140px] xs:max-w-[170px] sm:max-w-[210px] object-contain transition-all duration-150 ${
+                isDark
+                  ? 'brightness-125 hover:brightness-150 drop-shadow-[0_1px_8px_rgba(0,0,0,0.5)]'
+                  : 'brightness-100 hover:opacity-85'
+              }`}
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.src.includes('textmark.png')) {
+                  target.src = '/logos/textmark.png';
+                }
+              }}
+            />
+          </picture>
+          <span className="text-neutral-400 dark:text-neutral-600 font-mono text-xs hidden sm:inline">/</span>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 hidden sm:inline font-medium">
+            Stratigraphy Engine
+          </span>
+          <span className="hidden md:inline-block px-1.5 py-0.5 text-[10px] font-mono font-semibold text-[#e8702a] bg-[#e8702a]/10 border border-[#e8702a]/20 rounded">
+            v0.1.0
+          </span>
+        </a>
 
         <div className="flex items-center space-x-3">
           <a
@@ -214,6 +228,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark = true, onToggleThe
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#e8702a] via-amber-500 to-[#0072F5]" />
 
               <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.1] mb-3 shadow-inner p-2.5">
+                  <picture>
+                    <source srcSet="/logos/primary-logo.svg" type="image/svg+xml" />
+                    <source srcSet="/logos/primary-logo.png" type="image/png" />
+                    <img
+                      src="/logos/primary-logo.svg"
+                      alt="CodeSage Brand Mark"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.src = '/logos/app-icon.svg';
+                      }}
+                    />
+                  </picture>
+                </div>
                 <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
                   Welcome to CodeSage
                 </h2>
