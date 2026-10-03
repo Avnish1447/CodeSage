@@ -127,7 +127,7 @@ export const reversePromptLimiter = rateLimit({
         return false;
       }
       const repoId = req.params?.repo_id;
-      if (!repoId) return false;
+      if (!repoId || !RepoValidationService.isValidRepoId(repoId)) return false;
 
       const cached = SqliteCacheService.get(repoId);
       if (cached?.gitreverse_prompt?.prompt) {
@@ -135,11 +135,9 @@ export const reversePromptLimiter = rateLimit({
       }
 
       const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
-      if (fs.existsSync(metadataFile)) {
-        const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
-        if (repoData?.gitreverse_prompt?.prompt) {
-          return true;
-        }
+      const repoData = RepoValidationService.readSafeMetadataJson(metadataFile);
+      if (repoData?.gitreverse_prompt?.prompt) {
+        return true;
       }
       return false;
     } catch {

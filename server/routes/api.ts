@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,10 +41,26 @@ const VERSION = '0.1.0';
  * Strict repository ID validation to prevent path traversal (CWE-22)
  */
 export function isValidRepoId(repoId: string): boolean {
-  if (!repoId || typeof repoId !== 'string') return false;
-  if (!/^[a-zA-Z0-9_.-]+$/.test(repoId) || repoId.includes('..')) return false;
-  const resolved = path.resolve(REPOS_DIR, repoId);
-  return resolved.startsWith(REPOS_DIR + path.sep) || resolved === REPOS_DIR;
+  return RepoValidationService.isValidRepoId(repoId);
+}
+
+/**
+ * Safely reads and parses a JSON metadata file without following symbolic links (CWE-22, CWE-59).
+ */
+export function readSafeMetadataJson(filePath: string, maxBytes?: number): any {
+  return RepoValidationService.readSafeMetadataJson(filePath, maxBytes);
+}
+
+/**
+ * Route parameter validation middleware ensuring repo_id is valid before invoking limiters (CWE-22 Finding #17)
+ */
+export function validateRepoIdParam(req: Request, res: Response, next: NextFunction): void {
+  const repoId = req.params.repo_id || req.params.repositoryId;
+  if (!repoId || !isValidRepoId(repoId)) {
+    res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
+    return;
+  }
+  next();
 }
 
 /**
@@ -696,11 +712,10 @@ apiRouter.post('/repositories', workbenchAuthGuard, cloneLimiter, requestTimeout
           }
         }
 
-        // Try filesystem metadata.json fallback
+        // Try filesystem metadata.json fallback safely without following symlinks (CWE-22, CWE-59)
         const metadataFile = path.join(REPOS_DIR, expectedRepoId, 'metadata.json');
-        if (fs.existsSync(metadataFile)) {
-          const content = fs.readFileSync(metadataFile, 'utf-8');
-          const fileCached = JSON.parse(content);
+        const fileCached = readSafeMetadataJson(metadataFile);
+        if (fileCached) {
           const cachedBranch = (fileCached.overview?.branch || 'main').trim();
           if (cachedBranch === targetBranch.trim()) {
             SqliteCacheService.set(fileCached);
@@ -925,15 +940,13 @@ apiRouter.post(
 apiRouter.get(
   '/repositories/:repo_id/reverse-prompt',
   workbenchAuthGuard,
+  validateRepoIdParam,
   cacheRepeatRequests({ ttlMs: 600_000 }),
   reversePromptLimiter,
   requestTimeout(TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS, 'Reverse prompt generation'),
   async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    if (!isValidRepoId(repoId)) {
-      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
-    }
     const force = req.query.force === 'true';
 
     // 1. Check SQLite cache
@@ -942,11 +955,11 @@ apiRouter.get(
       return res.json(sqliteCached.gitreverse_prompt);
     }
 
-    // 2. Check metadata.json
+    // 2. Check metadata.json safely without following symlinks (CWE-22, CWE-59)
     const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
     let repoData = sqliteCached;
-    if (!repoData && fs.existsSync(metadataFile)) {
-      repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
+    if (!repoData) {
+      repoData = readSafeMetadataJson(metadataFile);
     }
 
     if (!repoData) {
@@ -995,22 +1008,18 @@ apiRouter.get(
 });
 
 // Get repository status / metadata
-apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
+apiRouter.get('/repositories/:repo_id', validateRepoIdParam, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    if (!isValidRepoId(repoId)) {
-      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
-    }
     const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
+    const data = readSafeMetadataJson(metadataFile);
 
-    if (!fs.existsSync(metadataFile)) {
+    if (!data) {
       return res.status(404).json({
         detail: `Repository with ID '${repoId}' not found. Please submit it first.`,
       });
     }
 
-    const content = fs.readFileSync(metadataFile, 'utf-8');
-    const data = JSON.parse(content);
     return res.json(data);
   } catch (err: any) {
     return res.status(500).json({
@@ -1020,12 +1029,9 @@ apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
 });
 
 // Interactive RAG chat query for repository (Supports real-time SSE streaming & JSON fallback)
-apiRouter.post('/repositories/:repo_id/chat', workbenchAuthGuard, chatLimiter, async (req: Request, res: Response) => {
+apiRouter.post('/repositories/:repo_id/chat', workbenchAuthGuard, validateRepoIdParam, chatLimiter, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    if (!isValidRepoId(repoId)) {
-      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
-    }
     const { message, style, stream = true } = req.body;
     const wantsStream = stream === true || req.headers.accept?.includes('text/event-stream');
 
@@ -1041,13 +1047,12 @@ apiRouter.post('/repositories/:repo_id/chat', workbenchAuthGuard, chatLimiter, a
     }
 
     const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
-    if (!fs.existsSync(metadataFile)) {
+    const repoData = readSafeMetadataJson(metadataFile);
+    if (!repoData) {
       return res.status(404).json({
         detail: `Repository with ID '${repoId}' not found.`,
       });
     }
-
-    const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
 
     // Repeat query caching: Return cached answers immediately for identical repeat queries (< 1ms)
     const normalizedMessage = message.trim().toLowerCase().replace(/[?!.,]+$/, '');
@@ -1157,19 +1162,15 @@ apiRouter.post('/repositories/:repo_id/chat', workbenchAuthGuard, chatLimiter, a
 });
 
 // Regenerate or generate insights
-apiRouter.post('/repositories/:repo_id/insights', workbenchAuthGuard, async (req: Request, res: Response) => {
+apiRouter.post('/repositories/:repo_id/insights', workbenchAuthGuard, validateRepoIdParam, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
-    if (!isValidRepoId(repoId)) {
-      return res.status(400).json({ detail: 'Invalid repository ID format.', code: 'INVALID_REPO_ID' });
-    }
     const metadataFile = path.join(REPOS_DIR, repoId, 'metadata.json');
+    const repoData = readSafeMetadataJson(metadataFile);
 
-    if (!fs.existsSync(metadataFile)) {
+    if (!repoData) {
       return res.status(404).json({ detail: `Repository with ID '${repoId}' not found.` });
     }
-
-    const repoData = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
     const insights = await generateRepositoryInsights(repoData);
 
     repoData.learning_path = insights.learning_path;

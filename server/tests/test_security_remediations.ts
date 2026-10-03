@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { adminGuard, isValidRepoId, workbenchAuthGuard, paymentAuthGuard } from '../routes/api.js';
+import { adminGuard, isValidRepoId, workbenchAuthGuard, paymentAuthGuard, validateRepoIdParam, readSafeMetadataJson } from '../routes/api.js';
 import { RepoCloneService } from '../services/repoCloneService.js';
 import { RepoAnalysisService } from '../services/repoAnalysisService.js';
 import { BackupService } from '../services/backupService.js';
@@ -10,6 +10,7 @@ import { RATE_LIMIT_CONFIG, SPENDING_CAP_CONFIG, RESOURCE_LIMITS } from '../conf
 import { DB_PATH, SHARED_DB_PATH } from '../config/paths.js';
 import { resolveClerkProxyUrl, CLERK_UPSTREAM_ORIGIN } from '../app.js';
 import { estimatePromptTokens, calculateEstimatedCost } from '../services/geminiService.js';
+import { reversePromptLimiter } from '../middleware/rateLimiter.js';
 
 async function runSecurityRemediationTests() {
   console.log('=== STARTING SECURITY REMEDIATIONS VERIFICATION SUITE ===\n');
@@ -837,6 +838,80 @@ async function runSecurityRemediationTests() {
   console.assert(cloneCodeCwe200.includes('cloneAndCheckoutSafely'), 'FAIL: cloneAndCheckoutSafely missing from clone flow');
   console.assert(cloneCodeCwe200.includes('git ls-remote --heads'), 'FAIL: git ls-remote missing from remote branch resolution');
   console.log('  ✓ Working directory copying and deployment file exposure completely eliminated (CWE-200).');
+
+  // -----------------------------------------------------------------------------------
+  // TEST 24: Repository ID Traversal Validation & Safe Symlink-Refusing Metadata Reader (CWE-22, Finding #17)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 24] Testing Repo ID Traversal Validation & Safe Symlink-Refusing Reader (CWE-22):');
+
+  // Subtest 24A: validateRepoIdParam middleware blocks directory traversal before limiters
+  let paramNextCalled = false;
+  let paramStatusCode = 0;
+  let paramResponseBody: any = null;
+  const badParamRes = {
+    status(code: number) {
+      paramStatusCode = code;
+      return this;
+    },
+    json(data: any) {
+      paramResponseBody = data;
+      return data;
+    },
+  } as any;
+
+  validateRepoIdParam({ params: { repo_id: '../../etc/passwd' } } as any, badParamRes, () => {
+    paramNextCalled = true;
+  });
+
+  console.assert(!paramNextCalled && paramStatusCode === 400, 'FAIL: Traversal repo_id was not blocked with 400 by validateRepoIdParam');
+  console.assert(paramResponseBody?.code === 'INVALID_REPO_ID', 'FAIL: Expected INVALID_REPO_ID code');
+
+  // Subtest 24B: Valid repo ID passes parameter check
+  let validParamNext = false;
+  validateRepoIdParam({ params: { repo_id: 'owner_repo_main_abc123' } } as any, badParamRes, () => {
+    validParamNext = true;
+  });
+  console.assert(validParamNext, 'FAIL: Valid repo ID was rejected by validateRepoIdParam');
+
+  // Subtest 24C: reversePromptLimiter.skip rejects traversal repo IDs without disk reads
+  const rateLimiterCode = fs.readFileSync(path.resolve('server/middleware/rateLimiter.ts'), 'utf-8');
+  console.assert(rateLimiterCode.includes('isValidRepoId(repoId)'), 'FAIL: reversePromptLimiter.skip does not validate repoId');
+  console.assert(rateLimiterCode.includes('readSafeMetadataJson'), 'FAIL: reversePromptLimiter.skip does not use readSafeMetadataJson');
+
+  // Subtest 24D: readSafeMetadataJson refuses symlinks and bounds file reads (CWE-22, CWE-59)
+  const testSandboxDir = path.resolve('server/storage/test_symlink_cwe22');
+  fs.mkdirSync(testSandboxDir, { recursive: true });
+  try {
+    const validJsonFile = path.join(testSandboxDir, 'valid.json');
+    fs.writeFileSync(validJsonFile, JSON.stringify({ gitreverse_prompt: { prompt: 'Sample prompt' } }), 'utf-8');
+    const parsedValid = readSafeMetadataJson(validJsonFile);
+    console.assert(parsedValid?.gitreverse_prompt?.prompt === 'Sample prompt', 'FAIL: Valid JSON was not parsed by readSafeMetadataJson');
+
+    // Create a symlink pointing to another file
+    const symlinkFile = path.join(testSandboxDir, 'symlink.json');
+    try {
+      fs.symlinkSync(validJsonFile, symlinkFile);
+      const parsedSymlink = readSafeMetadataJson(symlinkFile);
+      console.assert(parsedSymlink === null, 'FAIL: readSafeMetadataJson followed a symbolic link!');
+      console.log('  ✓ Symbolic link refused by readSafeMetadataJson (O_NOFOLLOW enforced).');
+    } catch (symErr: any) {
+      console.log('  ℹ Notice: Symlink creation skipped in environment:', symErr.message);
+    }
+
+    // Verify file size limit rejection
+    const hugeJsonFile = path.join(testSandboxDir, 'huge.json');
+    fs.writeFileSync(hugeJsonFile, Buffer.alloc(3 * 1024 * 1024)); // 3MB > 2MB limit
+    const parsedHuge = readSafeMetadataJson(hugeJsonFile);
+    console.assert(parsedHuge === null, 'FAIL: readSafeMetadataJson did not reject oversized file');
+    console.log('  ✓ Oversized file read rejected before memory exhaustion.');
+  } finally {
+    fs.rmSync(testSandboxDir, { recursive: true, force: true });
+  }
+
+  // Subtest 24E: Verify pipeline ordering in api.ts
+  const apiCode = fs.readFileSync(path.resolve('server/routes/api.ts'), 'utf-8');
+  console.assert(apiCode.includes("'/repositories/:repo_id/reverse-prompt',\n  workbenchAuthGuard,\n  validateRepoIdParam,\n  cacheRepeatRequests({ ttlMs: 600_000 }),\n  reversePromptLimiter,"), 'FAIL: validateRepoIdParam is not ordered before reversePromptLimiter on reverse-prompt route');
+  console.log('  ✓ Route parameter validation precedes reversePromptLimiter and disk access (CWE-22).');
 
   console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }
