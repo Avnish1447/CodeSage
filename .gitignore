@@ -7,7 +7,7 @@ node_modules/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnpm-store/
-.npm
+.npm/
 
 # Build Outputs & Bundles
 dist/
@@ -50,7 +50,7 @@ client_secret*.json
 *.cert
 *.crt
 
-# Firebase & Cloud Platforms
+# Cloud Platforms & Hosting
 .firebase/
 .vercel/
 firebase-debug.log*
@@ -90,7 +90,7 @@ pids/
 *.seed
 *.pid.lock
 
-# Test Coverage, Reports & Artifacts (Test source files in server/tests/ remain tracked)
+# Test Coverage, Reports & Artifacts
 coverage/
 .coverage
 htmlcov/
@@ -168,5 +168,3 @@ __pycache__/
 .venv/
 venv/
 ENV/
-.vercel
-.env*
