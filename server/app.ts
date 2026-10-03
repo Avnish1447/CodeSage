@@ -28,6 +28,45 @@ process.on('unhandledRejection', (reason: any) => {
   ErrorLoggingService.logError(err, undefined, { fatal: false, type: 'unhandledRejection' });
 });
 
+export const CLERK_UPSTREAM_ORIGIN = 'https://frontend-api.clerk.dev';
+
+/**
+ * Validates and resolves the target URL for Clerk Frontend API proxy requests.
+ * Defends against CWE-918 (SSRF) and credential leakage by strictly verifying:
+ * 1. The route path begins with /__clerk/ or is exactly /__clerk
+ * 2. No protocol-relative paths (e.g. //attacker.com) or directory traversal backslashes
+ * 3. The parsed target origin strictly equals the trusted Clerk upstream origin
+ */
+export function resolveClerkProxyUrl(requestUrl: string): URL | null {
+  if (
+    requestUrl !== '/__clerk' &&
+    !requestUrl.startsWith('/__clerk/') &&
+    !requestUrl.startsWith('/__clerk?')
+  ) {
+    return null;
+  }
+
+  let subPath = requestUrl.slice('/__clerk'.length);
+  if (!subPath || subPath.startsWith('?')) {
+    subPath = '/' + subPath;
+  }
+
+  // Reject protocol-relative prefixes or backslash paths that may trigger hostname confusion
+  if (subPath.startsWith('//') || subPath.includes('\\')) {
+    return null;
+  }
+
+  try {
+    const targetUrl = new URL(subPath, CLERK_UPSTREAM_ORIGIN);
+    if (targetUrl.origin !== CLERK_UPSTREAM_ORIGIN) {
+      return null;
+    }
+    return targetUrl;
+  } catch {
+    return null;
+  }
+}
+
 export function createApp() {
   const app = express();
 
@@ -62,14 +101,23 @@ export function createApp() {
   app.use('/api', generalLimiter);
 
   // Clerk Frontend API proxy for production vercel.app domains (e.g. thecodesage.vercel.app/__clerk)
-  app.all('/__clerk*', async (req, res) => {
+  // Strictly constrain route matching to /__clerk and slash-delimited subpaths (CWE-918 mitigation)
+  app.all(/^\/__clerk(\/.*)?$/, async (req, res) => {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'thecodesage.vercel.app';
     const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
     const proxyUrl = process.env.CLERK_PROXY_URL || `${proto}://${host}/__clerk`;
 
-    const subPath = req.url.replace(/^\/__clerk/, '') || '/';
-    const targetUrl = `https://frontend-api.clerk.dev${subPath}`;
+    const rawUrl = req.originalUrl || req.url;
+    const targetUrlObj = resolveClerkProxyUrl(rawUrl);
+    if (!targetUrlObj) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid Clerk proxy destination or path component boundary violation.',
+      });
+    }
+
+    const targetUrl = targetUrlObj.toString();
 
     try {
       const headers = new Headers();

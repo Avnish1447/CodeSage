@@ -23,6 +23,7 @@ import {
   Layers,
   List,
 } from 'lucide-react';
+import { getAuthHeaders } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
 
 function extractAllFiles(nodes: TreeNode[]): TreeNode[] {
@@ -215,7 +216,12 @@ export const FileTreeViewer: React.FC<FileTreeViewerProps> = ({
     setFileError(null);
 
     try {
-      const res = await fetch(`/api/v1/repositories/${repositoryId}/file?path=${encodeURIComponent(path)}`);
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/v1/repositories/${repositoryId}/file?path=${encodeURIComponent(path)}`, {
+        headers: {
+          ...authHeaders,
+        },
+      });
       const data = await res.json();
 
       if (!res.ok) {

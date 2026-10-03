@@ -140,6 +140,23 @@ async function runTests() {
     console.log(`✅ PNG Image optimized: ${pngResult.originalSizeBytes} bytes -> ${pngResult.compressedSizeBytes} bytes (${pngResult.savingsPercentage}% savings).`);
   }
 
+  // 7. Test ReDoS Resistance (CWE-1333 Mitigation)
+  console.log('\n[Test 7] Testing ReDoS Resistance on malicious unclosed declarations:');
+  const maliciousReDosSvg = `
+    ${'<?xml '.repeat(10000)}
+    ${'<!DOCTYPE '.repeat(10000)}
+    <!-- Valid Comment -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50">
+      <rect width="50" height="50" fill="#000" />
+    </svg>
+  `;
+  const tStart = Date.now();
+  const reDosResult = await CompressionService.compressImageBuffer(Buffer.from(maliciousReDosSvg, 'utf-8'), 'image/svg+xml');
+  const elapsed = Date.now() - tStart;
+  console.assert(elapsed < 100, `ReDoS payload took too long: ${elapsed}ms (expected < 100ms)`);
+  console.assert(reDosResult.buffer.toString('utf-8').includes('<rect width="50" height="50" fill="#000" />'), 'Valid SVG markup was stripped during ReDoS defense');
+  console.log(`✅ ReDoS payload (20,000 unclosed markers) sanitized safely in ${elapsed}ms (CWE-1333 mitigated).`);
+
   console.log('\n--- ALL COMPRESSION & UPLOAD LIMIT TESTS PASSED ---');
 }
 

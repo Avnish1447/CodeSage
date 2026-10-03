@@ -26,6 +26,7 @@ import { useToast } from './context/ToastContext';
 import {
   saveRepositoryToUserHistory,
   getUserRepositoryHistory,
+  getAuthHeaders,
   type UserRepoHistoryItem,
 } from './lib/supabase';
 import {
@@ -247,7 +248,13 @@ export function App() {
 
     try {
       const url = `/api/v1/repositories/${repoData.repository_id}/reverse-prompt${force ? '?force=true' : ''}`;
-      const res = await fetch(url, { signal: controller.signal });
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(url, {
+        headers: {
+          ...authHeaders,
+        },
+        signal: controller.signal,
+      });
       clearTimeout(timeoutTimer);
       if (res.ok) {
         const promptData: GitReversePromptData = await res.json();
@@ -369,9 +376,13 @@ export function App() {
     }, 90000);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/v1/repositories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify({ url: trimmed, branch, force_refresh: forceRefresh }),
         signal: abortController.signal,
       });

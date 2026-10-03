@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { ChatMessage, RepoResponse } from '../types';
 import { Send, Bot, User, Loader2, HelpCircle, Code2, Feather, AlertCircle, RefreshCw } from 'lucide-react';
 import { ApiHealthBanner } from './ApiHealthBanner';
+import { getAuthHeaders } from '../lib/supabase';
 
 interface RagChatSectionProps {
   repoData: RepoResponse;
@@ -163,11 +164,13 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
     let accumulatedText = '';
 
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(`/api/v1/repositories/${repoData.repository_id}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
+          ...authHeaders,
         },
         body: JSON.stringify({ message: query, style: responseStyle, stream: true }),
         signal: controller.signal,

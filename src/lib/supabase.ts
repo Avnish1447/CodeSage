@@ -32,6 +32,23 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
   : null;
 
 /**
+ * Retrieves the current user's session Bearer token for server-side authenticated requests (CWE-602 mitigation).
+ */
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!supabase) return {};
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+  } catch {
+    // ignore session lookup failure
+  }
+  return {};
+}
+
+/**
  * Save an analyzed repository to user's history with Supabase cloud sync & localStorage offline mirror
  */
 export async function saveRepositoryToUserHistory(

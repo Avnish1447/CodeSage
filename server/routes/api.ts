@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { RepoCloneService } from '../services/repoCloneService.js';
@@ -47,10 +48,59 @@ export function isValidRepoId(repoId: string): boolean {
 }
 
 /**
- * Administrator authorization guard for privileged system operations (CWE-862, CWE-807, CWE-345)
+ * Helper to verify whether a loopback request originates from trusted local development tooling (CWE-352, CWE-863).
+ * Restricts development access strictly to verified loopback sockets, trusted host authorities, and allowed local ports.
+ */
+export function isAuthorizedLocalDevPeer(req: Request): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+
+  const socketIp = req.socket?.remoteAddress || '';
+  const isLoopback =
+    socketIp === '127.0.0.1' ||
+    socketIp === '::1' ||
+    socketIp === '::ffff:127.0.0.1';
+
+  if (!isLoopback) return false;
+
+  // Validate Host header to prevent DNS rebinding (CWE-863)
+  const rawHost = (req.headers.host || req.hostname || '').toLowerCase();
+  const hostWithoutPort = rawHost.split(':')[0];
+  const isTrustedHost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1' || hostWithoutPort === '';
+  if (!isTrustedHost) return false;
+
+  // Check allowed dev ports: default application ports 3000 (backend API) and 5173/5174 (Vite frontend)
+  const allowedDevPorts = new Set(['3000', '5173', '5174', String(process.env.PORT || '3000')]);
+  if (process.env.ALLOWED_DEV_PORTS) {
+    process.env.ALLOWED_DEV_PORTS.split(',').forEach((p) => allowedDevPorts.add(p.trim()));
+  }
+
+  // Reject cross-origin requests targeting loopback from third-party websites or unrelated local ports (CWE-352)
+  const origin = req.headers.origin as string | undefined;
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      const isLocalHostname = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
+      if (!isLocalHostname || !allowedDevPorts.has(port)) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  if (req.headers['sec-fetch-site'] === 'cross-site') {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Administrator authorization guard for privileged system operations (CWE-862, CWE-807, CWE-345, CWE-352, CWE-863)
  */
 export function adminGuard(req: Request, res: Response, next: () => void) {
-  const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
+  const adminKey = process.env.ADMIN_KEY;
   const provided = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
 
   // If a valid administrator credential is provided, allow access in any mode
@@ -59,7 +109,7 @@ export function adminGuard(req: Request, res: Response, next: () => void) {
   }
 
   // In non-production mode, confine unauthenticated development access strictly to verified loopback socket peers
-  // to prevent Host header spoofing (CWE-807) and cross-origin DNS rebinding / CSRF (CWE-345).
+  // with exact trusted hostnames and allowed local development ports (CWE-352, CWE-863).
   if (process.env.NODE_ENV !== 'production') {
     const socketIp = req.socket?.remoteAddress || '';
     const isLoopback =
@@ -68,16 +118,37 @@ export function adminGuard(req: Request, res: Response, next: () => void) {
       socketIp === '::ffff:127.0.0.1';
 
     if (isLoopback) {
-      // Reject cross-origin requests targeting loopback admin operations from third-party websites
+      // Validate Host header against explicit loopback hostnames (prevent DNS rebinding CWE-863)
+      const rawHost = (req.headers.host || req.hostname || '').toLowerCase();
+      const hostWithoutPort = rawHost.split(':')[0];
+      const isTrustedHost = hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1' || hostWithoutPort === '';
+      if (!isTrustedHost) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          detail: 'Untrusted host authority rejected for loopback administrator access.',
+          code: 'UNTRUSTED_HOST_FORBIDDEN',
+        });
+      }
+
+      // Check allowed dev ports: default application ports 3000 (backend API) and 5173/5174 (Vite frontend)
+      const allowedDevPorts = new Set(['3000', '5173', '5174', String(process.env.PORT || '3000')]);
+      if (process.env.ALLOWED_DEV_PORTS) {
+        process.env.ALLOWED_DEV_PORTS.split(',').forEach((p) => allowedDevPorts.add(p.trim()));
+      }
+
+      // Reject cross-origin requests targeting loopback admin operations from third-party websites or unrelated ports (CWE-352)
       const origin = req.headers.origin as string | undefined;
       if (origin) {
         try {
           const parsed = new URL(origin);
-          const isLocalOrigin = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-          if (!isLocalOrigin) {
+          const isLocalHostname = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+          const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
+          const isAllowedPort = allowedDevPorts.has(port);
+
+          if (!isLocalHostname || !isAllowedPort) {
             return res.status(403).json({
               error: 'Forbidden',
-              detail: 'Untrusted cross-origin request rejected for loopback administrator access.',
+              detail: 'Untrusted cross-origin or port rejected for loopback administrator access.',
               code: 'CROSS_ORIGIN_ADMIN_FORBIDDEN',
             });
           }
@@ -106,6 +177,61 @@ export function adminGuard(req: Request, res: Response, next: () => void) {
     error: 'Forbidden',
     detail: 'Administrator authorization required for this operation.',
     code: 'ADMIN_REQUIRED',
+  });
+}
+
+const serverSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const serverSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+export const serverSupabase = (serverSupabaseUrl && serverSupabaseKey)
+  ? createClient(serverSupabaseUrl, serverSupabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null;
+
+/**
+ * Workbench session verification guard (CWE-602 mitigation).
+ * Enforces that caller possesses a verified user session or administrator authority
+ * before accessing repository analysis, chat generation, or insight mutations.
+ */
+export async function workbenchAuthGuard(req: Request, res: Response, next: () => void) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  // 1. Admin authority bypass (if valid ADMIN_KEY is supplied)
+  const adminKey = process.env.ADMIN_KEY;
+  const providedAdminKey = req.headers['x-admin-key'] || token;
+  if (adminKey && providedAdminKey === adminKey) {
+    return next();
+  }
+
+  // 2. Validate session token against authentication provider (Supabase)
+  if (token) {
+    if (serverSupabase) {
+      try {
+        const { data, error } = await serverSupabase.auth.getUser(token);
+        if (!error && data?.user) {
+          (req as any).user = data.user;
+          return next();
+        }
+      } catch {
+        // failed validation
+      }
+    } else if (process.env.NODE_ENV !== 'production' && token === 'dev_authenticated_session') {
+      return next();
+    }
+  }
+
+  // 3. In non-production development mode, allow loopback peer if explicitly running locally without external access
+  // and no auth provider is configured
+  if (process.env.NODE_ENV !== 'production' && !serverSupabase && isAuthorizedLocalDevPeer(req)) {
+    return next();
+  }
+
+  return res.status(401).json({
+    error: 'Unauthorized',
+    detail: 'Authentication session required to access the CodeSage workbench.',
+    code: 'AUTHENTICATION_REQUIRED',
   });
 }
 
@@ -277,28 +403,12 @@ apiRouter.post('/payments/topup', idempotency({ requireKey: true }), async (req:
       });
     }
 
-    // Require administrator authorization for manual credits or local development loopback interface (CWE-345)
-    const adminKey = process.env.ADMIN_KEY || process.env.CLERK_SECRET_KEY;
+    // Require administrator authorization for manual credits or local development loopback interface (CWE-345, CWE-352)
+    const adminKey = process.env.ADMIN_KEY;
     const providedAdminKey = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
     const isAdmin = Boolean(adminKey && providedAdminKey === adminKey);
 
-    const socketIp = req.socket?.remoteAddress || '';
-    const isLoopback =
-      socketIp === '127.0.0.1' ||
-      socketIp === '::1' ||
-      socketIp === '::ffff:127.0.0.1';
-
-    let isSafeLocalOrigin = true;
-    if (req.headers.origin) {
-      try {
-        const parsed = new URL(req.headers.origin as string);
-        isSafeLocalOrigin = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-      } catch {
-        isSafeLocalOrigin = false;
-      }
-    }
-
-    const isDevAuthorized = process.env.NODE_ENV !== 'production' && isLoopback && isSafeLocalOrigin;
+    const isDevAuthorized = isAuthorizedLocalDevPeer(req);
 
     if (!isAdmin && !isDevAuthorized) {
       return res.status(403).json({
@@ -533,7 +643,7 @@ apiRouter.get('/repositories', async (req: Request, res: Response) => {
 });
 
 // Submit repository endpoint with SQLite fast cache retrieval and Single-Flight coalescing
-apiRouter.post('/repositories', cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS, 'Repository excavation'), async (req: Request, res: Response) => {
+apiRouter.post('/repositories', workbenchAuthGuard, cloneLimiter, requestTimeout(TIMEOUT_CONFIG.EXCAVATION_HTTP_TIMEOUT_MS, 'Repository excavation'), async (req: Request, res: Response) => {
   try {
     const { url, branch, force_refresh } = req.body;
     const isForceRefresh = force_refresh === true || force_refresh === 'true' || force_refresh === 1 || force_refresh === '1';
@@ -802,6 +912,7 @@ apiRouter.post(
 // Dedicated endpoint to fetch or regenerate GitReverse prompt for a repository (Cached for 10m with deduplication)
 apiRouter.get(
   '/repositories/:repo_id/reverse-prompt',
+  workbenchAuthGuard,
   cacheRepeatRequests({ ttlMs: 600_000 }),
   reversePromptLimiter,
   requestTimeout(TIMEOUT_CONFIG.GENERAL_REQUEST_TIMEOUT_MS, 'Reverse prompt generation'),
@@ -897,7 +1008,7 @@ apiRouter.get('/repositories/:repo_id', async (req: Request, res: Response) => {
 });
 
 // Interactive RAG chat query for repository (Supports real-time SSE streaming & JSON fallback)
-apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, res: Response) => {
+apiRouter.post('/repositories/:repo_id/chat', workbenchAuthGuard, chatLimiter, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
     if (!isValidRepoId(repoId)) {
@@ -1034,7 +1145,7 @@ apiRouter.post('/repositories/:repo_id/chat', chatLimiter, async (req: Request, 
 });
 
 // Regenerate or generate insights
-apiRouter.post('/repositories/:repo_id/insights', async (req: Request, res: Response) => {
+apiRouter.post('/repositories/:repo_id/insights', workbenchAuthGuard, async (req: Request, res: Response) => {
   try {
     const repoId = req.params.repo_id;
     if (!isValidRepoId(repoId)) {
@@ -1197,8 +1308,8 @@ apiRouter.get(
 });
 
 // Get file content endpoint supporting both query param (?path=...) and wildcard path (/files/*) (Cached for 5m)
-apiRouter.get('/repositories/:repo_id/file', cacheRepeatRequests({ ttlMs: 300_000 }), handleGetFileContent);
-apiRouter.get('/repositories/:repo_id/files/*', cacheRepeatRequests({ ttlMs: 300_000 }), handleGetFileContent);
+apiRouter.get('/repositories/:repo_id/file', workbenchAuthGuard, cacheRepeatRequests({ ttlMs: 300_000 }), handleGetFileContent);
+apiRouter.get('/repositories/:repo_id/files/*', workbenchAuthGuard, cacheRepeatRequests({ ttlMs: 300_000 }), handleGetFileContent);
 
 async function handleGetFileContent(req: Request, res: Response) {
   try {

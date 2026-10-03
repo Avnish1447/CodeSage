@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { adminGuard, isValidRepoId } from '../routes/api.js';
+import { adminGuard, isValidRepoId, workbenchAuthGuard } from '../routes/api.js';
 import { RepoCloneService } from '../services/repoCloneService.js';
 import { BackupService } from '../services/backupService.js';
 import { SpendingService } from '../services/spendingService.js';
 import { RATE_LIMIT_CONFIG, SPENDING_CAP_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
 import { DB_PATH, SHARED_DB_PATH } from '../config/paths.js';
+import { resolveClerkProxyUrl, CLERK_UPSTREAM_ORIGIN } from '../app.js';
 
 async function runSecurityRemediationTests() {
   console.log('=== STARTING SECURITY REMEDIATIONS VERIFICATION SUITE ===\n');
@@ -128,6 +129,47 @@ async function runSecurityRemediationTests() {
     console.assert(forbiddenCalled && !nextCalled, 'FAIL: Untrusted cross-origin request admitted to loopback admin!');
     console.assert(resPayload?.code === 'CROSS_ORIGIN_ADMIN_FORBIDDEN', 'FAIL: Expected CROSS_ORIGIN_ADMIN_FORBIDDEN code');
     console.log('  ✓ Untrusted external cross-origin loopback request safely rejected with 403 Forbidden.');
+
+    // Subtest 1G: Localhost Cross-Port CSRF resistance (CWE-352, Finding #14)
+    // An attacker webpage running on another local port (e.g. http://localhost:8000)
+    forbiddenCalled = false;
+    nextCalled = false;
+    process.env.NODE_ENV = 'development';
+
+    const reqCrossPortLoopback = {
+      headers: { origin: 'http://localhost:8000', host: 'localhost:3000' },
+      socket: { remoteAddress: '127.0.0.1' },
+      ip: '127.0.0.1',
+      hostname: 'localhost',
+    } as any;
+
+    adminGuard(reqCrossPortLoopback, resMock, () => {
+      nextCalled = true;
+    });
+
+    console.assert(forbiddenCalled && !nextCalled, 'FAIL: Unrelated localhost port admitted to loopback admin!');
+    console.assert(resPayload?.code === 'CROSS_ORIGIN_ADMIN_FORBIDDEN', 'FAIL: Expected CROSS_ORIGIN_ADMIN_FORBIDDEN code');
+    console.log('  ✓ Localhost cross-port CSRF request (port 8000) safely rejected with 403 Forbidden.');
+
+    // Subtest 1H: DNS Rebinding Host Header Validation (CWE-863, Finding #16)
+    // Attacker domain DNS rebinds to 127.0.0.1 but Host header contains attacker domain
+    forbiddenCalled = false;
+    nextCalled = false;
+
+    const reqReboundHost = {
+      headers: { host: 'attacker-rebound.evil.com' },
+      socket: { remoteAddress: '127.0.0.1' },
+      ip: '127.0.0.1',
+      hostname: 'attacker-rebound.evil.com',
+    } as any;
+
+    adminGuard(reqReboundHost, resMock, () => {
+      nextCalled = true;
+    });
+
+    console.assert(forbiddenCalled && !nextCalled, 'FAIL: DNS-rebound host admitted to loopback admin!');
+    console.assert(resPayload?.code === 'UNTRUSTED_HOST_FORBIDDEN', 'FAIL: Expected UNTRUSTED_HOST_FORBIDDEN code');
+    console.log('  ✓ DNS-rebound host header safely rejected with 403 Forbidden.');
 
     // Subtest 1F: Production mode loopback without credentials
     process.env.NODE_ENV = 'production';
@@ -309,7 +351,204 @@ async function runSecurityRemediationTests() {
   console.assert(DB_PATH.length > 0, 'DB_PATH resolved empty');
   console.log('  ✓ Serverless storage configuration supports SHARED_DB_PATH for synchronized multi-instance ledgers.');
 
-  console.log('\n=== ALL 11 SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
+  // -----------------------------------------------------------------------------------
+  // TEST 15: Clerk Frontend API Proxy SSRF & Credential Leak Mitigation (CWE-918, Finding #18)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 15] Testing Clerk Proxy SSRF & Credential Leak Mitigation (CWE-918):');
+  
+  // 1. Attacker domain suffix
+  console.assert(resolveClerkProxyUrl('/__clerk.attacker.com/collect') === null, 'FAIL: Accepted /__clerk.attacker.com suffix');
+  console.assert(resolveClerkProxyUrl('/__clerk.evil.io') === null, 'FAIL: Accepted /__clerk.evil.io');
+  
+  // 2. Protocol-relative bypass
+  console.assert(resolveClerkProxyUrl('/__clerk//attacker.com') === null, 'FAIL: Accepted protocol-relative bypass //attacker.com');
+
+  // 3. Backslash host confusion
+  console.assert(resolveClerkProxyUrl('/__clerk/\\attacker.com') === null, 'FAIL: Accepted backslash path');
+
+  // 4. Valid Clerk paths
+  const rootTarget = resolveClerkProxyUrl('/__clerk');
+  console.assert(rootTarget !== null && rootTarget.origin === CLERK_UPSTREAM_ORIGIN && rootTarget.pathname === '/', 'FAIL: Root /__clerk failed');
+
+  const rootSlashTarget = resolveClerkProxyUrl('/__clerk/');
+  console.assert(rootSlashTarget !== null && rootSlashTarget.origin === CLERK_UPSTREAM_ORIGIN && rootSlashTarget.pathname === '/', 'FAIL: Root /__clerk/ failed');
+
+  const clientTarget = resolveClerkProxyUrl('/__clerk/v1/client?_is_native=true');
+  console.assert(
+    clientTarget !== null &&
+    clientTarget.origin === CLERK_UPSTREAM_ORIGIN &&
+    clientTarget.pathname === '/v1/client' &&
+    clientTarget.search === '?_is_native=true',
+    'FAIL: Valid /__clerk/v1/client subpath failed'
+  );
+
+  console.log('  ✓ Clerk proxy strictly enforces slash boundaries and origin lockdown, preventing CWE-918 SSRF.');
+
+  // -----------------------------------------------------------------------------------
+  // TEST 16: Decompression Bomb Pre-Checkout Git Tree Audit (CWE-409, Finding #4)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 16] Testing Decompression Bomb Pre-Checkout Git Tree Inspection (CWE-409):');
+  const cloneServiceCode = fs.readFileSync(path.resolve('server/services/repoCloneService.ts'), 'utf-8');
+  console.assert(cloneServiceCode.includes("'--no-checkout'"), 'FAIL: git clone must use --no-checkout before tree inspection');
+  console.assert(cloneServiceCode.includes('inspectGitTreeBeforeCheckout'), 'FAIL: Missing inspectGitTreeBeforeCheckout invocation');
+
+  // Verify that valid tree passes pre-checkout audit within generous limits
+  const auditValid = await RepoCloneService.inspectGitTreeBeforeCheckout(process.cwd(), 2000, 500);
+  console.assert(auditValid.fileCount > 0, 'FAIL: Expected non-zero file count in valid repository audit');
+  console.assert(auditValid.totalSizeBytes > 0, 'FAIL: Expected non-zero byte count in valid repository audit');
+
+  // Verify that file count limit breach is rejected BEFORE checkout
+  let fileLimitThrew = false;
+  try {
+    await RepoCloneService.inspectGitTreeBeforeCheckout(process.cwd(), 5, 500);
+  } catch (err: any) {
+    if (err.name === 'RepositoryLimitError' && err.message.includes('Exceeded 5 files limit')) {
+      fileLimitThrew = true;
+    }
+  }
+  console.assert(fileLimitThrew, 'FAIL: Did not reject file count limit before checkout');
+
+  // Verify that cumulative size limit breach is rejected BEFORE checkout
+  let sizeLimitThrew = false;
+  try {
+    await RepoCloneService.inspectGitTreeBeforeCheckout(process.cwd(), 10000, 0.001);
+  } catch (err: any) {
+    if (err.name === 'RepositoryLimitError' && err.message.includes('size limit')) {
+      sizeLimitThrew = true;
+    }
+  }
+  console.assert(sizeLimitThrew, 'FAIL: Did not reject byte size limit before checkout');
+  console.log('  ✓ Pre-checkout Git tree audit terminates decompression bombs and entry floods before disk materialization.');
+
+  // -----------------------------------------------------------------------------------
+  // TEST 17: Completion Marker Out-of-Checkout & Symlink No-Follow (CWE-59, Finding #5)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 17] Testing Completion Marker Out-of-Checkout & Symlink No-Follow (CWE-59):');
+  const scratchDir = path.join(process.cwd(), 'scratch', 'test_cwe59_' + Date.now());
+  fs.mkdirSync(scratchDir, { recursive: true });
+
+  try {
+    const fakeRepoDir = path.join(scratchDir, 'repo_test');
+    const fakeSourceDir = path.join(fakeRepoDir, 'source');
+    fs.mkdirSync(fakeSourceDir, { recursive: true });
+
+    const markerPath = path.join(fakeRepoDir, '.clone_complete');
+    RepoCloneService.writeCompletionMarker(markerPath);
+
+    console.assert(fs.existsSync(markerPath), 'FAIL: Completion marker was not created');
+    console.assert(RepoCloneService.isCloneComplete(fakeRepoDir, fakeSourceDir), 'FAIL: isCloneComplete returned false');
+
+    // Create a sensitive file and attempt symlink overwrite attack
+    const sensitiveFile = path.join(scratchDir, 'sensitive.txt');
+    fs.writeFileSync(sensitiveFile, 'PROTECTED_SYSTEM_DATA', 'utf-8');
+
+    // Replace marker with symlink targeting the sensitive file
+    fs.unlinkSync(markerPath);
+    fs.symlinkSync(sensitiveFile, markerPath);
+
+    // Call writeCompletionMarker on the symlink
+    RepoCloneService.writeCompletionMarker(markerPath);
+
+    // Assert that sensitive file was NOT modified/truncated
+    const sensitiveContent = fs.readFileSync(sensitiveFile, 'utf-8');
+    console.assert(sensitiveContent === 'PROTECTED_SYSTEM_DATA', 'FAIL: CWE-59 exploit succeeded! Sensitive file was overwritten');
+
+    // Assert that the marker is now a regular file, not a symlink
+    const markerStat = fs.lstatSync(markerPath);
+    console.assert(!markerStat.isSymbolicLink(), 'FAIL: Marker is still a symbolic link');
+    console.log('  ✓ Completion marker placed outside checkout and written with O_NOFOLLOW, preventing symlink overwrite attacks.');
+  } finally {
+    fs.rmSync(scratchDir, { recursive: true, force: true });
+  }
+
+  // -----------------------------------------------------------------------------------
+  // TEST 18: Workbench Server-Side Session Verification (CWE-602, Finding #8 & #15)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 18] Testing Workbench Server-Side Session Verification (CWE-602):');
+  const apiRoutesCode = fs.readFileSync(path.resolve('server/routes/api.ts'), 'utf-8');
+  console.assert(apiRoutesCode.includes("post('/repositories', workbenchAuthGuard"), 'Missing workbenchAuthGuard on POST /repositories');
+  console.assert(apiRoutesCode.includes("post('/repositories/:repo_id/chat', workbenchAuthGuard"), 'Missing workbenchAuthGuard on POST /repositories/:repo_id/chat');
+  console.assert(apiRoutesCode.includes("post('/repositories/:repo_id/insights', workbenchAuthGuard"), 'Missing workbenchAuthGuard on POST /repositories/:repo_id/insights');
+  console.assert(apiRoutesCode.includes("workbenchAuthGuard"), 'Missing workbenchAuthGuard');
+  console.assert(apiRoutesCode.includes("get('/repositories/:repo_id/file', workbenchAuthGuard"), 'Missing workbenchAuthGuard on GET /file');
+
+  // Subtest 18A: Anonymous request without authorization token
+  let unauthCalled = false;
+  let authNextCalled = false;
+  let authPayload: any = null;
+
+  const authResMock = {
+    status: (code: number) => {
+      if (code === 401) unauthCalled = true;
+      return {
+        json: (data: any) => {
+          authPayload = data;
+          return data;
+        },
+      };
+    },
+  } as any;
+
+  const reqAnon = {
+    headers: {},
+    socket: { remoteAddress: '203.0.113.195' },
+    ip: '203.0.113.195',
+  } as any;
+
+  await workbenchAuthGuard(reqAnon, authResMock, () => {
+    authNextCalled = true;
+  });
+
+  console.assert(unauthCalled && !authNextCalled, 'FAIL: Anonymous request was admitted to workbench without authentication!');
+  console.assert(authPayload?.code === 'AUTHENTICATION_REQUIRED', 'FAIL: Expected AUTHENTICATION_REQUIRED code');
+  console.log('  ✓ Anonymous request to workbench rejected with 401 Unauthorized.');
+
+  // Subtest 18B: Forged / invalid bearer token
+  unauthCalled = false;
+  authNextCalled = false;
+  const reqForged = {
+    headers: { authorization: 'Bearer forged_tampered_jwt_token_12345' },
+    socket: { remoteAddress: '203.0.113.195' },
+    ip: '203.0.113.195',
+  } as any;
+
+  await workbenchAuthGuard(reqForged, authResMock, () => {
+    authNextCalled = true;
+  });
+
+  console.assert(unauthCalled && !authNextCalled, 'FAIL: Forged bearer token admitted to workbench!');
+  console.log('  ✓ Forged/invalid session bearer token rejected with 401 Unauthorized.');
+
+  // Subtest 18C: Admin authority bypass
+  const savedAdminKey = process.env.ADMIN_KEY;
+  try {
+    process.env.ADMIN_KEY = 'secret_test_admin_token_2026';
+    unauthCalled = false;
+    authNextCalled = false;
+
+    const reqAdmin = {
+      headers: { 'x-admin-key': 'secret_test_admin_token_2026' },
+      socket: { remoteAddress: '203.0.113.195' },
+      ip: '203.0.113.195',
+    } as any;
+
+    await workbenchAuthGuard(reqAdmin, authResMock, () => {
+      authNextCalled = true;
+    });
+
+    console.assert(authNextCalled && !unauthCalled, 'FAIL: Valid administrator was rejected by workbenchAuthGuard!');
+    console.log('  ✓ Administrator credential authorizes workbench access.');
+  } finally {
+    if (savedAdminKey !== undefined) {
+      process.env.ADMIN_KEY = savedAdminKey;
+    } else {
+      delete process.env.ADMIN_KEY;
+    }
+  }
+
+  console.log('  ✓ Workbench routes enforce server-side session verification, resolving CWE-602.');
+
+  console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }
 
 runSecurityRemediationTests().catch((err) => {

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { RepoValidationService } from './repoValidationService.js';
 import { TIMEOUT_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
@@ -151,7 +151,7 @@ export class RepoCloneService {
     const root = storageRoot ? path.resolve(storageRoot) : path.resolve(this.DEFAULT_STORAGE_ROOT);
     const repoDir = path.join(root, repositoryId);
     const repoPath = path.join(repoDir, 'source');
-    const completeMarker = path.join(repoPath, '.clone_complete');
+    const completeMarker = path.join(repoDir, '.clone_complete');
 
     // Check if the target repo is the current active local workspace
     const isCurrentWorkspace =
@@ -161,7 +161,7 @@ export class RepoCloneService {
 
     if (isCurrentWorkspace) {
       // Sync from local project workspace if not already present
-      const alreadySynced = fs.existsSync(repoPath) && fs.existsSync(completeMarker);
+      const alreadySynced = fs.existsSync(repoPath) && this.isCloneComplete(repoDir, repoPath);
       if (!alreadySynced) {
         this.copyLocalProjectFiles(repoPath);
       }
@@ -189,7 +189,7 @@ export class RepoCloneService {
       return [repoPath, metadata];
     }
 
-    if (fs.existsSync(repoPath) && fs.existsSync(completeMarker)) {
+    if (fs.existsSync(repoPath) && this.isCloneComplete(repoDir, repoPath)) {
       // Repository already exists and was completely cloned, reuse local files
       const existingFiles = this.listRepositoryFiles(repoPath);
       if (existingFiles.length > 0) {
@@ -218,7 +218,7 @@ export class RepoCloneService {
     }
 
     // Clean up any previous incomplete or interrupted clone directory
-    this.cleanupPartialClone(repoPath);
+    this.cleanupPartialClone(repoPath, repoDir);
     fs.mkdirSync(repoPath, { recursive: true });
 
     let cloneSuccess = false;
@@ -230,50 +230,47 @@ export class RepoCloneService {
       if (repo.toLowerCase() === 'repogpt-rag') alternateNames.push('CodeSage');
     }
 
-    // Prepare git clone arguments (with branch if specified)
-    const cloneArgs = ['clone', '--depth', '1'];
-    if (branch && branch.trim()) {
-      cloneArgs.push('--branch', branch.trim());
-    }
-    cloneArgs.push(normalizedUrl, repoPath);
-
-    // 1. Try git clone first on the requested URL with configurable timeout
+    // 1. Try git clone with pre-checkout tree inspection (CWE-409 mitigation)
     try {
-      await execFileAsync('git', cloneArgs, {
-        timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-      });
+      await this.cloneAndCheckoutSafely(normalizedUrl, repoPath, branch, maxFiles, maxSizeMb);
       cloneSuccess = true;
     } catch (gitErr: any) {
+      if (gitErr instanceof RepositoryLimitError) {
+        this.cleanupPartialClone(repoPath, repoDir);
+        throw gitErr;
+      }
+
       // 2. If alternate repository names exist, attempt git clone on alternate URLs
       for (const alt of alternateNames) {
         if (cloneSuccess) break;
         try {
           const altUrl = `https://github.com/${owner}/${alt}`;
-          const altCloneArgs = ['clone', '--depth', '1'];
-          if (branch && branch.trim()) {
-            altCloneArgs.push('--branch', branch.trim());
-          }
-          altCloneArgs.push(altUrl, repoPath);
-          await execFileAsync('git', altCloneArgs, {
-            timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
-            env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-          });
+          this.cleanupPartialClone(repoPath, repoDir);
+          fs.mkdirSync(repoPath, { recursive: true });
+          await this.cloneAndCheckoutSafely(altUrl, repoPath, branch, maxFiles, maxSizeMb);
           cloneSuccess = true;
-        } catch {
-          // continue
+        } catch (altErr: any) {
+          if (altErr instanceof RepositoryLimitError) {
+            this.cleanupPartialClone(repoPath, repoDir);
+            throw altErr;
+          }
+          // continue to next alternate
         }
       }
 
       // 3. If git clone failed, try fetching repository via GitHub API as fallback
       if (!cloneSuccess) {
         try {
+          this.cleanupPartialClone(repoPath, repoDir);
+          fs.mkdirSync(repoPath, { recursive: true });
           await this.fetchViaGitHubApi(owner, repo, repoPath, branch);
           cloneSuccess = true;
         } catch (apiErr: any) {
           for (const alt of alternateNames) {
             if (cloneSuccess) break;
             try {
+              this.cleanupPartialClone(repoPath, repoDir);
+              fs.mkdirSync(repoPath, { recursive: true });
               await this.fetchViaGitHubApi(owner, alt, repoPath, branch);
               cloneSuccess = true;
             } catch {
@@ -288,11 +285,11 @@ export class RepoCloneService {
           }
 
           if (!cloneSuccess) {
-            this.cleanupPartialClone(repoPath);
+            this.cleanupPartialClone(repoPath, repoDir);
             const isTimeout = gitErr.killed || gitErr.signal === 'SIGTERM' || gitErr.code === 'ETIMEDOUT';
             const errMsg = isTimeout
               ? `Git clone timed out after ${Math.round(TIMEOUT_CONFIG.CLONE_TIMEOUT_MS / 1000)} seconds. The repository might be exceptionally large or the connection is slow.`
-              : gitErr.stderr?.trim() || gitErr.message || apiErr.message || 'unknown error';
+              : gitErr.stderr?.trim() || gitErr.message || apiErr?.message || 'unknown error';
             throw new RepoCloneError(`Git clone and API fetch failed: ${errMsg}`);
           }
         }
@@ -300,7 +297,7 @@ export class RepoCloneService {
     }
 
     try {
-      fs.writeFileSync(completeMarker, 'ready', 'utf-8');
+      this.writeCompletionMarker(completeMarker);
     } catch {
       // ignore
     }
@@ -308,7 +305,7 @@ export class RepoCloneService {
     const files = this.listRepositoryFiles(repoPath);
 
     if (files.length > maxFiles) {
-      this.cleanupPartialClone(repoPath);
+      this.cleanupPartialClone(repoPath, repoDir);
       throw new RepositoryLimitError(`Exceeded ${maxFiles} files limit (${files.length})`);
     }
 
@@ -324,7 +321,7 @@ export class RepoCloneService {
 
     const totalSizeMb = totalSizeBytes / (1024 * 1024);
     if (totalSizeMb > maxSizeMb) {
-      this.cleanupPartialClone(repoPath);
+      this.cleanupPartialClone(repoPath, repoDir);
       throw new RepositoryLimitError(`Exceeded ${maxSizeMb}MB size limit (${totalSizeMb.toFixed(2)}MB)`);
     }
 
@@ -482,7 +479,10 @@ export class RepoCloneService {
     return result;
   }
 
-  static cleanupPartialClone(repoPath: string): void {
+  /**
+   * Safely deletes partial or corrupted clones and removes the associated completion marker outside the checkout.
+   */
+  static cleanupPartialClone(repoPath: string, repoDir?: string): void {
     if (fs.existsSync(repoPath)) {
       try {
         fs.rmSync(repoPath, { recursive: true, force: true });
@@ -490,6 +490,213 @@ export class RepoCloneService {
         // ignore
       }
     }
+    const dir = repoDir || path.dirname(repoPath);
+    const primaryMarker = path.join(dir, '.clone_complete');
+    if (fs.existsSync(primaryMarker)) {
+      try {
+        fs.rmSync(primaryMarker, { force: true });
+      } catch {
+        // ignore
+      }
+    }
+    const legacyMarker = path.join(repoPath, '.clone_complete');
+    if (fs.existsSync(legacyMarker)) {
+      try {
+        fs.rmSync(legacyMarker, { force: true });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Writes the clone completion marker safely outside the repository checkout (CWE-59 mitigation).
+   * Enforces O_NOFOLLOW semantics so symbolic links committed in a repository cannot overwrite application files.
+   */
+  static writeCompletionMarker(markerPath: string): void {
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+    try {
+      const stat = fs.lstatSync(markerPath);
+      if (stat.isSymbolicLink()) {
+        fs.unlinkSync(markerPath);
+      }
+    } catch {
+      // file does not exist
+    }
+
+    const noFollowFlag = (fs.constants as any).O_NOFOLLOW || 0;
+    const flags = fs.constants.O_CREAT | fs.constants.O_WRONLY | fs.constants.O_TRUNC | noFollowFlag;
+    const fd = fs.openSync(markerPath, flags, 0o600);
+    try {
+      fs.writeFileSync(fd, 'ready', 'utf-8');
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  /**
+   * Checks whether repository clone and indexing has completed without following untrusted symlinks.
+   */
+  static isCloneComplete(repoDir: string, repoPath: string): boolean {
+    const primaryMarker = path.join(repoDir, '.clone_complete');
+    try {
+      if (fs.existsSync(primaryMarker)) {
+        const stat = fs.lstatSync(primaryMarker);
+        if (!stat.isSymbolicLink()) return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Fallback: check legacy checkout marker only if it is a regular file
+    const legacyMarker = path.join(repoPath, '.clone_complete');
+    try {
+      if (fs.existsSync(legacyMarker)) {
+        const stat = fs.lstatSync(legacyMarker);
+        if (!stat.isSymbolicLink() && stat.isFile()) return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    return false;
+  }
+
+  /**
+   * Inspects Git tree object entries before working tree checkout (CWE-409 Decompression Bomb mitigation).
+   * Parses output in a stream to prevent memory exhaustion and ensures entry counts and uncompressed byte totals
+   * stay strictly within configured bounds before any disk materialization.
+   */
+  static async inspectGitTreeBeforeCheckout(
+    repoPath: string,
+    maxFiles: number,
+    maxSizeMb: number
+  ): Promise<{ fileCount: number; totalSizeBytes: number }> {
+    const maxSizeBytes = maxSizeMb * 1024 * 1024;
+    return new Promise((resolve, reject) => {
+      const child = spawn('git', ['ls-tree', '-r', '-l', 'HEAD'], {
+        cwd: repoPath,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      });
+
+      let count = 0;
+      let totalBytes = 0;
+      let buffer = '';
+      let settled = false;
+
+      const terminate = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // ignore
+        }
+        reject(err);
+      };
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const tabIdx = line.indexOf('\t');
+          if (tabIdx === -1) continue;
+          const meta = line.slice(0, tabIdx).trim().split(/\s+/);
+          const filePath = line.slice(tabIdx + 1);
+
+          // Disallow symbolic links attempting to hijack completion markers (CWE-59)
+          if (meta[0] === '120000' && (filePath === '.clone_complete' || filePath.endsWith('/.clone_complete'))) {
+            return terminate(new RepositoryLimitError('Repository contains forbidden symbolic link for completion marker'));
+          }
+
+          count++;
+          if (count > maxFiles) {
+            return terminate(new RepositoryLimitError(`Exceeded ${maxFiles} files limit (${count})`));
+          }
+
+          const size = parseInt(meta[3], 10);
+          if (!isNaN(size)) {
+            totalBytes += size;
+            if (totalBytes > maxSizeBytes) {
+              const mb = (totalBytes / (1024 * 1024)).toFixed(2);
+              return terminate(new RepositoryLimitError(`Exceeded ${maxSizeMb}MB size limit (${mb}MB)`));
+            }
+          }
+        }
+      });
+
+      child.on('error', (err) => {
+        terminate(err);
+      });
+
+      child.on('close', (code) => {
+        if (settled) return;
+        if (code !== 0) {
+          return reject(new Error(`git ls-tree exited with code ${code}`));
+        }
+        if (buffer.trim()) {
+          const tabIdx = buffer.indexOf('\t');
+          if (tabIdx !== -1) {
+            const meta = buffer.slice(0, tabIdx).trim().split(/\s+/);
+            const filePath = buffer.slice(tabIdx + 1);
+            if (meta[0] === '120000' && (filePath === '.clone_complete' || filePath.endsWith('/.clone_complete'))) {
+              return reject(new RepositoryLimitError('Repository contains forbidden symbolic link for completion marker'));
+            }
+            count++;
+            if (count > maxFiles) {
+              return reject(new RepositoryLimitError(`Exceeded ${maxFiles} files limit (${count})`));
+            }
+            const size = parseInt(meta[3], 10);
+            if (!isNaN(size)) {
+              totalBytes += size;
+              if (totalBytes > maxSizeBytes) {
+                const mb = (totalBytes / (1024 * 1024)).toFixed(2);
+                return reject(new RepositoryLimitError(`Exceeded ${maxSizeMb}MB size limit (${mb}MB)`));
+              }
+            }
+          }
+        }
+        settled = true;
+        resolve({ fileCount: count, totalSizeBytes: totalBytes });
+      });
+    });
+  }
+
+  /**
+   * Clones Git object database with --no-checkout, verifies resource limits against Git tree,
+   * and only materializes the working tree once confirmed safe (CWE-409 Decompression Bomb mitigation).
+   */
+  private static async cloneAndCheckoutSafely(
+    url: string,
+    repoPath: string,
+    branch: string | undefined,
+    maxFiles: number,
+    maxSizeMb: number
+  ): Promise<void> {
+    const cloneArgs = ['clone', '--depth', '1', '--no-checkout'];
+    if (branch && branch.trim()) {
+      cloneArgs.push('--branch', branch.trim());
+    }
+    cloneArgs.push(url, repoPath);
+
+    // 1. Shallow clone object database only; working directory remains empty (CWE-409)
+    await execFileAsync('git', cloneArgs, {
+      timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+
+    // 2. Pre-audit uncompressed object sizes & file counts directly from Git tree
+    await this.inspectGitTreeBeforeCheckout(repoPath, maxFiles, maxSizeMb);
+
+    // 3. Quota verified; safely check out working directory
+    await execFileAsync('git', ['checkout', 'HEAD'], {
+      cwd: repoPath,
+      timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
   }
 
   private static copyLocalProjectFiles(targetPath: string): void {
@@ -571,8 +778,9 @@ export class RepoCloneService {
 
     copyRecursive(rootDir, targetPath);
 
+    const repoDir = path.dirname(targetPath);
     try {
-      fs.writeFileSync(path.join(targetPath, '.clone_complete'), 'ready', 'utf-8');
+      this.writeCompletionMarker(path.join(repoDir, '.clone_complete'));
     } catch {
       // ignore
     }

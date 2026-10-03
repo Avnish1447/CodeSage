@@ -273,27 +273,8 @@ export class CompressionService {
     if (mimeType === 'image/svg+xml') {
       let svgText = inputBuffer.toString('utf-8');
       
-      // Linear safe comment stripper (O(N) time, zero backtracking vulnerability)
-      let cleanSvg = '';
-      let cursor = 0;
-      while (cursor < svgText.length) {
-        const commentStart = svgText.indexOf('<!--', cursor);
-        if (commentStart === -1) {
-          cleanSvg += svgText.slice(cursor);
-          break;
-        }
-        cleanSvg += svgText.slice(cursor, commentStart);
-        const commentEnd = svgText.indexOf('-->', commentStart + 4);
-        if (commentEnd === -1) {
-          break;
-        }
-        cursor = commentEnd + 3;
-      }
-      svgText = cleanSvg;
-
-      // Strip XML declaration and doctype safely
-      svgText = svgText.replace(/<\?xml[^>]*\?>/g, '');
-      svgText = svgText.replace(/<!DOCTYPE[^>]*>/gi, '');
+      // Monotonic linear-time delimiter scanner (O(N) time, zero backtracking vulnerability - CWE-1333 ReDoS mitigation)
+      svgText = CompressionService.sanitizeSvgDeclarations(svgText);
       // Collapse redundant inter-tag whitespace
       svgText = svgText.replace(/>\s+</g, '><').trim();
 
@@ -413,5 +394,102 @@ export class CompressionService {
     }
 
     return result;
+  }
+
+  /**
+   * Monotonic linear-time delimiter scanner for SVG text (CWE-1333 ReDoS mitigation).
+   * Strips XML declarations (<?xml ... ?>), DOCTYPE declarations (<!DOCTYPE ... >),
+   * and comments (<!-- ... -->) with guaranteed O(N) execution and zero regular expression backtracking.
+   */
+  public static sanitizeSvgDeclarations(svgText: string): string {
+    let clean = '';
+    let cursor = 0;
+    const len = svgText.length;
+
+    let hasClosingComment = true;
+    let hasClosingPI = true;
+    let hasClosingDoctype = true;
+
+    while (cursor < len) {
+      // 1. Comments: <!-- ... -->
+      if (svgText.startsWith('<!--', cursor)) {
+        if (!hasClosingComment) {
+          cursor += 4;
+          continue;
+        }
+        const end = svgText.indexOf('-->', cursor + 4);
+        if (end === -1) {
+          hasClosingComment = false;
+          cursor += 4;
+          continue;
+        }
+        cursor = end + 3;
+        continue;
+      }
+
+      // 2. XML Declarations / Processing Instructions: <?xml ... ?> or <? ... ?>
+      if (svgText.startsWith('<?', cursor)) {
+        if (!hasClosingPI) {
+          cursor += 2;
+          continue;
+        }
+        const end = svgText.indexOf('?>', cursor + 2);
+        if (end === -1) {
+          hasClosingPI = false;
+          cursor += 2;
+          continue;
+        }
+        cursor = end + 2;
+        continue;
+      }
+
+      // 3. DOCTYPE: <!DOCTYPE ... > (case-insensitive, handles bracketed internal subsets [...])
+      if (svgText.slice(cursor, cursor + 9).toLowerCase() === '<!doctype') {
+        if (!hasClosingDoctype) {
+          cursor += 9;
+          continue;
+        }
+        let depth = 0;
+        let end = cursor + 9;
+        let found = false;
+        while (end < len) {
+          const ch = svgText[end];
+          if (ch === '[') {
+            depth++;
+          } else if (ch === ']') {
+            if (depth > 0) depth--;
+          } else if (ch === '>' && depth === 0) {
+            found = true;
+            end++;
+            break;
+          }
+          end++;
+        }
+        if (!found) {
+          hasClosingDoctype = false;
+          cursor += 9;
+          continue;
+        }
+        cursor = end;
+        continue;
+      }
+
+      // 4. Normal markup: slice up to next '<'
+      const nextAngle = svgText.indexOf('<', cursor);
+      if (nextAngle === -1) {
+        clean += svgText.slice(cursor);
+        break;
+      }
+
+      if (nextAngle > cursor) {
+        clean += svgText.slice(cursor, nextAngle);
+        cursor = nextAngle;
+      } else {
+        clean += svgText[cursor];
+        cursor++;
+      }
+    }
+
+    return clean;
   }
 }
