@@ -90,6 +90,7 @@ async function runSeoAndLinksTests() {
     '/brag-extended.jpg',
     '/brag-extended.mp4',
     '/sitemap.xml',
+    '/sitemap.xsl',
     '/robots.txt',
   ];
 
