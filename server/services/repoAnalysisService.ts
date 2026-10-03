@@ -62,7 +62,7 @@ export class RepoAnalysisService {
 
     const excludeDirs = new Set(['.git', 'venv', 'env', '.venv', 'node_modules', '__pycache__', '.pytest_cache', '.mypy_cache', 'dist', 'build']);
 
-    const allFilesRelative: string[] = [];
+    const allFiles: Array<{ displayPath: string; nativeFullPath: string }> = [];
     const allDirsRelative = new Set<string>();
 
     function walkDir(currentPath: string) {
@@ -78,27 +78,30 @@ export class RepoAnalysisService {
         }
 
         const fullPath = path.join(currentPath, item.name);
+        // Normalize for presentation / tree display only (CWE-22 mitigation)
         const relPath = path.relative(rootPath, fullPath).replace(/\\/g, '/');
 
         if (item.isDirectory()) {
           allDirsRelative.add(relPath);
           walkDir(fullPath);
         } else if (item.isFile()) {
-          allFilesRelative.push(relPath);
+          allFiles.push({ displayPath: relPath, nativeFullPath: fullPath });
         }
       }
     }
 
     walkDir(rootPath);
 
+    const allFilesRelative = allFiles.map((f) => f.displayPath);
+
     // 1. Statistics
-    const fileCount = allFilesRelative.length;
+    const fileCount = allFiles.length;
     const directoryCount = allDirsRelative.size;
 
     // 2. Languages Detection
     const languages: Record<string, number> = {};
-    for (const f of allFilesRelative) {
-      const ext = path.extname(f).toLowerCase();
+    for (const f of allFiles) {
+      const ext = path.extname(f.displayPath).toLowerCase();
       if (this.LANGUAGE_MAP[ext]) {
         const lang = this.LANGUAGE_MAP[ext];
         languages[lang] = (languages[lang] || 0) + 1;
@@ -107,10 +110,10 @@ export class RepoAnalysisService {
 
     // 3. Important File Detection
     const importantFiles: string[] = [];
-    for (const f of allFilesRelative) {
-      const fileName = path.basename(f).toLowerCase();
+    for (const f of allFiles) {
+      const fileName = path.basename(f.displayPath).toLowerCase();
       if (this.IMPORTANT_FILE_PATTERNS.has(fileName) || fileName.startsWith('readme')) {
-        importantFiles.push(f);
+        importantFiles.push(f.displayPath);
       }
     }
     importantFiles.sort();
@@ -122,26 +125,31 @@ export class RepoAnalysisService {
     let documentationPresence = false;
 
     let dependencyContents = '';
+    const resolvedRoot = path.resolve(rootPath);
 
-    for (const f of allFilesRelative) {
-      const fileNameLower = path.basename(f).toLowerCase();
+    for (const f of allFiles) {
+      const fileNameLower = path.basename(f.displayPath).toLowerCase();
 
       if (fileNameLower.includes('dockerfile') || fileNameLower === 'docker-compose.yml' || fileNameLower === 'docker-compose.yaml') {
         dockerDetected = true;
       }
 
-      if (fileNameLower.startsWith('readme') || f.endsWith('.md') || f.toLowerCase().split('/').includes('docs')) {
+      if (fileNameLower.startsWith('readme') || f.displayPath.endsWith('.md') || f.displayPath.toLowerCase().split('/').includes('docs')) {
         documentationPresence = true;
       }
 
-      if (fileNameLower.includes('test') || fileNameLower.includes('spec') || f.toLowerCase().split('/').includes('tests')) {
+      if (fileNameLower.includes('test') || fileNameLower.includes('spec') || f.displayPath.toLowerCase().split('/').includes('tests')) {
         testsDetected = true;
       }
 
       if (['requirements.txt', 'pyproject.toml', 'package.json', 'pom.xml', 'build.gradle', 'go.mod', 'cargo.toml', 'gemfile'].includes(fileNameLower)) {
         try {
-          const content = fs.readFileSync(path.join(rootPath, f), 'utf-8');
-          dependencyContents += content.toLowerCase() + '\n';
+          // Read using native filesystem path, enforcing root containment (CWE-22 mitigation)
+          const targetFullPath = path.resolve(f.nativeFullPath);
+          if (targetFullPath.startsWith(resolvedRoot + path.sep) || targetFullPath === resolvedRoot) {
+            const content = fs.readFileSync(targetFullPath, 'utf-8');
+            dependencyContents += content.toLowerCase() + '\n';
+          }
         } catch {
           // ignore read error
         }

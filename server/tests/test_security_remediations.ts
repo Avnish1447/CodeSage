@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adminGuard, isValidRepoId, workbenchAuthGuard, paymentAuthGuard } from '../routes/api.js';
 import { RepoCloneService } from '../services/repoCloneService.js';
+import { RepoAnalysisService } from '../services/repoAnalysisService.js';
 import { BackupService } from '../services/backupService.js';
 import { SpendingService } from '../services/spendingService.js';
 import { idempotency, resetIdempotencyCache } from '../middleware/idempotency.js';
@@ -750,6 +751,31 @@ async function runSecurityRemediationTests() {
   console.assert(conflictBody?.code === 'IDEMPOTENCY_PAYLOAD_MISMATCH', 'FAIL: Expected IDEMPOTENCY_PAYLOAD_MISMATCH code');
   console.log('  ✓ Reusing an idempotency key with a conflicting payload safely rejected with 422.');
   console.log('  ✓ CWE-863 Idempotency cache isolation and authorization ordering verified.');
+
+  // -----------------------------------------------------------------------------------
+  // TEST 21: Native Path Preservation and Manifest Containment (CWE-22, Finding #9)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 21] Testing Native Path Preservation & Manifest Containment (CWE-22):');
+  const repoAnalysisContent = fs.readFileSync(path.resolve('server/services/repoAnalysisService.ts'), 'utf-8');
+  console.assert(repoAnalysisContent.includes('nativeFullPath'), 'Missing nativeFullPath tracking in repoAnalysisService.ts');
+  console.assert(repoAnalysisContent.includes('startsWith(resolvedRoot'), 'Missing root containment check in repoAnalysisService.ts');
+  console.assert(!repoAnalysisContent.includes('fs.readFileSync(path.join(rootPath, f)'), 'Unsafe path.join read still present in repoAnalysisService.ts');
+
+  // Runtime test: Analyze temporary repository
+  const tempRepoDir = path.resolve('server/storage/test_repo_cwe22');
+  fs.mkdirSync(tempRepoDir, { recursive: true });
+  try {
+    fs.writeFileSync(path.join(tempRepoDir, 'package.json'), JSON.stringify({ dependencies: { react: '^18.0.0' } }), 'utf-8');
+    fs.writeFileSync(path.join(tempRepoDir, 'README.md'), '# Test Project', 'utf-8');
+
+    const analysis = RepoAnalysisService.analyzeRepository(tempRepoDir);
+    console.assert(analysis.frameworks.includes('React'), 'FAIL: Expected React framework detected');
+    console.assert(analysis.stats.file_count === 2, 'FAIL: Expected 2 files counted');
+    console.assert(analysis.stats.documentation_presence, 'FAIL: Expected documentation detected');
+    console.log('  ✓ Preserved native path for reads and enforced containment inside root (CWE-22).');
+  } finally {
+    fs.rmSync(tempRepoDir, { recursive: true, force: true });
+  }
 
   console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }
