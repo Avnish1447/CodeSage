@@ -182,14 +182,14 @@ export const Header: React.FC<HeaderProps> = ({
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="flex items-center space-x-2.5 cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0072F5] rounded-md"
-            title="CodeSage Studio – Back to Top"
+            title="CodeSage (TheCodeSage / Code Sage) – Return to Top"
           >
             <picture>
               <source srcSet="/logos/text-mark.svg" type="image/svg+xml" />
               <source srcSet="/logos/text-mark.png" type="image/png" />
               <img
                 src="/logos/text-mark.svg"
-                alt="CodeSage"
+                alt="CodeSage (TheCodeSage / Code Sage)"
                 className="h-7 sm:h-8 w-auto max-w-[130px] xs:max-w-[160px] sm:max-w-[200px] object-contain brightness-100 dark:brightness-125 hover:opacity-85 transition-opacity duration-150"
                 onError={(e) => {
                   const target = e.currentTarget;

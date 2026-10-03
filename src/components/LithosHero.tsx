@@ -273,6 +273,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
         </div>
 
         <h1 className={`leading-[0.95] tracking-tight sm:tracking-[-2.28px] transition-colors duration-200 ${isDark ? 'text-white' : 'text-[#171717]'}`}>
+          <span className="sr-only">CodeSage (TheCodeSage / Code Sage) — Intelligent Codebase Stratigraphy Engine. </span>
           <span
             className={`block font-playfair italic font-normal text-4xl xs:text-5xl sm:text-7xl md:text-8xl hero-anim hero-reveal ${
               isDark ? 'drop-shadow-md' : 'drop-shadow-none'

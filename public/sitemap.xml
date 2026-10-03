@@ -6,40 +6,40 @@
                             http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
   <!-- Homepage & Core Platform -->
   <url>
-    <loc>https://codesage.dev/</loc>
-    <lastmod>2026-09-27</lastmod>
+    <loc>https://thecodesage.vercel.app/</loc>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
 
   <!-- Interactive Codebase Workbench / Studio -->
   <url>
-    <loc>https://codesage.dev/#workbench</loc>
-    <lastmod>2026-09-27</lastmod>
+    <loc>https://thecodesage.vercel.app/#workbench</loc>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <!-- Architecture & AST Exploration -->
   <url>
-    <loc>https://codesage.dev/#architecture</loc>
-    <lastmod>2026-09-27</lastmod>
+    <loc>https://thecodesage.vercel.app/#architecture</loc>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <!-- Fullscreen Presentation Mode -->
   <url>
-    <loc>https://codesage.dev/#presentation</loc>
-    <lastmod>2026-09-27</lastmod>
+    <loc>https://thecodesage.vercel.app/#presentation</loc>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <!-- Custom 404 Error Page -->
   <url>
-    <loc>https://codesage.dev/404</loc>
-    <lastmod>2026-09-27</lastmod>
+    <loc>https://thecodesage.vercel.app/404</loc>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>

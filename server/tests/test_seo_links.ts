@@ -104,12 +104,12 @@ async function runSeoAndLinksTests() {
 
   // Verify Sitemap & Robots specifications
   const sitemapContent = fs.readFileSync(path.resolve('public/sitemap.xml'), 'utf-8');
-  console.assert(sitemapContent.includes('https://codesage.dev/'), 'sitemap.xml missing canonical domain');
+  console.assert(sitemapContent.includes('https://thecodesage.vercel.app/'), 'sitemap.xml missing canonical domain');
   console.assert(sitemapContent.includes('<urlset'), 'sitemap.xml missing <urlset> root tag');
-  console.assert(sitemapContent.includes('https://codesage.dev/404'), 'sitemap.xml missing 404 URL');
+  console.assert(sitemapContent.includes('https://thecodesage.vercel.app/404'), 'sitemap.xml missing 404 URL');
 
   const robotsContent = fs.readFileSync(path.resolve('public/robots.txt'), 'utf-8');
-  console.assert(robotsContent.includes('Sitemap: https://codesage.dev/sitemap.xml'), 'robots.txt missing Sitemap reference');
+  console.assert(robotsContent.includes('Sitemap: https://thecodesage.vercel.app/sitemap.xml'), 'robots.txt missing Sitemap reference');
   console.log('✅ All internal assets, sitemap.xml, and robots.txt verified.\n');
 
   // -----------------------------------------------------------------------------------

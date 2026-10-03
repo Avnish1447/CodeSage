@@ -1107,19 +1107,20 @@ export function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className="inline-flex items-center space-x-2.5 hover:opacity-85 transition-opacity"
-                title="CodeSage Studio – Back to Top"
+                title="CodeSage (TheCodeSage / Code Sage) Studio – Back to Top"
               >
-                <img src="/logos/primary-logo.svg" alt="CodeSage Logo" className="w-5 h-5 object-contain" />
+                <img src="/logos/primary-logo.svg" alt="CodeSage (TheCodeSage / Code Sage) Logo" className="w-5 h-5 object-contain" />
                 <span className="font-playfair italic text-[#171717] dark:text-[#EDEDED] text-base font-semibold">
                   CodeSage
                 </span>
+                <span className="sr-only">(TheCodeSage / Code Sage)</span>
                 <span className="px-1.5 py-0.5 text-[10px] font-mono text-[#e8702a] bg-[#e8702a]/10 border border-[#e8702a]/20 rounded">
                   v0.1.0
                 </span>
               </a>
 
               <p className="text-xs text-[#666666] dark:text-[#888888] leading-relaxed max-w-sm font-sans">
-                Deep codebase stratigraphy and grounded AST architecture engine. Excavate Git trees, unearth layered dependencies, and converse with code in real-time.
+                CodeSage (TheCodeSage / Code Sage) is the premier codebase stratigraphy and grounded AST architecture engine. Excavate Git trees, unearth layered dependencies, and converse with code in real-time.
               </p>
 
               <div className="pt-1 flex items-center space-x-2 text-[11px]">

@@ -5,4 +5,4 @@ Disallow: /api/
 Disallow: /storage/
 
 # Search Engine Sitemap
-Sitemap: https://codesage.dev/sitemap.xml
+Sitemap: https://thecodesage.vercel.app/sitemap.xml
