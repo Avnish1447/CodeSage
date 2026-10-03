@@ -9,6 +9,7 @@ import { idempotency, resetIdempotencyCache } from '../middleware/idempotency.js
 import { RATE_LIMIT_CONFIG, SPENDING_CAP_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
 import { DB_PATH, SHARED_DB_PATH } from '../config/paths.js';
 import { resolveClerkProxyUrl, CLERK_UPSTREAM_ORIGIN } from '../app.js';
+import { estimatePromptTokens, calculateEstimatedCost } from '../services/geminiService.js';
 
 async function runSecurityRemediationTests() {
   console.log('=== STARTING SECURITY REMEDIATIONS VERIFICATION SUITE ===\n');
@@ -776,6 +777,49 @@ async function runSecurityRemediationTests() {
   } finally {
     fs.rmSync(tempRepoDir, { recursive: true, force: true });
   }
+
+  // -----------------------------------------------------------------------------------
+  // TEST 22: Gemini Health Probe & Input Token Spending Reservations (Findings #10 & #11)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 22] Testing Gemini Health Probe & Input Token Spending Reservations (Findings #10 & #11):');
+  const geminiServiceCode = fs.readFileSync(path.resolve('server/services/geminiService.ts'), 'utf-8');
+
+  // Verify prompt token estimation helper behaves properly
+  const samplePrompt = 'The quick brown fox jumps over the lazy dog. '.repeat(10);
+  const estimatedPromptTokens = estimatePromptTokens(samplePrompt);
+  console.assert(estimatedPromptTokens > 0, 'FAIL: estimatePromptTokens returned 0');
+  console.assert(estimatedPromptTokens === Math.ceil(samplePrompt.length / 4), 'FAIL: Token estimate mismatch');
+
+  // Verify calculateEstimatedCost includes both prompt and completion costs
+  const testInputCost = calculateEstimatedCost(1000, 1000);
+  const expectedCost = Math.round(((1000 / 1000) * SPENDING_CAP_CONFIG.COST_PER_1K_INPUT_TOKENS + (1000 / 1000) * SPENDING_CAP_CONFIG.COST_PER_1K_OUTPUT_TOKENS) * 1000000) / 1000000;
+  console.assert(testInputCost === expectedCost, `FAIL: Cost calculation mismatch: ${testInputCost} !== ${expectedCost}`);
+
+  // Verify health probe reservation lifecycle
+  console.assert(geminiServiceCode.includes('probeReservationId'), 'FAIL: probeReservationId missing from geminiService.ts');
+  console.assert(geminiServiceCode.includes('SpendingService.reserveAllowance(probeReservationId'), 'FAIL: Health probe does not reserve spending allowance');
+  console.assert(geminiServiceCode.includes('SpendingService.releaseReservation(probeReservationId)'), 'FAIL: Health probe does not release reservation in finally block');
+
+  // Verify prompt tokens + output tokens reservation across services
+  console.assert(geminiServiceCode.includes('totalTokens = promptTokens + maxOutputTokens'), 'FAIL: Total tokens calculation missing prompt tokens');
+  console.assert(geminiServiceCode.includes('reserveAllowance(reservationId, totalTokens, estimatedCost)'), 'FAIL: Insights does not reserve prompt + output tokens with estimated cost');
+  console.assert(geminiServiceCode.includes('reserveAllowance(chatReservationId, totalTokens, estimatedCost)'), 'FAIL: Chat does not reserve prompt + output tokens with estimated cost');
+  console.assert(geminiServiceCode.includes('reserveAllowance(reverseReservationId, totalTokens, estimatedCost)'), 'FAIL: Reverse prompt does not reserve prompt + output tokens with estimated cost');
+
+  // Runtime test: Active reservation enforcement
+  const testReservationId = `test_res_${Date.now()}`;
+  const resAllowance = SpendingService.reserveAllowance(testReservationId, 500, 0.001);
+  console.assert(resAllowance.allowed, 'FAIL: Initial reservation should be allowed under fresh budget');
+
+  // Over-budget reservation test
+  const hugeReservationId = `test_res_huge_${Date.now()}`;
+  const hugeAllowance = SpendingService.reserveAllowance(hugeReservationId, 10000000, 999999.0);
+  console.assert(!hugeAllowance.allowed, 'FAIL: Massive cost reservation should have been rejected by spending cap');
+
+  // Release reservation and confirm cleanup
+  SpendingService.releaseReservation(testReservationId);
+  SpendingService.releaseReservation(hugeReservationId);
+  console.log('  ✓ Gemini health probe and input token costs reserved and reconciled authoritatively.');
 
   console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }

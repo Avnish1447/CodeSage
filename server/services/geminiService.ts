@@ -51,6 +51,22 @@ function getAiClient(): GoogleGenAI {
   return aiClient;
 }
 
+/**
+ * Estimates prompt token count using conservative 4-characters-per-token heuristic.
+ */
+export function estimatePromptTokens(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+/**
+ * Calculates estimated cost for input prompt tokens and prospective max output tokens.
+ */
+export function calculateEstimatedCost(promptTokens: number, outputTokens: number): number {
+  const promptCost = (promptTokens / 1000) * SPENDING_CAP_CONFIG.COST_PER_1K_INPUT_TOKENS;
+  const outputCost = (outputTokens / 1000) * SPENDING_CAP_CONFIG.COST_PER_1K_OUTPUT_TOKENS;
+  return Math.round((promptCost + outputCost) * 1000000) / 1000000;
+}
+
 const FREE_FLASH_MODELS = [
   'gemini-3.1-flash-lite',
   'gemini-3.6-flash',
@@ -98,9 +114,28 @@ export async function generateRepositoryInsights(repoData: any) {
     };
   }
 
-  // Enforce spending cap pre-flight guard with in-flight reservation (Finding 5)
+  // Construct prompt before admission to cover full prospective usage (CWE-400 mitigation, Finding #11)
+  const prompt = `Analyze this software repository facts and generate a structured overview:
+Repository: ${owner}/${repo}
+Languages: ${JSON.stringify(repoData.facts?.languages)}
+Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
+Important Files: ${JSON.stringify(repoData.facts?.important_files)}
+Stats: ${JSON.stringify(repoData.facts?.stats)}
+
+Provide a JSON object with:
+1. "learning_path": an array of 4-6 sequential step-by-step instructions for a developer to understand this codebase.
+2. "architecture_summary": a concise 2-3 paragraph architectural explanation of how the system works.
+
+Respond ONLY with valid JSON.`;
+
+  const promptTokens = estimatePromptTokens(prompt);
+  const maxOutputTokens = SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS;
+  const totalTokens = promptTokens + maxOutputTokens;
+  const estimatedCost = calculateEstimatedCost(promptTokens, maxOutputTokens);
+
+  // Enforce spending cap pre-flight guard with in-flight reservation covering input + output tokens (Finding #11)
   const reservationId = `ins_${repoData.repository_id || 'repo'}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-  const capCheck = SpendingService.reserveAllowance(reservationId, SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS);
+  const capCheck = SpendingService.reserveAllowance(reservationId, totalTokens, estimatedCost);
   if (!capCheck.allowed) {
     console.log(`[Gemini Insights] Spending cap enforced: ${capCheck.reason}. Serving deterministic insights.`);
     return {
@@ -114,18 +149,6 @@ export async function generateRepositoryInsights(repoData: any) {
 
   try {
     const ai = getAiClient();
-    const prompt = `Analyze this software repository facts and generate a structured overview:
-Repository: ${owner}/${repo}
-Languages: ${JSON.stringify(repoData.facts?.languages)}
-Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
-Important Files: ${JSON.stringify(repoData.facts?.important_files)}
-Stats: ${JSON.stringify(repoData.facts?.stats)}
-
-Provide a JSON object with:
-1. "learning_path": an array of 4-6 sequential step-by-step instructions for a developer to understand this codebase.
-2. "architecture_summary": a concise 2-3 paragraph architectural explanation of how the system works.
-
-Respond ONLY with valid JSON.`;
 
     for (const modelName of FREE_FLASH_MODELS) {
       try {
@@ -145,18 +168,19 @@ Respond ONLY with valid JSON.`;
       const text = response.text || '{}';
       const parsed = JSON.parse(text);
       if (parsed.learning_path && parsed.architecture_summary) {
-        // Record token usage in persistent spending ledger with unique call ID
-        const promptTokens = Math.ceil(prompt.length / 4);
-        const completionTokens = Math.ceil(text.length / 4);
+        // Record token usage in persistent spending ledger with unique call ID and reconcile reservation
+        const actualPromptTokens = (response as any)?.usageMetadata?.promptTokenCount || promptTokens;
+        const actualCompletionTokens = (response as any)?.usageMetadata?.candidatesTokenCount || Math.ceil(text.length / 4);
         const callId = crypto.randomBytes(8).toString('hex');
         const idempotencyKey = `insights_${repoData.repository_id}_${Date.now()}_${callId}`;
         SpendingService.recordUsage({
           service: 'gemini_insights',
           model: modelName,
-          promptTokens,
-          completionTokens,
+          promptTokens: actualPromptTokens,
+          completionTokens: actualCompletionTokens,
           repositoryId: repoData.repository_id,
           idempotencyKey,
+          reservationId,
         });
 
         return {
@@ -220,9 +244,42 @@ export async function streamRepositoryQuery(
     };
   }
 
-  // Pre-flight check with in-flight reservation: Prevent runaway costs if spending caps are exceeded
+  const styleDirective = style === 'simple'
+    ? `RESPONSE STYLE DIRECTIVE (SIMPLIFIED & BEGINNER FRIENDLY):
+- Explain everything in simple, plain, easy-to-understand language.
+- Use intuitive analogies (e.g., comparing parts of code to blueprint blueprints, building blocks, or helpers).
+- Avoid overly dense developer jargon, or explain technical terms clearly if you must use them.
+- Keep explanations clear, concise, and friendly.`
+    : `RESPONSE STYLE DIRECTIVE (TECHNICAL & DEEP ARCHITECTURAL):
+- Provide an in-depth, highly technical analysis suited for senior software developers.
+- Reference precise code organization patterns, dependency structures, and engineering abstractions.
+- Use standard software engineering terminology and exact markdown formatting.`;
+
+  // Construct complete prompt before admission to cover caller-controlled input tokens (CWE-400 mitigation, Finding #11)
+  const contextPrompt = `You are CodeSage, an AI codebase assistant analyzing a GitHub repository.
+
+Repository Context:
+- Owner/Repo: ${owner}/${repo}
+- ID: ${repoData.repository_id}
+- Languages: ${JSON.stringify(repoData.facts?.languages)}
+- Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
+- Important Files: ${JSON.stringify(repoData.facts?.important_files)}
+- Stats: ${JSON.stringify(repoData.facts?.stats)}
+- Architecture Summary: ${repoData.architecture_summary || 'N/A'}
+- Learning Path: ${JSON.stringify(repoData.learning_path || [])}
+
+${styleDirective}
+
+User Question: ${userQuery}`;
+
+  const promptTokens = estimatePromptTokens(contextPrompt);
+  const maxOutputTokens = SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS;
+  const totalTokens = promptTokens + maxOutputTokens;
+  const estimatedCost = calculateEstimatedCost(promptTokens, maxOutputTokens);
+
+  // Pre-flight check with in-flight reservation covering input + output tokens (Finding #11)
   const chatReservationId = `chat_${repoData.repository_id || 'repo'}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-  const capCheck = SpendingService.reserveAllowance(chatReservationId, SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS);
+  const capCheck = SpendingService.reserveAllowance(chatReservationId, totalTokens, estimatedCost);
   if (!capCheck.allowed) {
     console.log(`[Gemini Stream] Spending cap enforced: ${capCheck.reason}. Serving context fallback.`);
     const capNotice = style === 'simple'
@@ -240,70 +297,44 @@ export async function streamRepositoryQuery(
   try {
     const ai = getAiClient();
 
-  const styleDirective = style === 'simple'
-    ? `RESPONSE STYLE DIRECTIVE (SIMPLIFIED & BEGINNER FRIENDLY):
-- Explain everything in simple, plain, easy-to-understand language.
-- Use intuitive analogies (e.g., comparing parts of code to blueprint blueprints, building blocks, or helpers).
-- Avoid overly dense developer jargon, or explain technical terms clearly if you must use them.
-- Keep explanations clear, concise, and friendly.`
-    : `RESPONSE STYLE DIRECTIVE (TECHNICAL & DEEP ARCHITECTURAL):
-- Provide an in-depth, highly technical analysis suited for senior software developers.
-- Reference precise code organization patterns, dependency structures, and engineering abstractions.
-- Use standard software engineering terminology and exact markdown formatting.`;
+    for (const modelName of FREE_FLASH_MODELS) {
+      try {
+        const responseStream = await withTimeout(
+          ai.models.generateContentStream({
+            model: modelName,
+            contents: contextPrompt,
+            config: {
+              maxOutputTokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
+            },
+          }),
+          TIMEOUT_CONFIG.GEMINI_CHAT_TIMEOUT_MS,
+          `Gemini Chat Stream (${modelName})`
+        );
 
-  const contextPrompt = `You are CodeSage, an AI codebase assistant analyzing a GitHub repository.
-
-Repository Context:
-- Owner/Repo: ${owner}/${repo}
-- ID: ${repoData.repository_id}
-- Languages: ${JSON.stringify(repoData.facts?.languages)}
-- Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
-- Important Files: ${JSON.stringify(repoData.facts?.important_files)}
-- Stats: ${JSON.stringify(repoData.facts?.stats)}
-- Architecture Summary: ${repoData.architecture_summary || 'N/A'}
-- Learning Path: ${JSON.stringify(repoData.learning_path || [])}
-
-${styleDirective}
-
-User Question: ${userQuery}`;
-
-  for (const modelName of FREE_FLASH_MODELS) {
-    try {
-      const responseStream = await withTimeout(
-        ai.models.generateContentStream({
-          model: modelName,
-          contents: contextPrompt,
-          config: {
-            maxOutputTokens: SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS,
-          },
-        }),
-        TIMEOUT_CONFIG.GEMINI_CHAT_TIMEOUT_MS,
-        `Gemini Chat Stream (${modelName})`
-      );
-
-      onStatus?.('live', modelName);
-      let accumulated = '';
-      for await (const chunk of responseStream) {
-        if (chunk.text) {
-          accumulated += chunk.text;
-          onChunk(chunk.text);
+        onStatus?.('live', modelName);
+        let accumulated = '';
+        for await (const chunk of responseStream) {
+          if (chunk.text) {
+            accumulated += chunk.text;
+            onChunk(chunk.text);
+          }
         }
-      }
 
-      if (accumulated.trim().length > 0) {
-        // Record token usage in persistent spending ledger with unique non-colliding key (without leaking query text)
-        const promptTokens = Math.ceil(contextPrompt.length / 4);
-        const completionTokens = Math.ceil(accumulated.length / 4);
-        const callId = crypto.randomBytes(8).toString('hex');
-        const idempotencyKey = `chat_${repoData.repository_id}_${Date.now()}_${callId}`;
-        SpendingService.recordUsage({
-          service: 'gemini_chat',
-          model: modelName,
-          promptTokens,
-          completionTokens,
-          repositoryId: repoData.repository_id,
-          idempotencyKey,
-        });
+        if (accumulated.trim().length > 0) {
+          // Record token usage in persistent spending ledger with unique non-colliding key and reconcile reservation
+          const recordedPromptTokens = Math.ceil(contextPrompt.length / 4);
+          const recordedCompletionTokens = Math.ceil(accumulated.length / 4);
+          const callId = crypto.randomBytes(8).toString('hex');
+          const idempotencyKey = `chat_${repoData.repository_id}_${Date.now()}_${callId}`;
+          SpendingService.recordUsage({
+            service: 'gemini_chat',
+            model: modelName,
+            promptTokens: recordedPromptTokens,
+            completionTokens: recordedCompletionTokens,
+            repositoryId: repoData.repository_id,
+            idempotencyKey,
+            reservationId: chatReservationId,
+          });
 
         return {
           answer: accumulated,
@@ -394,8 +425,15 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
     };
   }
 
-  // Pre-flight check: skip live probe if spending cap exceeded
-  const capCheck = SpendingService.checkSpendingCap();
+  // Pre-flight check with in-flight reservation: reserve input + explicitly bounded output allowance (CWE-400 mitigation, Finding #10)
+  const probePrompt = 'Say OK';
+  const promptTokens = estimatePromptTokens(probePrompt);
+  const maxOutputTokens = 16;
+  const totalTokens = promptTokens + maxOutputTokens;
+  const estimatedCost = calculateEstimatedCost(promptTokens, maxOutputTokens);
+  const probeReservationId = `probe_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+  const capCheck = SpendingService.reserveAllowance(probeReservationId, totalTokens, estimatedCost);
   if (!capCheck.allowed) {
     return {
       configured: true,
@@ -408,21 +446,27 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
     const ai = getAiClient();
     for (const model of FREE_FLASH_MODELS) {
       try {
-        await withTimeout(
+        const response = await withTimeout(
           ai.models.generateContent({
             model,
-            contents: 'Say OK',
+            contents: probePrompt,
+            config: {
+              maxOutputTokens,
+            },
           }),
           TIMEOUT_CONFIG.GEMINI_PROBE_TIMEOUT_MS,
           `Gemini Probe (${model})`
         );
         const probeId = crypto.randomBytes(6).toString('hex');
+        const actualPromptTokens = (response as any)?.usageMetadata?.promptTokenCount || promptTokens;
+        const actualCompletionTokens = (response as any)?.usageMetadata?.candidatesTokenCount || 2;
         SpendingService.recordUsage({
           service: 'health_probe',
           model,
-          promptTokens: 2,
-          completionTokens: 2,
+          promptTokens: actualPromptTokens,
+          completionTokens: actualCompletionTokens,
           idempotencyKey: `probe_${Date.now()}_${probeId}`,
+          reservationId: probeReservationId,
         });
         return {
           configured: true,
@@ -447,6 +491,8 @@ export async function checkGeminiHealth(forceProbe: boolean = false): Promise<{
       status: 'quota_exhausted',
       message: err.message || 'Error communicating with Gemini API.',
     };
+  } finally {
+    SpendingService.releaseReservation(probeReservationId);
   }
 }
 
@@ -464,19 +510,13 @@ export async function generateGitReverseFallbackPrompt(repoData: any): Promise<s
   const importantFiles = rawImpFiles.slice(0, 8).join(', ') || 'Core files';
   const fileCount = repoData.facts?.stats?.file_count || 0;
 
+  const deterministicFallback = `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
+
   if (!apiKey) {
-    return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
+    return deterministicFallback;
   }
 
-  // Pre-flight check with in-flight reservation: skip AI call if spending cap exceeded
-  const reverseReservationId = `gitrev_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-  const capCheck = SpendingService.reserveAllowance(reverseReservationId, SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS);
-  if (!capCheck.allowed) {
-    return `Build me a modern, production-grade application inspired by ${owner}/${repo}.\n\nThe project should be built primarily using ${languages} with core libraries and frameworks including ${frameworks}. Organize the architecture with modular separation of concerns, referencing key entry points like ${importantFiles}. Total codebase scope is approximately ${fileCount} files.\n\nPlease include solid unit tests, clear configuration defaults, clean documentation, and a working demo starter.`;
-  }
-
-  try {
-    const prompt = `You are GitReverse, an elite reverse-engineering system.
+  const prompt = `You are GitReverse, an elite reverse-engineering system.
 Analyze the following repository metadata and generate a single, comprehensive, natural-language "build-from" prompt that a developer could feed into an AI coding assistant (like Cursor, Claude Code, or v0) to recreate this project or build an equivalent system from scratch.
 
 Repository: ${owner}/${repo}
@@ -493,6 +533,19 @@ Guidelines for the prompt:
 - Keep the prompt focused, actionable, and between 2 to 4 concise paragraphs.
 - Do NOT output extra conversational preamble or markdown code fences around the prompt. Return ONLY the prompt text itself.`;
 
+  const promptTokens = estimatePromptTokens(prompt);
+  const maxOutputTokens = SPENDING_CAP_CONFIG.MAX_OUTPUT_TOKENS;
+  const totalTokens = promptTokens + maxOutputTokens;
+  const estimatedCost = calculateEstimatedCost(promptTokens, maxOutputTokens);
+
+  // Pre-flight check with in-flight reservation: skip AI call if spending cap exceeded (Finding #11)
+  const reverseReservationId = `gitrev_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const capCheck = SpendingService.reserveAllowance(reverseReservationId, totalTokens, estimatedCost);
+  if (!capCheck.allowed) {
+    return deterministicFallback;
+  }
+
+  try {
     for (const model of FREE_FLASH_MODELS) {
       try {
         const ai = getAiClient();
@@ -513,10 +566,11 @@ Guidelines for the prompt:
         SpendingService.recordUsage({
           service: 'gitreverse_fallback',
           model,
-          promptTokens: Math.ceil(prompt.length / 4),
-          completionTokens: Math.ceil(text.length / 4),
+          promptTokens: (response as any)?.usageMetadata?.promptTokenCount || promptTokens,
+          completionTokens: (response as any)?.usageMetadata?.candidatesTokenCount || Math.ceil(text.length / 4),
           repositoryId: repoData.repository_id,
           idempotencyKey: `gitreverse_${repoData.repository_id || 'unknown'}_${Date.now()}_${fallbackId}`,
+          reservationId: reverseReservationId,
         });
         return text;
       }
