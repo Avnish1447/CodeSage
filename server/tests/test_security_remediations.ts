@@ -211,7 +211,13 @@ async function runSecurityRemediationTests() {
   console.assert(schemaContent.includes('auth.jwt() ->> \'sub\' = user_id'), 'Missing auth.jwt sub check in supabase_schema.sql');
   console.assert(!schemaContent.includes('USING (true);'), 'Disallowed open USING (true) policy still present!');
   console.assert(!schemaContent.includes('WITH CHECK (true);'), 'Disallowed open WITH CHECK (true) policy still present!');
-  console.log('  ✓ Supabase RLS policies enforce authenticated user ownership on SELECT, INSERT, UPDATE, and DELETE.');
+  console.assert(schemaContent.includes('PRIMARY KEY (user_id, repository_id)'), 'Missing composite PRIMARY KEY (user_id, repository_id) in supabase_schema.sql');
+
+  const supabaseClientPath = path.resolve('src/lib/supabase.ts');
+  const supabaseClientContent = fs.readFileSync(supabaseClientPath, 'utf-8');
+  console.assert(supabaseClientContent.includes("onConflict: 'user_id,repository_id'"), 'Missing composite onConflict in supabase.ts');
+
+  console.log('  ✓ Supabase RLS policies and composite primary key (user_id, repository_id) eliminate cross-user key probing (CWE-203).');
 
   // -----------------------------------------------------------------------------------
   // TEST 4: Backend Bundle & Sensitive File Protection (CWE-200, CWE-552)

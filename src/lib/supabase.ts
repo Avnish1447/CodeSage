@@ -97,7 +97,7 @@ export async function saveRepositoryToUserHistory(
           files_count: historyItem.filesCount,
           analyzed_at: new Date(historyItem.analyzedAt).toISOString(),
         },
-        { onConflict: 'id' }
+        { onConflict: 'user_id,repository_id' }
       );
 
       if (error) {
