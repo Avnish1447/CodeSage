@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Sparkles, Mail, ArrowRight, Loader2, AlertCircle, CheckCircle2, ShieldCheck, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { validateEmailForAuth } from '../lib/emailValidator';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   } = useAuth();
 
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [otpToken, setOtpToken] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       window.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
       clearAuthError();
+      setEmailError(null);
       setStatusMessage(null);
     }
     return () => {
@@ -50,17 +53,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleGoogleSignIn = async () => {
     setStatusMessage(null);
+    setEmailError(null);
     await loginWithGoogle();
   };
 
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError(null);
     if (!email || !email.includes('@')) {
+      setEmailError('Please enter a valid email address.');
       return;
     }
+
+    const validation = validateEmailForAuth(email);
+    if (!validation.isValid) {
+      setEmailError(validation.error || 'Please use a reputable email provider (Google, Microsoft, Proton, Apple, Yahoo) or your company/university email.');
+      return;
+    }
+
     setLocalLoading(true);
     setStatusMessage(null);
-    const result = await loginWithEmail(email);
+    const result = await loginWithEmail(validation.normalizedEmail);
     setLocalLoading(false);
     if (result.success) {
       setOtpSent(true);
@@ -219,12 +232,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@example.com"
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError(null);
+                      }}
+                      placeholder="name@gmail.com, name@company.com"
                       required
                       className="w-full pl-9 pr-3 py-2 rounded-xl text-xs sm:text-sm bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#e8702a]/40 focus:border-[#e8702a] text-neutral-900 dark:text-white placeholder:text-neutral-400 transition-all"
                     />
                   </div>
+
+                  {emailError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start space-x-2"
+                    >
+                      <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{emailError}</span>
+                    </motion.div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500 px-1">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Google, Microsoft, Proton & work emails
+                    </span>
+                    <span className="font-mono text-[10px]">No temp mail</span>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={localLoading || !email}

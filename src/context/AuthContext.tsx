@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { validateEmailForAuth } from '../lib/emailValidator';
 import { useToast } from './ToastContext';
 import { AuthModal } from '../components/AuthModal';
 import { SignOutConfirmModal } from '../components/SignOutConfirmModal';
@@ -212,6 +213,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: msg };
     }
 
+    const validation = validateEmailForAuth(email);
+    if (!validation.isValid) {
+      const errorMsg = validation.error || 'Please provide a valid, reputable email address.';
+      setAuthError(errorMsg);
+      showWarning(errorMsg, 'Email Verification');
+      return { success: false, message: errorMsg };
+    }
+
     setIsSigningIn(true);
     setAuthError(null);
     try {
@@ -221,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       const redirectTo = isLocal ? `${window.location.origin}/` : 'https://thecodesage.vercel.app/';
       const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
+        email: validation.normalizedEmail,
         options: {
           emailRedirectTo: redirectTo,
         },
@@ -248,11 +257,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Supabase is not configured.' };
     }
 
+    const validation = validateEmailForAuth(email);
+    if (!validation.isValid) {
+      const errorMsg = validation.error || 'Please provide a valid, reputable email address.';
+      setAuthError(errorMsg);
+      showWarning(errorMsg, 'Email Verification');
+      return { success: false, message: errorMsg };
+    }
+
     setIsSigningIn(true);
     setAuthError(null);
     try {
       const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim(),
+        email: validation.normalizedEmail,
         token: token.trim(),
         type: 'email',
       });
