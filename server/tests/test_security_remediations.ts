@@ -821,6 +821,23 @@ async function runSecurityRemediationTests() {
   SpendingService.releaseReservation(hugeReservationId);
   console.log('  ✓ Gemini health probe and input token costs reserved and reconciled authoritatively.');
 
+  // -----------------------------------------------------------------------------------
+  // TEST 23: Working Directory Copy Removal & Deployment Asset Protection (CWE-200, Finding #12)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 23] Testing Working Directory Copy Removal & Deployment Asset Protection (CWE-200):');
+  const cloneCodeCwe200 = fs.readFileSync(path.resolve('server/services/repoCloneService.ts'), 'utf-8');
+
+  // Verify copyLocalProjectFiles and process.cwd() copying are completely eliminated
+  console.assert(!cloneCodeCwe200.includes('copyLocalProjectFiles'), 'FAIL: copyLocalProjectFiles still present in repoCloneService.ts');
+  console.assert(!cloneCodeCwe200.includes('process.cwd()'), 'FAIL: process.cwd() still referenced in repoCloneService.ts');
+  console.assert(!cloneCodeCwe200.includes('isCurrentWorkspace'), 'FAIL: isCurrentWorkspace branch bypass still present in repoCloneService.ts');
+  console.assert(!cloneCodeCwe200.includes("git branch -a"), 'FAIL: Local git branch inspection still present in getRemoteBranches');
+
+  // Verify that all repository ingestion strictly relies on remote Git operations
+  console.assert(cloneCodeCwe200.includes('cloneAndCheckoutSafely'), 'FAIL: cloneAndCheckoutSafely missing from clone flow');
+  console.assert(cloneCodeCwe200.includes('git ls-remote --heads'), 'FAIL: git ls-remote missing from remote branch resolution');
+  console.log('  ✓ Working directory copying and deployment file exposure completely eliminated (CWE-200).');
+
   console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }
 

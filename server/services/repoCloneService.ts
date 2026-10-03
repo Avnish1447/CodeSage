@@ -49,40 +49,9 @@ export class RepoCloneService {
   }> {
     try {
       const normalized = RepoValidationService.validateAndNormalizeUrl(url);
-      const { normalized_url: normalizedUrl, owner, repo } = normalized;
+      const { normalized_url: normalizedUrl } = normalized;
 
-      // Handle current local workspace
-      const isCurrentWorkspace =
-        (owner.toLowerCase() === 'avnish1447' && (repo.toLowerCase() === 'codesage' || repo.toLowerCase() === 'repogpt-rag')) ||
-        normalizedUrl.toLowerCase().includes('avnish1447/codesage') ||
-        normalizedUrl.toLowerCase().includes('avnish1447/repogpt-rag');
-
-      if (isCurrentWorkspace) {
-        try {
-          const { stdout } = await execFileAsync('git', ['branch', '-a'], { timeout: 5000 });
-          const branches = stdout
-            .split('\n')
-            .map((l) => l.replace('*', '').trim())
-            .filter((l) => l.length > 0 && !l.includes('->'))
-            .map((l) => l.replace('remotes/origin/', ''))
-            .filter((val, idx, arr) => arr.indexOf(val) === idx);
-
-          const defaultBranch = branches.includes('main') ? 'main' : (branches[0] || 'main');
-          return {
-            branches,
-            default_branch: defaultBranch,
-            has_multiple_branches: branches.length > 1,
-          };
-        } catch {
-          return {
-            branches: ['main'],
-            default_branch: 'main',
-            has_multiple_branches: false,
-          };
-        }
-      }
-
-      // Query remote git repository via git ls-remote --heads with configurable timeout
+      // Query remote git repository via git ls-remote --heads with configurable timeout (CWE-200 mitigation)
       const { stdout } = await execFileAsync('git', ['ls-remote', '--heads', normalizedUrl], {
         timeout: TIMEOUT_CONFIG.LS_REMOTE_TIMEOUT_MS,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
@@ -157,42 +126,7 @@ export class RepoCloneService {
     const repoPath = path.join(repoDir, 'source');
     const completeMarker = path.join(repoDir, '.clone_complete');
 
-    // Check if the target repo is the current active local workspace
-    const isCurrentWorkspace =
-      (owner.toLowerCase() === 'avnish1447' && (repo.toLowerCase() === 'codesage' || repo.toLowerCase() === 'repogpt-rag')) ||
-      normalizedUrl.toLowerCase().includes('avnish1447/codesage') ||
-      normalizedUrl.toLowerCase().includes('avnish1447/repogpt-rag');
-
-    if (isCurrentWorkspace) {
-      // Sync from local project workspace if not already present
-      const alreadySynced = fs.existsSync(repoPath) && this.isCloneComplete(repoDir, repoPath);
-      if (!alreadySynced) {
-        this.copyLocalProjectFiles(repoPath);
-      }
-      const existingFiles = this.listRepositoryFiles(repoPath);
-      let totalSizeBytes = 0;
-      for (const file of existingFiles) {
-        try {
-          const stat = fs.statSync(file);
-          totalSizeBytes += stat.size;
-        } catch {
-          // ignore
-        }
-      }
-      const totalSizeMb = totalSizeBytes / (1024 * 1024);
-      const metadata = {
-        repository_id: repositoryId,
-        owner,
-        repo,
-        branch: branch || 'main',
-        normalized_url: normalizedUrl,
-        files: existingFiles.length,
-        size_mb: Math.round(totalSizeMb * 100) / 100,
-        storage_path: repoPath,
-      };
-      return [repoPath, metadata];
-    }
-
+    // Check if repository was already cloned and indexed in isolated sandbox
     if (fs.existsSync(repoPath) && this.isCloneComplete(repoDir, repoPath)) {
       // Repository already exists and was completely cloned.
       // Verify stored ref metadata matches requested branch case-sensitively (CWE-706 mitigation).
@@ -298,12 +232,6 @@ export class RepoCloneService {
             } catch {
               // continue
             }
-          }
-
-          // 4. If all remote attempts fail for the local project, fall back to copying workspace files
-          if (!cloneSuccess && (repo.toLowerCase() === 'codesage' || owner.toLowerCase() === 'avnish1447' || repo.toLowerCase() === 'repogpt-rag')) {
-            this.copyLocalProjectFiles(repoPath);
-            cloneSuccess = true;
           }
 
           if (!cloneSuccess) {
@@ -719,92 +647,5 @@ export class RepoCloneService {
       timeout: TIMEOUT_CONFIG.CLONE_TIMEOUT_MS,
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
     });
-  }
-
-  private static copyLocalProjectFiles(targetPath: string): void {
-    if (fs.existsSync(targetPath)) {
-      try {
-        fs.rmSync(targetPath, { recursive: true, force: true });
-      } catch {
-        // ignore
-      }
-    }
-    fs.mkdirSync(targetPath, { recursive: true });
-
-    const rootDir = process.cwd();
-    const ignoreDirs = new Set([
-      '.git',
-      'node_modules',
-      'dist',
-      'dist-ssr',
-      'build',
-      'out',
-      'storage',
-      '.vercel',
-      '.firebase',
-      '.agents',
-      '.gemini',
-      '.claude',
-      '.claude-plugin',
-      '.cursor',
-      '.antigravity',
-      'coverage',
-      'scratch',
-      'logs',
-      'temp',
-      'tmp',
-      'temp_uploads',
-      'exports',
-      'backups',
-      '.venv',
-      'venv',
-      'ENV',
-      '__pycache__',
-      '.pytest_cache',
-      '.mypy_cache',
-    ]);
-
-    function shouldIgnoreFile(fileName: string): boolean {
-      if (fileName === '.clone_complete') return true;
-      if (fileName === '.env' || fileName.startsWith('.env.') || fileName.endsWith('.local')) return true;
-      if (fileName.endsWith('.db') || fileName.endsWith('.sqlite') || fileName.endsWith('.sqlite3')) return true;
-      if (fileName.endsWith('.db-wal') || fileName.endsWith('.db-shm') || fileName.endsWith('.db-journal')) return true;
-      if (fileName.endsWith('.log') || fileName === '.DS_Store') return true;
-      if (fileName.endsWith('.pem') || fileName.endsWith('.key') || fileName.endsWith('.cert') || fileName.endsWith('.crt')) return true;
-      if (fileName.endsWith('.tar.gz') || fileName.endsWith('.zip') || fileName.endsWith('.tar')) return true;
-      return false;
-    }
-
-    function copyRecursive(src: string, dest: string) {
-      if (!fs.existsSync(src)) return;
-      fs.mkdirSync(dest, { recursive: true });
-      const entries = fs.readdirSync(src, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
-
-        if (entry.isDirectory()) {
-          if (ignoreDirs.has(entry.name)) continue;
-          copyRecursive(srcPath, destPath);
-        } else if (entry.isFile()) {
-          if (shouldIgnoreFile(entry.name)) continue;
-          try {
-            fs.copyFileSync(srcPath, destPath);
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }
-
-    copyRecursive(rootDir, targetPath);
-
-    const repoDir = path.dirname(targetPath);
-    try {
-      this.writeCompletionMarker(path.join(repoDir, '.clone_complete'));
-    } catch {
-      // ignore
-    }
   }
 }
