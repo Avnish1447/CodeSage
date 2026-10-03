@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { adminGuard, isValidRepoId, workbenchAuthGuard } from '../routes/api.js';
+import { adminGuard, isValidRepoId, workbenchAuthGuard, paymentAuthGuard } from '../routes/api.js';
 import { RepoCloneService } from '../services/repoCloneService.js';
 import { BackupService } from '../services/backupService.js';
 import { SpendingService } from '../services/spendingService.js';
+import { idempotency, resetIdempotencyCache } from '../middleware/idempotency.js';
 import { RATE_LIMIT_CONFIG, SPENDING_CAP_CONFIG, RESOURCE_LIMITS } from '../config/limits.js';
 import { DB_PATH, SHARED_DB_PATH } from '../config/paths.js';
 import { resolveClerkProxyUrl, CLERK_UPSTREAM_ORIGIN } from '../app.js';
@@ -580,6 +581,175 @@ async function runSecurityRemediationTests() {
   console.log(`    - "Release-1.0" -> ${idUpper}`);
   console.log(`    - "release-1.0" -> ${idLower}`);
   console.log('  ✓ CWE-706 Git ref identity isolation verified.');
+
+  // -----------------------------------------------------------------------------------
+  // TEST 20: Payment Authorization Ordering & Idempotency Cache Isolation (CWE-863)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 20] Testing Payment Authorization Ordering & Idempotency Cache Isolation (CWE-863):');
+  resetIdempotencyCache();
+
+  // Subtest 20A: paymentAuthGuard rejects unauthorized callers before idempotency middleware
+  let paymentForbidden = false;
+  let paymentNext = false;
+  let paymentResData: any = null;
+
+  const mockRes = {
+    statusCode: 200,
+    status(code: number) {
+      this.statusCode = code;
+      if (code === 403) paymentForbidden = true;
+      return this;
+    },
+    json(data: any) {
+      paymentResData = data;
+      return data;
+    },
+    setHeader() {},
+    on() {},
+  } as any;
+
+  const unauthReq = {
+    method: 'POST',
+    path: '/api/v1/payments/topup',
+    headers: { 'idempotency-key': 'attacker_targeted_key_123' },
+    socket: { remoteAddress: '203.0.113.195' },
+    ip: '203.0.113.195',
+    body: { amount: 50 },
+  } as any;
+
+  paymentAuthGuard(unauthReq, mockRes, () => {
+    paymentNext = true;
+  });
+
+  console.assert(paymentForbidden && !paymentNext, 'FAIL: Unauthorized payment request passed paymentAuthGuard!');
+  console.assert(paymentResData?.code === 'PAYMENT_VERIFICATION_REQUIRED', 'FAIL: Expected PAYMENT_VERIFICATION_REQUIRED');
+  console.log('  ✓ paymentAuthGuard rejects unauthorized payment requests before idempotency middleware.');
+
+  // Subtest 20B: Idempotency middleware does NOT cache 401/403 authorization failures
+  const idempotencyMiddleware = idempotency({ requireKey: true });
+  let idempotencyNext = false;
+  let interceptedJsonCalled = false;
+
+  const testRes = {
+    statusCode: 403,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: any) {
+      interceptedJsonCalled = true;
+      return data;
+    },
+    setHeader() {},
+    on() {},
+  } as any;
+
+  idempotencyMiddleware(unauthReq, testRes, () => {
+    idempotencyNext = true;
+  });
+  console.assert(idempotencyNext, 'FAIL: Idempotency middleware did not call next()');
+
+  // Invoke intercepted res.json with 403 Forbidden
+  testRes.json({ error: 'Forbidden', code: 'TEST_DENIAL' });
+  console.assert(interceptedJsonCalled, 'FAIL: Intercepted json was not called');
+
+  // Now, authorized caller issues a request with the SAME idempotency-key
+  let authorizedNext = false;
+  let replayedStatus = 0;
+  let replayedBody: any = null;
+
+  const authReq = {
+    method: 'POST',
+    path: '/api/v1/payments/topup',
+    headers: {
+      'idempotency-key': 'attacker_targeted_key_123',
+      'x-admin-key': 'test_admin_token',
+    },
+    socket: { remoteAddress: '203.0.113.195' },
+    ip: '203.0.113.195',
+    body: { amount: 50 },
+  } as any;
+
+  const authRes = {
+    statusCode: 200,
+    status(code: number) {
+      replayedStatus = code;
+      return this;
+    },
+    json(data: any) {
+      replayedBody = data;
+      return data;
+    },
+    setHeader() {},
+    on() {},
+  } as any;
+
+  idempotencyMiddleware(authReq, authRes, () => {
+    authorizedNext = true;
+  });
+
+  console.assert(authorizedNext, 'FAIL: Authorized caller was blocked by earlier unauthorized attempt!');
+  console.assert(replayedStatus !== 403, 'FAIL: Idempotency middleware replayed an unauthorized 403 response!');
+  console.log('  ✓ Idempotency middleware does not cache 403 denials and isolates principals.');
+
+  // Subtest 20C: Conflicting payload on same idempotency key is rejected with 422
+  // Simulate successful completion for authReq
+  authRes.statusCode = 200;
+  authRes.json({ success: true, transactionId: 'txn_999' });
+
+  // Replay with matching payload should replay
+  let matchingNext = false;
+  let matchReplayed = false;
+  const matchRes = {
+    statusCode: 200,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: any) {
+      matchReplayed = true;
+      return data;
+    },
+    setHeader() {},
+    on() {},
+  } as any;
+
+  idempotencyMiddleware(authReq, matchRes, () => {
+    matchingNext = true;
+  });
+  console.assert(!matchingNext && matchReplayed, 'FAIL: Identical payload was not replayed from idempotency cache');
+
+  // Replay with DIFFERENT payload should return 422 Unprocessable Entity
+  let conflictNext = false;
+  let conflictStatus = 0;
+  let conflictBody: any = null;
+
+  const conflictingReq = {
+    ...authReq,
+    body: { amount: 9999 }, // conflicting payload!
+  };
+
+  const conflictRes = {
+    status(code: number) {
+      conflictStatus = code;
+      return this;
+    },
+    json(data: any) {
+      conflictBody = data;
+      return data;
+    },
+    setHeader() {},
+    on() {},
+  } as any;
+
+  idempotencyMiddleware(conflictingReq, conflictRes, () => {
+    conflictNext = true;
+  });
+
+  console.assert(!conflictNext && conflictStatus === 422, 'FAIL: Conflicting payload reuse was not rejected with 422!');
+  console.assert(conflictBody?.code === 'IDEMPOTENCY_PAYLOAD_MISMATCH', 'FAIL: Expected IDEMPOTENCY_PAYLOAD_MISMATCH code');
+  console.log('  ✓ Reusing an idempotency key with a conflicting payload safely rejected with 422.');
+  console.log('  ✓ CWE-863 Idempotency cache isolation and authorization ordering verified.');
 
   console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }

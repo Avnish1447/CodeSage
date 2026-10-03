@@ -235,6 +235,26 @@ export async function workbenchAuthGuard(req: Request, res: Response, next: () =
   });
 }
 
+/**
+ * Payment Authorization Guard (CWE-863 mitigation).
+ * Authenticates caller before consulting or populating the idempotency cache.
+ */
+export function paymentAuthGuard(req: Request, res: Response, next: () => void) {
+  const adminKey = process.env.ADMIN_KEY;
+  const providedAdminKey = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
+  const isAdmin = Boolean(adminKey && providedAdminKey === adminKey);
+  const isDevAuthorized = isAuthorizedLocalDevPeer(req);
+
+  if (!isAdmin && !isDevAuthorized) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      detail: 'Payment top-up requires administrator authorization or verified server-side payment confirmation.',
+      code: 'PAYMENT_VERIFICATION_REQUIRED',
+    });
+  }
+  next();
+}
+
 let isBackupInProgress = false;
 
 // Health check endpoint enriched with uptime and subsystem telemetry
@@ -376,7 +396,8 @@ apiRouter.get('/spending/records', async (req: Request, res: Response) => {
 });
 
 // Top-up budget with duplicate payment prevention (strict Idempotency-Key header enforcement)
-apiRouter.post('/payments/topup', idempotency({ requireKey: true }), async (req: Request, res: Response) => {
+// paymentAuthGuard runs before idempotency to prevent unauthorized cache pollution or denial of service (CWE-863 mitigation)
+apiRouter.post('/payments/topup', paymentAuthGuard, idempotency({ requireKey: true }), async (req: Request, res: Response) => {
   try {
     const idempotencyKey = (
       (req.headers['idempotency-key'] || req.headers['x-idempotency-key']) as string ||
@@ -400,21 +421,6 @@ apiRouter.post('/payments/topup', idempotency({ requireKey: true }), async (req:
         error: 'Bad Request',
         detail: 'Invalid top-up amount. Must be a positive number up to $100.00 USD.',
         code: 'INVALID_AMOUNT',
-      });
-    }
-
-    // Require administrator authorization for manual credits or local development loopback interface (CWE-345, CWE-352)
-    const adminKey = process.env.ADMIN_KEY;
-    const providedAdminKey = req.headers['x-admin-key'] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '');
-    const isAdmin = Boolean(adminKey && providedAdminKey === adminKey);
-
-    const isDevAuthorized = isAuthorizedLocalDevPeer(req);
-
-    if (!isAdmin && !isDevAuthorized) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        detail: 'Payment top-up requires administrator authorization or verified server-side payment confirmation.',
-        code: 'PAYMENT_VERIFICATION_REQUIRED',
       });
     }
 
