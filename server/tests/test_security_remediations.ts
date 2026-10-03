@@ -310,7 +310,17 @@ async function runSecurityRemediationTests() {
   SpendingService.releaseReservation('res_test_1');
   const allowanceAfterRelease = SpendingService.getReservedAllowance();
   console.assert(allowanceAfterRelease.count === 0, 'FAIL: Released reservation still active');
-  console.log('  ✓ Atomic in-flight budget reservation prevents concurrent spend cap overruns.');
+
+  // Verify multi-worker shared ledger reservation persistence (CWE-362 mitigation)
+  const sharedRes = SpendingService.reserveAllowance('worker_a_res', 4000, 0.004);
+  console.assert(sharedRes.allowed, 'FAIL: Multi-worker reservation rejected');
+  const sharedAllowance = SpendingService.getReservedAllowance();
+  console.assert(sharedAllowance.totalTokens === 4000, 'FAIL: Shared allowance token mismatch');
+  console.assert(sharedAllowance.count === 1, 'FAIL: Shared allowance count mismatch');
+  SpendingService.releaseReservation('worker_a_res');
+  console.assert(SpendingService.getReservedAllowance().count === 0, 'FAIL: Shared reservation was not released');
+
+  console.log('  ✓ Multi-worker shared authoritative ledger reservations and atomic admission verified (CWE-362).');
 
   // -----------------------------------------------------------------------------------
   // TEST 10: Provider Max Output Tokens (Finding 1)

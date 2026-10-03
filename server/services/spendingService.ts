@@ -98,13 +98,17 @@ export class SpendingService {
   private static stmtInsertPayment: any = null;
   private static stmtFindPaymentByIdempotency: any = null;
   private static stmtRecentPayments: any = null;
+  private static stmtInsertReservation: any = null;
+  private static stmtDeleteReservation: any = null;
+  private static stmtPruneReservations: any = null;
+  private static stmtActiveReservations: any = null;
 
   // In-memory micro-cache to eliminate redundant disk scans on high-concurrency requests
   private static cachedDaily: { totalUsd: number; totalTokens: number; callsCount: number; timestamp: number } | null = null;
   private static cachedMonthly: { totalUsd: number; totalTokens: number; callsCount: number; timestamp: number } | null = null;
   private static CACHE_TTL_MS = 2500; // 2.5s TTL
 
-  // In-flight token/spend reservations to prevent concurrent cap overrun (Finding 5)
+  // In-flight token/spend reservations to prevent concurrent cap overrun across workers (CWE-362 mitigation)
   private static inFlightReservations: Map<string, { tokens: number; costUsd: number; expiresAt: number }> = new Map();
 
   private static pruneExpiredReservations(): void {
@@ -114,10 +118,32 @@ export class SpendingService {
         this.inFlightReservations.delete(id);
       }
     }
+    if (this.db && this.stmtPruneReservations) {
+      try {
+        this.stmtPruneReservations.run(now);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   static getReservedAllowance(): { totalTokens: number; totalUsd: number; count: number } {
+    this.init();
     this.pruneExpiredReservations();
+
+    if (this.db && this.stmtActiveReservations) {
+      try {
+        const row = this.stmtActiveReservations.get(Date.now()) as any;
+        return {
+          totalTokens: Number(row?.total_tokens || 0),
+          totalUsd: Math.round(Number(row?.total_usd || 0) * 1000000) / 1000000,
+          count: Number(row?.count || 0),
+        };
+      } catch (err: any) {
+        console.warn('[SpendingService] Failed to query shared reservations:', err.message);
+      }
+    }
+
     let totalTokens = 0;
     let totalUsd = 0;
     for (const res of this.inFlightReservations.values()) {
@@ -133,15 +159,55 @@ export class SpendingService {
 
   /**
    * Atomically reserves tokens and estimated budget before an asynchronous AI provider request starts.
+   * Leverages shared SQLite ledger with immediate transaction locking to prevent multi-worker cap overruns (CWE-362 mitigation).
    * Returns check details and sets allowed: false if the reservation would exceed configured daily/monthly caps.
    */
   static reserveAllowance(reservationId: string, tokens: number = 2048, costUsd?: number): ReturnType<typeof SpendingService.checkSpendingCap> {
+    this.init();
     this.pruneExpiredReservations();
     const estimatedCost = costUsd !== undefined
       ? costUsd
       : Math.round(((tokens / 1000) * SPENDING_CAP_CONFIG.COST_PER_1K_OUTPUT_TOKENS) * 1000000) / 1000000;
 
-    const check = this.checkSpendingCap({ additionalTokens: tokens, additionalUsd: estimatedCost });
+    const expiresAt = Date.now() + 120_000; // 2-minute auto-expiry prevents leaks
+
+    if (this.db && this.stmtInsertReservation) {
+      try {
+        this.db.exec('BEGIN IMMEDIATE');
+
+        if (this.stmtPruneReservations) {
+          this.stmtPruneReservations.run(Date.now());
+        }
+
+        // Evaluate caps using authoritative uncached database totals (CWE-362 mitigation)
+        const check = this.checkSpendingCap({
+          additionalTokens: tokens,
+          additionalUsd: estimatedCost,
+          bypassCache: true,
+        });
+
+        if (!check.allowed) {
+          this.db.exec('ROLLBACK');
+          return check;
+        }
+
+        this.stmtInsertReservation.run(reservationId, tokens, estimatedCost, Date.now(), expiresAt);
+        this.db.exec('COMMIT');
+
+        this.inFlightReservations.set(reservationId, {
+          tokens,
+          costUsd: estimatedCost,
+          expiresAt,
+        });
+
+        return check;
+      } catch (err: any) {
+        try { this.db.exec('ROLLBACK'); } catch {}
+        console.warn('[SpendingService] Failed atomic reserveAllowance in DB:', err.message);
+      }
+    }
+
+    const check = this.checkSpendingCap({ additionalTokens: tokens, additionalUsd: estimatedCost, bypassCache: true });
     if (!check.allowed) {
       return check;
     }
@@ -149,7 +215,7 @@ export class SpendingService {
     this.inFlightReservations.set(reservationId, {
       tokens,
       costUsd: estimatedCost,
-      expiresAt: Date.now() + 120_000, // 2-minute auto-expiry prevents leaks
+      expiresAt,
     });
 
     return check;
@@ -160,6 +226,13 @@ export class SpendingService {
    */
   static releaseReservation(reservationId: string): void {
     this.inFlightReservations.delete(reservationId);
+    if (this.db && this.stmtDeleteReservation) {
+      try {
+        this.stmtDeleteReservation.run(reservationId);
+      } catch (err: any) {
+        console.warn('[SpendingService] Failed to release reservation from shared DB:', err.message);
+      }
+    }
   }
 
   private static get isAvailable(): boolean {
@@ -170,6 +243,9 @@ export class SpendingService {
     this.inFlightReservations.clear();
     if (this.db) {
       try {
+        if (this.stmtPruneReservations) {
+          try { this.db.exec('DELETE FROM spending_reservations'); } catch {}
+        }
         this.stmtInsertUsage = null;
         this.stmtFindByIdempotency = null;
         this.stmtDailySpending = null;
@@ -179,6 +255,10 @@ export class SpendingService {
         this.stmtInsertPayment = null;
         this.stmtFindPaymentByIdempotency = null;
         this.stmtRecentPayments = null;
+        this.stmtInsertReservation = null;
+        this.stmtDeleteReservation = null;
+        this.stmtPruneReservations = null;
+        this.stmtActiveReservations = null;
         this.cachedDaily = null;
         this.cachedMonthly = null;
         this.db.close();
@@ -251,6 +331,18 @@ export class SpendingService {
 
         CREATE INDEX IF NOT EXISTS idx_payment_status_timestamp 
           ON payment_transactions(status, timestamp DESC);
+
+        -- Shared Multi-Worker Reservations Table (CWE-362 mitigation)
+        CREATE TABLE IF NOT EXISTS spending_reservations (
+          reservation_id TEXT PRIMARY KEY,
+          tokens INTEGER NOT NULL,
+          estimated_cost_usd REAL NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_res_expires_at 
+          ON spending_reservations(expires_at);
       `);
 
       // Safe migration: Add idempotency_key column if upgrading from earlier table version
@@ -330,6 +422,29 @@ export class SpendingService {
         FROM payment_transactions
         ORDER BY timestamp DESC
         LIMIT 20
+      `);
+
+      this.stmtInsertReservation = this.db.prepare(`
+        INSERT OR REPLACE INTO spending_reservations (
+          reservation_id, tokens, estimated_cost_usd, created_at, expires_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `);
+
+      this.stmtDeleteReservation = this.db.prepare(`
+        DELETE FROM spending_reservations WHERE reservation_id = ?
+      `);
+
+      this.stmtPruneReservations = this.db.prepare(`
+        DELETE FROM spending_reservations WHERE expires_at <= ?
+      `);
+
+      this.stmtActiveReservations = this.db.prepare(`
+        SELECT
+          COALESCE(SUM(tokens), 0) AS total_tokens,
+          COALESCE(SUM(estimated_cost_usd), 0) AS total_usd,
+          COUNT(*) AS count
+        FROM spending_reservations
+        WHERE expires_at > ?
       `);
     } catch (err: any) {
       console.warn('[SpendingService] Failed to initialize spending database:', err.message);
@@ -654,14 +769,14 @@ export class SpendingService {
 
   /**
    * Retrieves spending totals since beginning of today (local time midnight).
-   * Employs 2.5s in-memory caching to eliminate redundant disk scans.
+   * Employs 2.5s in-memory caching to eliminate redundant disk scans unless bypassCache is requested.
    */
-  static getDailySpending(targetDate = new Date()): { totalUsd: number; totalTokens: number; callsCount: number } {
+  static getDailySpending(targetDate = new Date(), bypassCache = false): { totalUsd: number; totalTokens: number; callsCount: number } {
     this.init();
     if (!this.db || !this.stmtDailySpending) return { totalUsd: 0, totalTokens: 0, callsCount: 0 };
 
     const now = Date.now();
-    if (this.cachedDaily && now - this.cachedDaily.timestamp < this.CACHE_TTL_MS) {
+    if (!bypassCache && this.cachedDaily && now - this.cachedDaily.timestamp < this.CACHE_TTL_MS) {
       return {
         totalUsd: this.cachedDaily.totalUsd,
         totalTokens: this.cachedDaily.totalTokens,
@@ -691,14 +806,14 @@ export class SpendingService {
 
   /**
    * Retrieves spending totals since start of current calendar month.
-   * Employs 2.5s in-memory caching to eliminate redundant disk scans.
+   * Employs 2.5s in-memory caching to eliminate redundant disk scans unless bypassCache is requested.
    */
-  static getMonthlySpending(targetDate = new Date()): { totalUsd: number; totalTokens: number; callsCount: number } {
+  static getMonthlySpending(targetDate = new Date(), bypassCache = false): { totalUsd: number; totalTokens: number; callsCount: number } {
     this.init();
     if (!this.db || !this.stmtMonthlySpending) return { totalUsd: 0, totalTokens: 0, callsCount: 0 };
 
     const now = Date.now();
-    if (this.cachedMonthly && now - this.cachedMonthly.timestamp < this.CACHE_TTL_MS) {
+    if (!bypassCache && this.cachedMonthly && now - this.cachedMonthly.timestamp < this.CACHE_TTL_MS) {
       return {
         totalUsd: this.cachedMonthly.totalUsd,
         totalTokens: this.cachedMonthly.totalTokens,
@@ -729,7 +844,7 @@ export class SpendingService {
    * Pre-flight guard: evaluates whether current spending complies with configured caps,
    * factoring in active in-flight request reservations to prevent concurrent cap overruns.
    */
-  static checkSpendingCap(options?: { additionalTokens?: number; additionalUsd?: number }): {
+  static checkSpendingCap(options?: { additionalTokens?: number; additionalUsd?: number; bypassCache?: boolean }): {
     allowed: boolean;
     reason?: string;
     dailySpendUsd: number;
@@ -743,8 +858,8 @@ export class SpendingService {
     reservedTokens: number;
     reservedUsd: number;
   } {
-    const daily = this.getDailySpending();
-    const monthly = this.getMonthlySpending();
+    const daily = this.getDailySpending(new Date(), options?.bypassCache);
+    const monthly = this.getMonthlySpending(new Date(), options?.bypassCache);
     const reserved = this.getReservedAllowance();
 
     const additionalTokens = options?.additionalTokens || 0;
