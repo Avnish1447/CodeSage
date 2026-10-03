@@ -70,7 +70,7 @@ class IndexedDbService {
     try {
       const db = await this.getDB();
       const targetUrl = this.cleanUrl(url);
-      const targetBranch = branch.trim().toLowerCase();
+      const targetBranch = (branch || 'main').trim();
 
       return new Promise<RepoResponse | null>((resolve) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
@@ -82,8 +82,9 @@ class IndexedDbService {
           if (cursor) {
             const val = cursor.value as RepoResponse;
             const itemUrl = this.cleanUrl(val.overview?.normalized_url || '');
-            const itemBranch = (val.overview?.branch || 'main').toLowerCase();
+            const itemBranch = (val.overview?.branch || 'main').trim();
 
+            // Compare Git refs case-sensitively (CWE-706 mitigation)
             if (itemUrl === targetUrl && itemBranch === targetBranch) {
               resolve({
                 ...val,

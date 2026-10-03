@@ -351,14 +351,20 @@ export function App() {
       try {
         const localCached = await indexedDbService.getCachedAnalysis(trimmed, branch);
         if (localCached) {
-          setRepoData(localCached);
-          setLoading(false);
-          currentInflightRepoRef.current = null;
-          loadCachedList();
-          if (!silent) {
-            showInfo('Loaded from cache', `${localCached.overview.owner}/${localCached.overview.repo} (0ms instant access)`);
+          // Verify cached record matches requested repository and effective ref case-sensitively (CWE-706)
+          const requestedBranch = (branch || 'main').trim();
+          const cachedBranch = (localCached.overview?.branch || 'main').trim();
+
+          if (cachedBranch === requestedBranch) {
+            setRepoData(localCached);
+            setLoading(false);
+            currentInflightRepoRef.current = null;
+            loadCachedList();
+            if (!silent) {
+              showInfo('Loaded from cache', `${localCached.overview.owner}/${localCached.overview.repo} (0ms instant access)`);
+            }
+            return;
           }
-          return;
         }
       } catch (err) {
         console.warn('[App] IndexedDB read error, falling back to server:', err);

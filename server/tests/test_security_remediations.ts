@@ -548,6 +548,23 @@ async function runSecurityRemediationTests() {
 
   console.log('  ✓ Workbench routes enforce server-side session verification, resolving CWE-602.');
 
+  // -----------------------------------------------------------------------------------
+  // TEST 19: Case-Sensitive Git Ref Identity and Collision Resistance (CWE-706)
+  // -----------------------------------------------------------------------------------
+  console.log('\n[Test 19] Testing Case-Sensitive Git Ref Identity & Collision Resistance (CWE-706):');
+  const idUpper = RepoCloneService.generateRepositoryId('org', 'repo', 'https://github.com/org/repo', 'Release-1.0');
+  const idLower = RepoCloneService.generateRepositoryId('org', 'repo', 'https://github.com/org/repo', 'release-1.0');
+  const idMain = RepoCloneService.generateRepositoryId('org', 'repo', 'https://github.com/org/repo', 'main');
+  const idMaster = RepoCloneService.generateRepositoryId('org', 'repo', 'https://github.com/org/repo', 'master');
+
+  console.assert(idUpper !== idLower, `FAIL: Case-variant branch refs produced identical repositoryId: ${idUpper}`);
+  console.assert(idMain !== idMaster, `FAIL: Main and master produced identical repositoryId: ${idMain}`);
+  console.assert(idUpper.length > 20, 'FAIL: Expected collision-resistant repository ID with hash digest');
+  console.log(`  ✓ Case-distinct refs produce isolated identities:`);
+  console.log(`    - "Release-1.0" -> ${idUpper}`);
+  console.log(`    - "release-1.0" -> ${idLower}`);
+  console.log('  ✓ CWE-706 Git ref identity isolation verified.');
+
   console.log('\n=== ALL SECURITY REMEDIATIONS VERIFIED WITH 100% SUCCESS ===');
 }
 

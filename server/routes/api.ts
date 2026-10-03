@@ -680,11 +680,14 @@ apiRouter.post('/repositories', workbenchAuthGuard, cloneLimiter, requestTimeout
         // Try SQLite cache
         const sqliteCached = SqliteCacheService.get(expectedRepoId);
         if (sqliteCached) {
-          return res.json({
-            ...sqliteCached,
-            from_cache: true,
-            cache_source: 'sqlite',
-          });
+          const cachedBranch = (sqliteCached.overview?.branch || 'main').trim();
+          if (cachedBranch === targetBranch.trim()) {
+            return res.json({
+              ...sqliteCached,
+              from_cache: true,
+              cache_source: 'sqlite',
+            });
+          }
         }
 
         // Try filesystem metadata.json fallback
@@ -692,12 +695,15 @@ apiRouter.post('/repositories', workbenchAuthGuard, cloneLimiter, requestTimeout
         if (fs.existsSync(metadataFile)) {
           const content = fs.readFileSync(metadataFile, 'utf-8');
           const fileCached = JSON.parse(content);
-          SqliteCacheService.set(fileCached);
-          return res.json({
-            ...fileCached,
-            from_cache: true,
-            cache_source: 'sqlite',
-          });
+          const cachedBranch = (fileCached.overview?.branch || 'main').trim();
+          if (cachedBranch === targetBranch.trim()) {
+            SqliteCacheService.set(fileCached);
+            return res.json({
+              ...fileCached,
+              from_cache: true,
+              cache_source: 'sqlite',
+            });
+          }
         }
       } catch {
         // Proceed with full analysis

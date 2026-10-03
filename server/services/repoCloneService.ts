@@ -26,13 +26,17 @@ export class RepositoryLimitError extends RepoCloneError {
 export class RepoCloneService {
   static DEFAULT_STORAGE_ROOT = REPOS_DIR;
 
+  /**
+   * Generates a collision-resistant repository ID binding the exact canonical URL and case-sensitive branch ref (CWE-706 mitigation).
+   */
   static generateRepositoryId(owner: string, repo: string, normalizedUrl: string, branch?: string): string {
-    const cleanBranch = branch && branch !== 'main' ? branch.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().substring(0, 16) : '';
-    const urlHash = crypto.createHash('sha1').update(`${normalizedUrl}#${cleanBranch}`, 'utf-8').digest('hex').substring(0, 6);
-    const safeOwner = owner.replace(/-/g, '_').replace(/\./g, '_');
-    const safeRepo = repo.replace(/-/g, '_').replace(/\./g, '_');
-    const branchSuffix = cleanBranch ? `_${cleanBranch}` : '';
-    return `${safeOwner}_${safeRepo}${branchSuffix}_${urlHash}`.toLowerCase();
+    const rawBranch = (branch || 'main').trim();
+    // Compute 12-char SHA-256 digest across canonical URL and exact, case-sensitive branch ref (CWE-706)
+    const refHash = crypto.createHash('sha256').update(`${normalizedUrl}#${rawBranch}`, 'utf-8').digest('hex').substring(0, 12);
+    const safeOwner = owner.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    const safeRepo = repo.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    const branchLabel = rawBranch !== 'main' ? `_${rawBranch.replace(/[^a-zA-Z0-9_.-]/g, '_').substring(0, 32)}` : '';
+    return `${safeOwner}_${safeRepo}${branchLabel}_${refHash}`.toLowerCase();
   }
 
   /**
@@ -190,30 +194,48 @@ export class RepoCloneService {
     }
 
     if (fs.existsSync(repoPath) && this.isCloneComplete(repoDir, repoPath)) {
-      // Repository already exists and was completely cloned, reuse local files
-      const existingFiles = this.listRepositoryFiles(repoPath);
-      if (existingFiles.length > 0) {
-        let totalSizeBytes = 0;
-        for (const file of existingFiles) {
-          try {
-            const stat = fs.statSync(file);
-            totalSizeBytes += stat.size;
-          } catch {
-            // ignore
+      // Repository already exists and was completely cloned.
+      // Verify stored ref metadata matches requested branch case-sensitively (CWE-706 mitigation).
+      const metadataFile = path.join(repoDir, 'metadata.json');
+      let isRefValid = true;
+      if (fs.existsSync(metadataFile)) {
+        try {
+          const storedMeta = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
+          const storedBranch = (storedMeta.overview?.branch || storedMeta.branch || 'main').trim();
+          if (storedBranch !== (branch || 'main').trim()) {
+            isRefValid = false;
           }
+        } catch {
+          // If metadata is corrupted, do not blindly reuse
+          isRefValid = false;
         }
-        const totalSizeMb = totalSizeBytes / (1024 * 1024);
-        const metadata = {
-          repository_id: repositoryId,
-          owner,
-          repo,
-          branch: branch || 'main',
-          normalized_url: normalizedUrl,
-          files: existingFiles.length,
-          size_mb: Math.round(totalSizeMb * 100) / 100,
-          storage_path: repoPath,
-        };
-        return [repoPath, metadata];
+      }
+
+      if (isRefValid) {
+        const existingFiles = this.listRepositoryFiles(repoPath);
+        if (existingFiles.length > 0) {
+          let totalSizeBytes = 0;
+          for (const file of existingFiles) {
+            try {
+              const stat = fs.statSync(file);
+              totalSizeBytes += stat.size;
+            } catch {
+              // ignore
+            }
+          }
+          const totalSizeMb = totalSizeBytes / (1024 * 1024);
+          const metadata = {
+            repository_id: repositoryId,
+            owner,
+            repo,
+            branch: branch || 'main',
+            normalized_url: normalizedUrl,
+            files: existingFiles.length,
+            size_mb: Math.round(totalSizeMb * 100) / 100,
+            storage_path: repoPath,
+          };
+          return [repoPath, metadata];
+        }
       }
     }
 
