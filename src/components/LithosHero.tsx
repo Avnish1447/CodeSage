@@ -49,7 +49,7 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchstart', handleTouchMove, { passive: true });
 
@@ -177,7 +177,11 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             <source srcSet="/logos/text-mark.png" type="image/png" />
             <img
               src="/logos/text-mark.svg"
-              alt="CodeSage"
+              alt="CodeSage (TheCodeSage / Code Sage)"
+              width={240}
+              height={36}
+              loading="eager"
+              fetchPriority="high"
               className={`h-8 sm:h-9 w-auto max-w-[170px] sm:max-w-[240px] object-contain transition-all duration-200 ${
                 isDark
                   ? 'brightness-125 hover:brightness-150 drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]'
@@ -262,7 +266,10 @@ export const LithosHero: React.FC<LithosHeroProps> = ({ onStartDigging, isDark =
             <source srcSet="/logos/app-icon.png" type="image/png" />
             <img
               src="/logos/app-icon.svg"
-              alt="CodeSage"
+              alt="CodeSage Stratigraphy Icon"
+              width={16}
+              height={16}
+              loading="eager"
               className="w-4 h-4 object-contain rounded"
             />
           </picture>

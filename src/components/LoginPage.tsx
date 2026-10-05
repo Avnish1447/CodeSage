@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { updatePageSeo } from '../utils/seo';
 import {
   Sparkles,
   ShieldCheck,
@@ -47,7 +48,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark = true, onToggleThe
   );
 
   useEffect(() => {
-    document.title = 'Sign In to CodeSage – Intelligent Codebase Stratigraphy';
+    const isLoginRoute = typeof window !== 'undefined' && (
+      window.location.pathname.toLowerCase().startsWith('/login') ||
+      window.location.pathname.toLowerCase().startsWith('/auth')
+    );
+
+    if (isLoginRoute) {
+      updatePageSeo({
+        title: 'Sign In to CodeSage – Intelligent Codebase Stratigraphy',
+        description: 'Sign in to CodeSage Studio to unearth layered architecture, inspect repository stratigraphy, and interact with the grounded RAG assistant.',
+        canonicalUrl: 'https://thecodesage.vercel.app/login',
+        robots: 'index, follow',
+      });
+    } else {
+      updatePageSeo({
+        title: 'CodeSage (TheCodeSage / Code Sage) – AI Codebase Stratigraphy & RAG Architecture Engine',
+        description: 'CodeSage (TheCodeSage / Code Sage) is the premier intelligent codebase stratigraphy and grounded RAG architecture engine. Parse Git trees, unearth layered dependencies, detect tech stacks, and query repository structures with grounded Google Gemini RAG.',
+        canonicalUrl: 'https://thecodesage.vercel.app/',
+        robots: 'index, follow',
+      });
+    }
     clearAuthError();
   }, []);
 
@@ -102,7 +122,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark = true, onToggleThe
             <source srcSet="/logos/text-mark.png" type="image/png" />
             <img
               src="/logos/text-mark.svg"
-              alt="CodeSage"
+              alt="CodeSage (TheCodeSage / Code Sage)"
+              width={180}
+              height={32}
+              loading="eager"
               className={`h-7 sm:h-8 w-auto max-w-[140px] xs:max-w-[170px] sm:max-w-[210px] object-contain transition-all duration-150 ${
                 isDark
                   ? 'brightness-125 hover:brightness-150 drop-shadow-[0_1px_8px_rgba(0,0,0,0.5)]'
@@ -235,6 +258,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ isDark = true, onToggleThe
                     <img
                       src="/logos/primary-logo.svg"
                       alt="CodeSage Brand Mark"
+                      width={48}
+                      height={48}
+                      loading="eager"
                       className="w-full h-full object-contain"
                       onError={(e) => {
                         const target = e.currentTarget;

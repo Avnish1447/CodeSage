@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { updatePageSeo } from '../utils/seo';
 
 /**
  * Custom 404 Error Screen matching the exact Canvas & Figma specification.
@@ -10,7 +11,12 @@ import React, { useEffect } from 'react';
  */
 export const NotFoundPage: React.FC = () => {
   useEffect(() => {
-    document.title = "404 – The path may be broken, but the journey isn't | CodeSage";
+    updatePageSeo({
+      title: "404 – The path may be broken, but the journey isn't | CodeSage",
+      description: "The requested page could not be found. Return to CodeSage Studio to explore repository stratigraphy.",
+      canonicalUrl: 'https://thecodesage.vercel.app/404',
+      robots: 'noindex, follow',
+    });
   }, []);
 
   return (

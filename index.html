@@ -49,6 +49,10 @@
     <link rel="apple-touch-icon" href="/logos/app-icon.png" />
     <link rel="manifest" href="/manifest.json" />
 
+    <!-- Core Web Vitals Asset Preloads -->
+    <link rel="preload" as="image" href="/logos/text-mark.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="/logos/app-icon.svg" type="image/svg+xml" />
+
     <!-- Preconnect & Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -88,7 +92,12 @@
         "Git Tree Structural Decomposition",
         "GitReverse AI Builder Architecture Prompts",
         "Disaster Recovery & Atomic Snapshotting"
-      ]
+      ],
+      "author": {
+        "@type": "Organization",
+        "name": "CodeSage",
+        "url": "https://thecodesage.vercel.app/"
+      }
     }
     </script>
     <script type="application/ld+json">
@@ -108,7 +117,25 @@
         "codesag",
         "thecodesage.vercel.app"
       ],
-      "url": "https://thecodesage.vercel.app/"
+      "url": "https://thecodesage.vercel.app/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://thecodesage.vercel.app/?repo={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "CodeSage",
+      "alternateName": "TheCodeSage",
+      "url": "https://thecodesage.vercel.app/",
+      "logo": "https://thecodesage.vercel.app/logos/primary-logo.png",
+      "sameAs": [
+        "https://github.com/Avnish1447/CodeSage"
+      ]
     }
     </script>
   </head>

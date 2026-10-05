@@ -514,9 +514,10 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
                           {children}
                         </pre>
                       ),
-                      h1: ({ children }) => <h1 className="text-sm font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h1>,
-                      h2: ({ children }) => <h2 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h2>,
-                      h3: ({ children }) => <h3 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h3>,
+                      // Map markdown headings to sub-headings so page maintains strict one-h1 hierarchy
+                      h1: ({ children }) => <h4 className="text-sm font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h4>,
+                      h2: ({ children }) => <h5 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h5>,
+                      h3: ({ children }) => <h6 className="text-xs font-semibold text-[#171717] dark:text-white mt-2 mb-1">{children}</h6>,
                     }}
                   >
                     {msg.text}

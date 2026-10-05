@@ -126,7 +126,7 @@ export const BrandKitModal: React.FC<BrandKitModalProps> = ({ isOpen, onClose })
                 <span>Official Brand Assets & Logos</span>
               </div>
               <h2 id="brand-kit-title" className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2 sm:gap-3">
-                <img src="/logos/primary-logo.svg" alt="" className="w-6 h-6 sm:w-7 sm:h-7 object-contain" />
+                <img src="/logos/primary-logo.svg" alt="CodeSage Primary Logo" width={28} height={28} className="w-6 h-6 sm:w-7 sm:h-7 object-contain" />
                 CodeSage Identity Kit
               </h2>
               <p className="text-xs sm:text-sm text-slate-400">

@@ -90,6 +90,7 @@ async function runSeoAndLinksTests() {
     '/brag-extended.jpg',
     '/brag-extended.mp4',
     '/sitemap.xml',
+    '/sitemaps.xml',
     '/sitemap.xsl',
     '/robots.txt',
   ];
@@ -108,9 +109,14 @@ async function runSeoAndLinksTests() {
   console.assert(sitemapContent.includes('<urlset'), 'sitemap.xml missing <urlset> root tag');
   console.assert(sitemapContent.includes('https://thecodesage.vercel.app/404'), 'sitemap.xml missing 404 URL');
 
+  const sitemapsContent = fs.readFileSync(path.resolve('public/sitemaps.xml'), 'utf-8');
+  console.assert(sitemapsContent.includes('https://thecodesage.vercel.app/'), 'sitemaps.xml missing canonical domain');
+  console.assert(sitemapsContent.includes('<urlset'), 'sitemaps.xml missing <urlset> root tag');
+
   const robotsContent = fs.readFileSync(path.resolve('public/robots.txt'), 'utf-8');
   console.assert(robotsContent.includes('Sitemap: https://thecodesage.vercel.app/sitemap.xml'), 'robots.txt missing Sitemap reference');
-  console.log('✅ All internal assets, sitemap.xml, and robots.txt verified.\n');
+  console.assert(robotsContent.includes('Sitemap: https://thecodesage.vercel.app/sitemaps.xml'), 'robots.txt missing sitemaps.xml reference');
+  console.log('✅ All internal assets, sitemap.xml, sitemaps.xml, and robots.txt verified.\n');
 
   // -----------------------------------------------------------------------------------
   // TEST 4: Codebase Space Delimiter / Broken Syntax Check

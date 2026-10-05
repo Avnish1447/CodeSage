@@ -19,6 +19,7 @@ import { BrandKitModal } from './components/BrandKitModal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { LoginPage } from './components/LoginPage';
+import { updatePageSeo } from './utils/seo';
 import { RepoResponse, CachedAnalysisSummary, GitReversePromptData } from './types';
 import { indexedDbService } from './lib/indexedDbService';
 import { useAuth } from './context/AuthContext';
@@ -32,14 +33,10 @@ import {
 import {
   Sparkles,
   Loader2,
-  Terminal,
   Code2,
   Compass,
   MessageSquare,
   LayoutGrid,
-  Layers,
-  Folder,
-  BookOpen,
   PanelLeftClose,
   PanelLeftOpen,
   Github,
@@ -483,23 +480,14 @@ export function App() {
       metaDescription = `Architectural stratigraphy of ${repoData.overview.owner}/${repoData.overview.repo} (${primaryLang}). Explore dependencies, structural files, and ask grounded questions.`;
     }
 
-    document.title = title;
-
-    // Dynamically update standard meta description and Open Graph description tags
-    const descTag = document.querySelector('meta[name="description"]');
-    if (descTag) descTag.setAttribute('content', metaDescription);
-
-    const ogTitleTag = document.querySelector('meta[property="og:title"]');
-    if (ogTitleTag) ogTitleTag.setAttribute('content', title);
-
-    const ogDescTag = document.querySelector('meta[property="og:description"]');
-    if (ogDescTag) ogDescTag.setAttribute('content', metaDescription);
-
-    const twitterTitleTag = document.querySelector('meta[name="twitter:title"]');
-    if (twitterTitleTag) twitterTitleTag.setAttribute('content', title);
-
-    const twitterDescTag = document.querySelector('meta[name="twitter:description"]');
-    if (twitterDescTag) twitterDescTag.setAttribute('content', metaDescription);
+    updatePageSeo({
+      title,
+      description: metaDescription,
+      canonicalUrl: 'https://thecodesage.vercel.app/',
+      robots: 'index, follow',
+      ogTitle: title,
+      ogDescription: metaDescription,
+    });
   }, [loading, error, viewMode, repoData, leftTab, lastAttemptedUrl, showLaunchVideo, showBrandKit]);
 
   // Canonical domain forwarder: redirect preview/deployment aliases (e.g. code-sage-*.vercel.app) to thecodesage.vercel.app
@@ -664,7 +652,7 @@ export function App() {
               <div className="flex items-center space-x-2">
                 <FolderGit2 className="w-4 h-4 text-[#e8702a]" />
                 <span className={`font-semibold text-sm tracking-[-0.28px] ${sidebarOpen ? 'inline' : 'inline lg:hidden'}`}>
-                  {sidebarOpen ? 'Navigation' : 'Navigation & History'}
+                  Repositories
                 </span>
               </div>
               <button
@@ -684,39 +672,6 @@ export function App() {
             {/* Sidebar Navigation Options */}
             {sidebarOpen ? (
               <div className="space-y-5 w-full">
-                {/* Sub-section Filter */}
-                <div>
-                  <span className="text-[11px] font-medium uppercase tracking-wider mb-2 block text-[#8F8F8F] dark:text-[#888888]">
-                    Quick Filter
-                  </span>
-                  <div className="space-y-1">
-                    {[
-                      { id: 'all', label: 'Show All Sections', icon: LayoutGrid },
-                      { id: 'prompt', label: 'Reverse Prompt', icon: Terminal },
-                      { id: 'stack', label: 'Tech Stack', icon: Layers },
-                      { id: 'tree', label: 'File Tree', icon: Folder },
-                      { id: 'learning', label: 'Architecture Guide', icon: BookOpen },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      const isActive = leftTab === item.id;
-                      return (
-                        <button
-                          type="button"
-                          key={item.id}
-                          onClick={() => { setViewMode('split'); setLeftTab(item.id as any); }}
-                          className={`w-full flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                            isActive
-                              ? 'bg-[#F2F2F2] dark:bg-[#202024] text-[#171717] dark:text-[#EDEDED] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
-                              : 'text-[#8F8F8F] dark:text-[#888888] hover:bg-[#FAFAFA] dark:hover:bg-[#161618] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5 text-[#e8702a]" />
-                          <span>{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
                 {/* Recent Repositories History */}
                 <div>
@@ -859,30 +814,14 @@ export function App() {
               </div>
             ) : (
               <div className="hidden lg:flex flex-col items-center space-y-3 py-2">
-                {[
-                  { id: 'all', title: 'Show All Sections', icon: LayoutGrid },
-                  { id: 'stack', title: 'Tech Stack', icon: Layers },
-                  { id: 'tree', title: 'File Tree', icon: Folder },
-                  { id: 'learning', title: 'Architecture Guide', icon: BookOpen },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const isActive = leftTab === item.id;
-                  return (
-                    <button
-                      type="button"
-                      key={item.id}
-                      onClick={() => { setViewMode('split'); setLeftTab(item.id as any); }}
-                      title={item.title}
-                      className={`p-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                        isActive
-                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]'
-                          : 'text-[#8F8F8F] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] hover:text-[#171717] dark:hover:text-[#EDEDED]'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  title="Expand Repositories History"
+                  className="p-2 rounded-lg text-xs font-medium text-[#8F8F8F] hover:bg-[#F2F2F2] dark:hover:bg-[#1c1c1f] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
+                >
+                  <History className="w-4 h-4 text-[#e8702a]" />
+                </button>
               </div>
             )}
           </aside>

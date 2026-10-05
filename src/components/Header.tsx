@@ -190,6 +190,10 @@ export const Header: React.FC<HeaderProps> = ({
               <img
                 src="/logos/text-mark.svg"
                 alt="CodeSage (TheCodeSage / Code Sage)"
+                width={180}
+                height={32}
+                loading="eager"
+                fetchPriority="high"
                 className="h-7 sm:h-8 w-auto max-w-[130px] xs:max-w-[160px] sm:max-w-[200px] object-contain brightness-100 dark:brightness-125 hover:opacity-85 transition-opacity duration-150"
                 onError={(e) => {
                   const target = e.currentTarget;

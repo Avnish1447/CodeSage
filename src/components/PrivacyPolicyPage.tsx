@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { updatePageSeo } from '../utils/seo';
 import {
   Shield,
   FileText,
@@ -45,9 +46,19 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    document.title = activeTab === 'privacy' 
-      ? 'Privacy Policy – CodeSage AI Stratigraphy Engine'
-      : 'Terms & Conditions – CodeSage AI Stratigraphy Engine';
+    const isPrivacy = activeTab === 'privacy';
+    updatePageSeo({
+      title: isPrivacy 
+        ? 'Privacy Policy – CodeSage AI Stratigraphy Engine'
+        : 'Terms & Conditions – CodeSage AI Stratigraphy Engine',
+      description: isPrivacy
+        ? 'Read CodeSage\'s comprehensive privacy policy and data governance practices regarding codebase analysis, local caching, and secure AI processing.'
+        : 'CodeSage terms of service and acceptable usage guidelines for codebase stratigraphy and AI repository analysis.',
+      canonicalUrl: isPrivacy
+        ? 'https://thecodesage.vercel.app/privacypolicy'
+        : 'https://thecodesage.vercel.app/privacypolicy#terms',
+      robots: 'index, follow',
+    });
   }, [activeTab]);
 
   const handleCopyLink = () => {
