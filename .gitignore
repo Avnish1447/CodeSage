@@ -168,3 +168,7 @@ __pycache__/
 .venv/
 venv/
 ENV/
+
+
+# documents
+DSN4091 Capstone Project phase-1 report sample.md
