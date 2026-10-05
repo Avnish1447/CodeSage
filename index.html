@@ -138,9 +138,180 @@
       ]
     }
     </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is CodeSage?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "CodeSage (also known as TheCodeSage or Code Sage) is an intelligent AI codebase stratigraphy and architecture exploration engine. It parses Git repository trees, decomposes complex Abstract Syntax Trees (ASTs), detects full-stack technologies, and connects codebases to Google Gemini 2.5 for grounded Retrieval-Augmented Generation (RAG)."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is Codebase Stratigraphy?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Codebase Stratigraphy is the architectural and chronological layering of software projects. It analyzes repository evolution, structural file trees, recursive AST dependencies, and foundational primitives to give developers a complete holistic view of code topology."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does CodeSage query GitHub repositories using Google Gemini RAG?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "CodeSage clones repository metadata, tokenizes code files, indexes AST hierarchies, and utilizes grounded Google Gemini 2.5 Flash models to answer architectural questions with exact file citations, line-level references, and context-aware explanations."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What programming languages and frameworks does CodeSage support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "CodeSage supports all major programming languages and modern web frameworks including TypeScript, JavaScript, Python, Go, Rust, Java, C++, React, Next.js, FastAPI, Node.js, Express, TailwindCSS, Docker, and Supabase."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is GitReverse AI Builder Prompt generation?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "GitReverse is CodeSage's reverse-engineering feature that extracts full repository architectural specifications, technical stacks, folder schemas, and coding paradigms into structured system prompts tailored for AI coding assistants like Claude, ChatGPT, Cursor, and Gemini."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is CodeSage free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, CodeSage is free and open-source under the MIT license, allowing developers to analyze public GitHub repositories, inspect codebase stratigraphy, and interact with the grounded AI workbench."
+          }
+        }
+      ]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Analyze a GitHub Codebase with CodeSage",
+      "description": "Step-by-step guide to excavating codebase stratigraphy, inspecting AST dependencies, and conversing with code using CodeSage.",
+      "totalTime": "PT1M",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Enter GitHub Repository URL",
+          "text": "Provide any public GitHub repository URL (e.g., https://github.com/facebook/react or https://github.com/fastapi/fastapi) into the CodeSage workbench input."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Excavate Stratigraphy and Detect Tech Stacks",
+          "text": "CodeSage automatically clones repository metadata, calculates language distributions, and identifies frameworks, libraries, and runtime dependencies."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Explore AST File Hierarchy and Dependencies",
+          "text": "Navigate recursive file tree structures, inspect architectural modules, and view complexity metrics."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Converse with Grounded Gemini RAG Assistant",
+          "text": "Ask questions about business logic, data flow, API endpoints, or edge cases with verified source file citations."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 5,
+          "name": "Export GitReverse Architecture Prompts",
+          "text": "Generate ready-to-use AI builder prompts to recreate or extend the software architecture in modern AI developer tools."
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="bg-[#FAFAFA] dark:bg-black text-[#171717] dark:text-[#EDEDED] antialiased min-h-screen transition-colors duration-300">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Semantic Crawler Pre-Render (Replaced by React upon client-side mount) -->
+      <header style="padding: 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">
+        <nav aria-label="Main Navigation">
+          <a href="/" style="font-weight: bold; text-decoration: none; font-size: 1.25rem; color: inherit;">
+            CodeSage <span style="font-size: 0.875rem; color: #666;">(TheCodeSage / Code Sage)</span>
+          </a>
+          <span style="margin-left: 1rem; color: #888;">AI Codebase Stratigraphy &amp; Grounded RAG Architecture Engine</span>
+        </nav>
+      </header>
+
+      <main style="padding: 2rem; max-width: 1000px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif; line-height: 1.6;">
+        <article>
+          <h1 style="font-size: 2.25rem; line-height: 1.2; margin-bottom: 1rem;">
+            CodeSage (TheCodeSage / Code Sage) – Intelligent Codebase Stratigraphy &amp; Grounded RAG Architecture Engine
+          </h1>
+          <p style="font-size: 1.125rem; color: #555; margin-bottom: 2rem;">
+            <strong>CodeSage</strong> is the premier developer intelligence platform for codebase stratigraphy, automated AST decomposition, tech stack detection, and grounded AI repository exploration. Built for software engineers, architects, and engineering leaders seeking to unearth layered code evolution and reverse-engineer complex Git repositories.
+          </p>
+
+          <section style="margin-bottom: 2rem;">
+            <h2 style="font-size: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Core Platform Capabilities</h2>
+            <ul style="padding-left: 1.25rem; margin-top: 0.75rem;">
+              <li><strong>Codebase Stratigraphy:</strong> Excavate commit chronologies, structural dependencies, and file hierarchies to comprehend software evolution.</li>
+              <li><strong>Automated Tech Stack Detection:</strong> Identify languages, build tools, backend frameworks, state managers, and CI/CD pipelines instantly.</li>
+              <li><strong>Grounded Google Gemini 2.5 RAG:</strong> Conversational code exploration powered by grounded retrieval-augmented generation with exact source code citations.</li>
+              <li><strong>Interactive File Tree &amp; AST Exploration:</strong> Traverse repository directory structures, inspect file sizes, and uncover module relationships.</li>
+              <li><strong>GitReverse Architecture Prompts:</strong> Synthesize complete codebase blueprints into structured system prompts for Claude, ChatGPT, Cursor, and Gemini.</li>
+            </ul>
+          </section>
+
+          <section style="margin-bottom: 2rem;">
+            <h2 style="font-size: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">How to Analyze a GitHub Repository</h2>
+            <ol style="padding-left: 1.25rem; margin-top: 0.75rem;">
+              <li>Enter any public GitHub repository URL into the CodeSage Workbench (e.g., <code>https://github.com/Avnish1447/CodeSage</code>).</li>
+              <li>Allow the stratigraphy engine to scan Git commit trees, dependencies, and file topologies.</li>
+              <li>Inspect the detected tech stack, architecture breakdown, and interactive tree.</li>
+              <li>Ask grounded architectural questions to the AI assistant with real-time codebase context.</li>
+              <li>Export structured GitReverse builder prompts for AI-assisted development.</li>
+            </ol>
+          </section>
+
+          <section style="margin-bottom: 2rem;">
+            <h2 style="font-size: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Frequently Asked Questions (FAQ)</h2>
+            <details open style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.02); border-radius: 6px;">
+              <summary style="font-weight: 600; cursor: pointer;">What is Codebase Stratigraphy?</summary>
+              <p style="margin-top: 0.5rem; color: #555;">Codebase Stratigraphy is the architectural analysis of code layered over time. It models source files, abstract syntax trees, and commit histories like geological strata, uncovering core primitives, refactors, and service boundaries.</p>
+            </details>
+            <details style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.02); border-radius: 6px;">
+              <summary style="font-weight: 600; cursor: pointer;">Which programming languages and frameworks are supported?</summary>
+              <p style="margin-top: 0.5rem; color: #555;">CodeSage detects and analyzes TypeScript, JavaScript, Python, Go, Rust, Java, C++, React, Next.js, FastAPI, Node.js, Express, TailwindCSS, Docker, and Supabase repositories.</p>
+            </details>
+            <details style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.02); border-radius: 6px;">
+              <summary style="font-weight: 600; cursor: pointer;">Is CodeSage open source?</summary>
+              <p style="margin-top: 0.5rem; color: #555;">Yes, CodeSage is open source under the MIT License. View source code and contribute on GitHub at <a href="https://github.com/Avnish1447/CodeSage">github.com/Avnish1447/CodeSage</a>.</p>
+            </details>
+          </section>
+        </article>
+      </main>
+
+      <footer style="padding: 2rem; border-top: 1px solid rgba(0,0,0,0.1); text-align: center; font-size: 0.875rem; color: #666;">
+        <p>&copy; 2026 CodeSage (TheCodeSage / Code Sage) Contributors. All rights reserved.</p>
+        <p>
+          <a href="/privacypolicy" style="color: inherit;">Privacy Policy &amp; Terms</a> | 
+          <a href="/login" style="color: inherit;">Sign In</a> | 
+          <a href="https://thecodesage.vercel.app/sitemap.xml" style="color: inherit;">Sitemap</a> | 
+          <a href="https://github.com/Avnish1447/CodeSage" style="color: inherit;">GitHub Repository</a>
+        </p>
+      </footer>
+    </div>
+    <noscript>
+      <div style="padding: 2rem; text-align: center; font-family: sans-serif; background: #fffbe6; color: #856404;">
+        <p><strong>JavaScript is required for the interactive CodeSage Workbench.</strong> Please enable JavaScript in your browser to experience real-time codebase stratigraphy and grounded AI chat.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
