@@ -20,6 +20,52 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationName: s
   ]);
 }
 
+/**
+ * Wraps an async iterable with an idle watchdog timer.
+ * If no chunk is yielded within timeoutMs, the generator throws ETIMEDOUT.
+ */
+async function* withStreamTimeout<T>(
+  iterable: AsyncIterable<T>,
+  timeoutMs: number,
+  operationName: string
+): AsyncGenerator<T> {
+  const iterator = iterable[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      let timer: NodeJS.Timeout | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const err: any = new Error(`${operationName} stalled (no response chunks for ${Math.round(timeoutMs / 1000)} seconds).`);
+          err.code = 'ETIMEDOUT';
+          err.status = 504;
+          reject(err);
+        }, timeoutMs);
+        if (typeof (timer as any)?.unref === 'function') {
+          (timer as any).unref();
+        }
+      });
+
+      try {
+        const nextPromise = iterator.next();
+        const result = await Promise.race([nextPromise, timeoutPromise]);
+        if (timer) clearTimeout(timer);
+        if (result.done) break;
+        yield result.value;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
+  } finally {
+    if (typeof iterator.return === 'function') {
+      try {
+        await iterator.return();
+      } catch {
+        // ignore iterator cleanup error
+      }
+    }
+  }
+}
+
 function ensureEnvLoaded() {
   if (!process.env.GEMINI_API_KEY && typeof process.loadEnvFile === 'function') {
     try {
@@ -41,11 +87,6 @@ function getAiClient(): GoogleGenAI {
     }
     aiClient = new GoogleGenAI({
       apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
     });
   }
   return aiClient;
@@ -68,10 +109,11 @@ export function calculateEstimatedCost(promptTokens: number, outputTokens: numbe
 }
 
 const FREE_FLASH_MODELS = [
+  'gemini-2.5-flash',
   'gemini-3.1-flash-lite',
-  'gemini-3.6-flash',
-  'gemini-flash-latest',
   'gemini-3.8-flash',
+  'gemini-flash-latest',
+  'gemini-3.6-flash',
 ];
 
 function extractStringArray(val: any): string[] {
@@ -117,10 +159,10 @@ export async function generateRepositoryInsights(repoData: any) {
   // Construct prompt before admission to cover full prospective usage (CWE-400 mitigation, Finding #11)
   const prompt = `Analyze this software repository facts and generate a structured overview:
 Repository: ${owner}/${repo}
-Languages: ${JSON.stringify(repoData.facts?.languages)}
-Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
-Important Files: ${JSON.stringify(repoData.facts?.important_files)}
-Stats: ${JSON.stringify(repoData.facts?.stats)}
+Languages: ${languages}
+Frameworks: ${frameworks}
+Important Files: ${impFiles}
+Total Files: ${repoData.overview?.files || repoData.facts?.stats?.file_count || 0}
 
 Provide a JSON object with:
 1. "learning_path": an array of 4-6 sequential step-by-step instructions for a developer to understand this codebase.
@@ -227,6 +269,9 @@ export async function streamRepositoryQuery(
   const rawFws = extractStringArray(repoData.facts?.frameworks);
   const rawImpFiles = extractStringArray(repoData.facts?.important_files);
 
+  const topLanguages = rawLangs.slice(0, 6).join(', ') || 'N/A';
+  const topFrameworks = rawFws.slice(0, 6).join(', ') || 'Standard Libraries';
+  const topImportantFiles = rawImpFiles.slice(0, 8).join(', ') || 'N/A';
   const languages = rawLangs.join(', ') || 'N/A';
   const frameworks = rawFws.join(', ') || 'N/A';
   const importantFiles = rawImpFiles.join(', ') || 'N/A';
@@ -259,14 +304,12 @@ export async function streamRepositoryQuery(
   const contextPrompt = `You are CodeSage, an AI codebase assistant analyzing a GitHub repository.
 
 Repository Context:
-- Owner/Repo: ${owner}/${repo}
-- ID: ${repoData.repository_id}
-- Languages: ${JSON.stringify(repoData.facts?.languages)}
-- Frameworks: ${JSON.stringify(repoData.facts?.frameworks)}
-- Important Files: ${JSON.stringify(repoData.facts?.important_files)}
-- Stats: ${JSON.stringify(repoData.facts?.stats)}
+- Repository: ${owner}/${repo}
+- Primary Languages: ${topLanguages}
+- Frameworks & Libraries: ${topFrameworks}
+- Key Files: ${topImportantFiles}
+- Total Indexed Files: ${fileCount}
 - Architecture Summary: ${repoData.architecture_summary || 'N/A'}
-- Learning Path: ${JSON.stringify(repoData.learning_path || [])}
 
 ${styleDirective}
 
@@ -313,7 +356,13 @@ User Question: ${userQuery}`;
 
         onStatus?.('live', modelName);
         let accumulated = '';
-        for await (const chunk of responseStream) {
+        const monitoredStream = withStreamTimeout(
+          responseStream,
+          10000,
+          `Gemini Chat Stream (${modelName})`
+        );
+
+        for await (const chunk of monitoredStream) {
           if (chunk.text) {
             accumulated += chunk.text;
             onChunk(chunk.text);

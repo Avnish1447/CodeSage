@@ -178,7 +178,21 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
 
       clearTimeout(chatTimeoutId);
 
+      // Stream activity watchdog: aborts if no events/tokens arrive within 18s
+      let streamWatchdog: ReturnType<typeof setTimeout> | null = null;
+      const resetStreamWatchdog = () => {
+        if (streamWatchdog) clearTimeout(streamWatchdog);
+        streamWatchdog = setTimeout(() => {
+          controller.abort(
+            new Error('AI assistant response stalled. No tokens received for 18 seconds. Please retry.')
+          );
+        }, 18000);
+      };
+
+      resetStreamWatchdog();
+
       if (!res.ok) {
+        if (streamWatchdog) clearTimeout(streamWatchdog);
         let errMessage = `Server returned status ${res.status}`;
         try {
           const errData = await res.json();
@@ -203,7 +217,12 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            if (streamWatchdog) clearTimeout(streamWatchdog);
+            break;
+          }
+
+          resetStreamWatchdog();
 
           buffer += decoder.decode(value, { stream: true });
           const blocks = buffer.split('\n\n');

@@ -137,14 +137,14 @@ export const TIMEOUT_CONFIG = {
     return parseInt(process.env.TIMEOUT_GITHUB_API_MS || '15000', 10);
   },
 
-  // Gemini insights generation timeout (default: 25s)
+  // Gemini insights generation timeout (default: 15s)
   get GEMINI_INSIGHTS_TIMEOUT_MS(): number {
-    return parseInt(process.env.TIMEOUT_GEMINI_INSIGHTS_MS || '25000', 10);
+    return parseInt(process.env.TIMEOUT_GEMINI_INSIGHTS_MS || '15000', 10);
   },
 
-  // Gemini chat query stream initial chunk timeout (default: 35s)
+  // Gemini chat query stream initial chunk timeout (default: 20s)
   get GEMINI_CHAT_TIMEOUT_MS(): number {
-    return parseInt(process.env.TIMEOUT_GEMINI_CHAT_MS || '35000', 10);
+    return parseInt(process.env.TIMEOUT_GEMINI_CHAT_MS || '20000', 10);
   },
 
   // Gemini health probe timeout (default: 8s)

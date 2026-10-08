@@ -1399,6 +1399,38 @@ async function handleGetFileContent(req: Request, res: Response) {
       return res.status(400).json({ detail: `Path '${cleanPath}' is a directory, not a file.` });
     }
 
+    let currentStat = stat;
+    if (currentStat.size === 0) {
+      const metadataFile = path.join(repoDir, 'metadata.json');
+      if (fs.existsSync(metadataFile)) {
+        try {
+          const meta = readSafeMetadataJson(metadataFile);
+          const owner = meta?.overview?.owner;
+          const repo = meta?.overview?.repo;
+          const branch = meta?.overview?.branch || 'main';
+          if (owner && repo) {
+            const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encodeURI(cleanPath)}`;
+            const fetchHeaders: Record<string, string> = { 'User-Agent': 'CodeSage-App' };
+            const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+            if (ghToken) fetchHeaders['Authorization'] = `Bearer ${ghToken}`;
+            const fileResp = await fetch(rawUrl, {
+              headers: fetchHeaders,
+              signal: AbortSignal.timeout(6000),
+            });
+            if (fileResp.ok) {
+              const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
+              if (fileBuffer.length > 0 && fileBuffer.length <= RESOURCE_LIMITS.MAX_PREVIEW_BYTES) {
+                fs.writeFileSync(targetPath, fileBuffer);
+                currentStat = fs.statSync(targetPath);
+              }
+            }
+          }
+        } catch {
+          // ignore on-demand fetch error and serve original file
+        }
+      }
+    }
+
     const ext = path.extname(targetPath).toLowerCase();
     const isBinaryExt = BINARY_EXTENSIONS.has(ext);
 
@@ -1408,7 +1440,7 @@ async function handleGetFileContent(req: Request, res: Response) {
         name: path.basename(targetPath),
         extension: ext,
         language: 'binary',
-        size_bytes: stat.size,
+        size_bytes: currentStat.size,
         is_binary: true,
         is_truncated: false,
         content: null,
@@ -1417,7 +1449,7 @@ async function handleGetFileContent(req: Request, res: Response) {
     }
 
     // Read initial buffer to detect null bytes (binary content check)
-    const readLimit = Math.min(stat.size, MAX_PREVIEW_BYTES);
+    const readLimit = Math.min(currentStat.size, MAX_PREVIEW_BYTES);
     const fd = fs.openSync(targetPath, 'r');
     const buffer = Buffer.alloc(readLimit);
     fs.readSync(fd, buffer, 0, readLimit, 0);
