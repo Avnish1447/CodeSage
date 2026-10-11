@@ -19,7 +19,7 @@ The architecture strictly separates client-side visual rendering from server-sid
 │  ┌───────────────────────────────────────────────────────────────────────────┐  │
 │  │                            React 18 SPA (Vite)                            │  │
 │  │  - Lithos Spotlight Hero          - Interactive Workbench (Dual/Explorer) │  │
-│  │  - Repo Input & Preset Launcher    - RAG Chat Section (Markdown Renderer)  │  │
+│  │  - Repo Input & Preset Launcher    - RAG Chat Section (Markdown Renderer) │  │
 │  │  - Tech Stack Visualizer          - Motion Layout Spring Animations       │  │
 │  └───────────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────┬───────────────────────────────────────────┘
