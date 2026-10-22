@@ -327,3 +327,103 @@ html.theme-crossfade-active *::after {
   animation: fdc-dash 2s ease-in-out infinite;
 }
 
+/* ==========================================================================
+   Apple Design & Transitions Tokens (Liquid Glass & Tactile Micro-Interactions)
+   ========================================================================== */
+:root {
+  --tilt-perspective: 1200px;
+  --tilt-return: 700ms;
+  --tilt-return-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --tilt-follow: 250ms;
+  --tilt-follow-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --tilt-glare-opacity: 0.28;
+  --tilt-glare-fade: 250ms;
+  --tilt-glare-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --shimmer-dur: 2000ms;
+  --shimmer-base: #7c7c7c;
+  --shimmer-highlight: #e8702a;
+}
+
+.t-tilt {
+  touch-action: none;
+}
+
+.t-tilt-card {
+  position: relative;
+  transform:
+    perspective(var(--tilt-perspective))
+    rotateX(var(--tilt-rx, 0deg))
+    rotateY(var(--tilt-ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform var(--tilt-return) var(--tilt-return-ease);
+  will-change: transform;
+}
+
+.t-tilt-card.is-tilting {
+  transition: transform var(--tilt-follow) var(--tilt-follow-ease);
+}
+
+.t-tilt-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: inherit;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(circle 120px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+      rgba(255,255,255,0.42), rgba(255,255,255,0.06) 52%, rgba(255,255,255,0) 84%),
+    radial-gradient(circle 240px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+      rgba(255,255,255,0.18), rgba(255,255,255,0.03) 58%, rgba(255,255,255,0) 78%);
+  transition: opacity var(--tilt-glare-fade) var(--tilt-glare-ease);
+}
+
+.t-tilt.is-hover .t-tilt-glare {
+  opacity: var(--tilt-glare-opacity);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-tilt-card {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* Apple Liquid Glass Floating Material */
+.apple-liquid-glass {
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    0 1px 0 0 rgba(255, 255, 255, 0.7) inset,
+    0 8px 32px -4px rgba(0, 0, 0, 0.05),
+    0 2px 8px -2px rgba(0, 0, 0, 0.03);
+}
+
+.dark .apple-liquid-glass {
+  background: rgba(17, 17, 20, 0.78);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 16px 40px -8px rgba(0, 0, 0, 0.5),
+    0 4px 12px -2px rgba(0, 0, 0, 0.3);
+}
+
+.apple-liquid-glass-subtle {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.dark .apple-liquid-glass-subtle {
+  background: rgba(24, 24, 28, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+
