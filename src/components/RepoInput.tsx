@@ -152,10 +152,10 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
   );
 
   return (
-    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 relative overflow-visible">
+    <div className="apple-liquid-glass rounded-2xl p-5 sm:p-7 relative overflow-visible transition-all duration-300">
       {/* Brand & Engine Identifier */}
       <div className="flex items-center space-x-2.5 mb-3">
-        <div className="p-1 rounded-md bg-[#FAFAFA] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+        <div className="p-1.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08]">
           <picture>
             <source srcSet="/logos/app-icon.png" type="image/png" />
             <img src="/logos/app-icon.svg" alt="CodeSage" className="w-4 h-4 object-contain rounded" />
@@ -176,7 +176,7 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* URL Input Bar */}
         <div className="relative flex items-center">
-          <div className="absolute left-3 sm:left-3.5 text-[#8F8F8F] dark:text-[#888888] pointer-events-none">
+          <div className="absolute left-3.5 sm:left-4 text-[#8F8F8F] dark:text-[#888888] pointer-events-none">
             <Github className="w-4 h-4" />
           </div>
           <input
@@ -187,7 +187,7 @@ export const RepoInput: React.FC<RepoInputProps> = ({ onAnalyze, loading, error 
             aria-label="GitHub repository URL"
             maxLength={500}
             disabled={loading}
-            className="w-full bg-[#FAFAFA] dark:bg-[#161618] text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] shadow-[0_0_0_1px_rgba(0,0,0,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] focus:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0072F5] dark:focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#0072F5] outline-none rounded-lg pl-9 sm:pl-10 pr-20 xs:pr-28 sm:pr-32 py-2 sm:py-2.5 text-xs sm:text-sm font-mono transition-all disabled:opacity-50"
+            className="w-full bg-white/70 dark:bg-black/40 text-[#171717] dark:text-[#EDEDED] placeholder-[#8F8F8F] dark:placeholder-[#666666] border border-black/[0.08] dark:border-white/[0.1] focus:border-[#e8702a] dark:focus:border-[#e8702a] focus:ring-2 focus:ring-[#e8702a]/20 outline-none rounded-xl pl-10 sm:pl-11 pr-24 xs:pr-28 sm:pr-32 py-2.5 sm:py-3 text-xs sm:text-sm font-mono transition-all disabled:opacity-50"
           />
 
           {/* Micro Branch Checking Spinner */}
