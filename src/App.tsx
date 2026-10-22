@@ -14,6 +14,7 @@ import { ApiHealthBanner } from './components/ApiHealthBanner';
 import { GitReversePromptCard } from './components/GitReversePromptCard';
 import { FailedRequestCard } from './components/FailedRequestCard';
 import { EmptyWorkbenchState } from './components/EmptyWorkbenchState';
+import { StratigraphyTransitionSection } from './components/StratigraphyTransitionSection';
 import { LaunchVideoModal } from './components/LaunchVideoModal';
 import { BrandKitModal } from './components/BrandKitModal';
 import { NotFoundPage } from './components/NotFoundPage';
@@ -614,18 +615,12 @@ export function App() {
         onToggleTheme={handleToggleTheme}
       />
 
-      {/* Transitional Section Banner */}
-      <section className={`py-9 px-6 text-center relative overflow-hidden transition-colors duration-200 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] ${isDark ? 'bg-black' : 'bg-[#FAFAFA]'}`}>
-        <div className="max-w-4xl mx-auto space-y-3.5">
-
-          <h2 className={`text-2xl sm:text-3xl font-semibold tracking-[-1.28px] ${isDark ? 'text-white' : 'text-[#171717]'}`}>
-            Unearth Architecture & <span className="font-playfair italic font-normal text-[#e8702a]">Deep Code Knowledge</span>
-          </h2>
-          <p className={`text-sm max-w-xl mx-auto leading-relaxed ${isDark ? 'text-[#8F8F8F]' : 'text-[#4D4D4D]'}`}>
-            Transition seamlessly from planetary geology to codebase inspection. Clone any repository, explore tree structures, and chat with Gemini RAG in real-time.
-          </p>
-        </div>
-      </section>
+      {/* Interactive Scroll-Animated Stratigraphy Section */}
+      <StratigraphyTransitionSection
+        isDark={isDark}
+        onExploreClick={scrollToWorkbench}
+        onSelectSample={(sampleUrl) => analyzeRepository(sampleUrl)}
+      />
 
       {/* Main Studio Container */}
       <div ref={workbenchRef} id="workbench" className={`pt-2 flex-1 transition-colors duration-200 ${isDark ? 'bg-black' : 'bg-[#FAFAFA]'}`}>
@@ -637,11 +632,7 @@ export function App() {
         <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 gap-6 items-start">
           {/* IDE STUDIO COLLAPSIBLE SIDEBAR */}
           <aside
-            className={`shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl transition-all duration-200 flex flex-col ${
-              isDark
-                ? 'bg-[#111113] text-[#EDEDED]'
-                : 'bg-white text-[#171717]'
-            } ${
+            className={`apple-liquid-glass rounded-2xl transition-all duration-300 flex flex-col ${
               sidebarOpen
                 ? 'w-full lg:w-72 shrink-0 p-4 space-y-5'
                 : 'w-full lg:w-14 shrink-0 p-2.5 lg:p-2 lg:items-center space-y-0 lg:space-y-3'
@@ -854,9 +845,9 @@ export function App() {
                 />
 
                 {/* Top Control Header Bar */}
-                <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-3 sm:p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-colors duration-200">
-                  {/* Primary View Switcher with Recessed Segmented Track */}
-                  <div className="bg-[#F2F2F2] dark:bg-[#161618] shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] p-1 rounded-lg flex items-center overflow-x-auto max-w-full gap-1 no-scrollbar w-full sm:w-auto">
+                <div className="apple-liquid-glass rounded-2xl p-3 sm:p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-all duration-300">
+                  {/* Primary View Switcher with Sliding Segmented Pill */}
+                  <div className="relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-xl flex items-center overflow-x-auto max-w-full gap-1 no-scrollbar w-full sm:w-auto border border-black/[0.04] dark:border-white/[0.06]">
                     {[
                       { id: 'split', label: 'Dual Workbench', icon: LayoutGrid },
                       { id: 'chat', label: 'Chat Assistant', icon: MessageSquare },
@@ -869,12 +860,19 @@ export function App() {
                           type="button"
                           key={mode.id}
                           onClick={() => setViewMode(mode.id as any)}
-                          className={`flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                          className={`relative flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap z-10 ${
                             isActive
-                              ? 'bg-white dark:bg-[#222226] text-[#171717] dark:text-[#EDEDED] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+                              ? 'text-[#171717] dark:text-white font-semibold'
                               : 'text-[#8F8F8F] hover:text-[#171717] dark:hover:text-[#EDEDED]'
                           }`}
                         >
+                          {isActive && (
+                            <motion.div
+                              layoutId="activeViewPill"
+                              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                              className="absolute inset-0 bg-white dark:bg-[#222227] rounded-lg shadow-sm -z-10 border border-black/[0.06] dark:border-white/[0.1]"
+                            />
+                          )}
                           <Icon className="w-3.5 h-3.5 text-[#e8702a]" />
                           <span>{mode.label}</span>
                         </button>
