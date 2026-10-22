@@ -134,6 +134,10 @@ __MACOSX/
 brag-output/
 *agent-findings*
 
+# UI Transition Catalogs & Snippets (npx transitions-dev)
+transitions/
+.transitions/
+
 # IDE & Editor Settings
 .vscode/*
 !.vscode/settings.json
