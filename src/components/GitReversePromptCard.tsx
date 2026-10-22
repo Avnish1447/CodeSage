@@ -53,7 +53,7 @@ export const GitReversePromptCard: React.FC<GitReversePromptCardProps> = ({
   const paragraphs = promptText.split(/\n\s*\n/).filter(Boolean);
 
   return (
-    <div className="bg-white dark:bg-[#0f0f11] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)] rounded-xl p-4 sm:p-6 space-y-4 transition-colors duration-200">
+    <div className="apple-liquid-glass rounded-2xl p-5 sm:p-7 space-y-4 transition-all duration-300">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-black/[0.06] dark:border-white/[0.08]">
         <div className="flex items-start sm:items-center space-x-3 min-w-0 flex-1">
