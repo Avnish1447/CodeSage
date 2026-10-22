@@ -346,7 +346,7 @@ export const RagChatSection: React.FC<RagChatSectionProps> = ({
   };
 
   return (
-    <div className={`bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 flex flex-col ${heightClass}`}>
+    <div className={`apple-liquid-glass rounded-2xl p-5 sm:p-7 flex flex-col transition-all duration-300 ${heightClass}`}>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)] gap-2">
         <div className="flex items-center space-x-2.5">
