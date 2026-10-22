@@ -11,7 +11,7 @@ export const LearningPathCard: React.FC<LearningPathCardProps> = ({
   architectureSummary,
 }) => {
   return (
-    <div className="bg-white dark:bg-[#111113] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)] rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+    <div className="apple-liquid-glass rounded-2xl p-5 sm:p-7 space-y-4 sm:space-y-6 transition-all duration-300">
       {/* Header */}
       <div className="flex items-center justify-between pb-3.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
         <div className="flex items-center space-x-2.5">
